@@ -144,6 +144,8 @@ struct MenuBarView: View {
                         .font(.subheadline)
                 }
                 .buttonStyle(.plain)
+                .focusable(false)
+                .focusEffectDisabled()
 
                 Spacer()
 
@@ -155,6 +157,8 @@ struct MenuBarView: View {
                         .foregroundStyle(.secondary)
                 }
                 .buttonStyle(.plain)
+                .focusable(false)
+                .focusEffectDisabled()
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 8)
@@ -173,6 +177,11 @@ struct MenuBarActionRow: View {
     let dismiss: DismissAction
     let action: () -> Void
 
+    @State private var isHovered = false
+
+    /// Native macOS menu selection blue
+    private static let selectionBlue = Color(red: 0.04, green: 0.38, blue: 0.98)
+
     var body: some View {
         Button(action: {
             dismiss()
@@ -181,21 +190,30 @@ struct MenuBarActionRow: View {
             HStack(spacing: 10) {
                 Image(systemName: icon)
                     .frame(width: 20)
-                    .foregroundStyle(tintColor ?? .primary)
+                    .foregroundStyle(isHovered ? .white : (tintColor ?? .primary))
                 Text(label)
                     .font(.subheadline)
+                    .foregroundStyle(isHovered ? .white : .primary)
                 Spacer()
                 if !shortcut.isEmpty {
                     Text(shortcut)
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(isHovered ? .white.opacity(0.8) : .secondary)
                 }
             }
             .padding(.horizontal, 8)
             .padding(.vertical, 6)
+            .background(
+                RoundedRectangle(cornerRadius: 4)
+                    .fill(isHovered ? Self.selectionBlue : .clear)
+            )
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .clipShape(.rect(cornerRadius: 6))
+        .focusable(false)
+        .focusEffectDisabled()
+        .onHover { hovering in
+            isHovered = hovering
+        }
     }
 }
