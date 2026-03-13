@@ -243,13 +243,28 @@ final class AppCoordinator {
     }
 
     private func beginRecording(in rect: CGRect) async {
+        let defaults = UserDefaults.standard
+
+        // Show countdown before recording if enabled
+        if defaults.bool(forKey: "showRecordingCountdown") {
+            dismissRecordingIndicator()
+            await withCheckedContinuation { continuation in
+                showRecordingCountdown(seconds: 3) {
+                    continuation.resume()
+                }
+            }
+        }
+
         let recorder = ScreenRecordingService.shared
         let storage = AppEnvironment.shared.storageService
-        let defaults = UserDefaults.standard
 
         // Resolve codec from settings
         let codecString = defaults.string(forKey: "recordingCodec") ?? "h264"
         let codec: AVVideoCodecType = (codecString == "hevc") ? .hevc : .h264
+
+        // Resolve resolution scale
+        let resolutionSetting = defaults.string(forKey: "recordingResolution") ?? "retina"
+        let useRetinaScale = (resolutionSetting == "retina")
 
         do {
             try await recorder.prepareRecording(
@@ -261,6 +276,7 @@ final class AppCoordinator {
                 captureMicrophone: false,
                 showCursor: defaults.bool(forKey: "showCursorInRecording"),
                 codec: codec,
+                useRetinaScale: useRetinaScale,
                 saveDirectory: storage.snapForgeDirectory
             )
             try await recorder.startRecording()
@@ -271,6 +287,11 @@ final class AppCoordinator {
             // Start click visualizer if highlight-clicks is enabled
             if defaults.bool(forKey: "highlightClicks") {
                 ClickVisualizer.shared.start()
+            }
+
+            // Start keystroke visualizer if show-keystrokes is enabled
+            if defaults.bool(forKey: "showKeystrokes") {
+                KeystrokeVisualizer.shared.start()
             }
 
             // Switch from pre-record to recording mode
@@ -294,6 +315,7 @@ final class AppCoordinator {
 
         // Stop click visualizer if it was running
         ClickVisualizer.shared.stop()
+        KeystrokeVisualizer.shared.stop()
 
         dismissRecordingIndicator()
     }
@@ -301,7 +323,13 @@ final class AppCoordinator {
     private func convertToGIF(videoURL: URL) async {
         let encoder = GIFEncoder()
         let gifURL = videoURL.deletingPathExtension().appendingPathExtension("gif")
-        let config = GIFEncoder.Configuration(fps: 10, maxWidth: 640, quality: 0.8)
+        let defaults = UserDefaults.standard
+        let config = GIFEncoder.Configuration(
+            fps: defaults.integer(forKey: "gifFPS"),
+            maxWidth: defaults.integer(forKey: "gifMaxWidth"),
+            loopCount: defaults.integer(forKey: "gifLoopCount"),
+            quality: Float(defaults.double(forKey: "gifQuality"))
+        )
         do {
             try await encoder.encode(
                 inputURL: videoURL,
@@ -341,9 +369,11 @@ final class AppCoordinator {
         // 1. Border overlay — click-through
         showBorderWindow(cocoaRect: cocoaRect, isPreRecord: false)
 
-        // 2. Toolbar panel — non-activating, accepts first mouse
-        let toolbarView = RecordingToolbarView(isGIFMode: isGIFMode)
-        showToolbarPanel(toolbarView: toolbarView, cocoaRect: cocoaRect)
+        // 2. Toolbar panel — only if showRecordingControls is enabled
+        if UserDefaults.standard.bool(forKey: "showRecordingControls") {
+            let toolbarView = RecordingToolbarView(isGIFMode: isGIFMode)
+            showToolbarPanel(toolbarView: toolbarView, cocoaRect: cocoaRect)
+        }
     }
 
     // MARK: - Window Helpers
@@ -413,6 +443,48 @@ final class AppCoordinator {
         recordingBorderWindow = nil
         recordingToolbarPanel?.close()
         recordingToolbarPanel = nil
+    }
+
+    // MARK: - Recording Countdown
+
+    private var recordingCountdownWindow: NSWindow?
+
+    private func showRecordingCountdown(seconds: Int, onComplete: @escaping () -> Void) {
+        guard let screen = NSScreen.main else {
+            onComplete()
+            return
+        }
+
+        let countdownView = CountdownOverlayView(
+            totalSeconds: seconds,
+            captureRect: .zero,
+            screenSize: screen.frame.size,
+            onComplete: { [weak self] in
+                self?.recordingCountdownWindow?.close()
+                self?.recordingCountdownWindow = nil
+                onComplete()
+            },
+            onCancel: { [weak self] in
+                self?.recordingCountdownWindow?.close()
+                self?.recordingCountdownWindow = nil
+            }
+        )
+
+        let hostingView = NSHostingView(rootView: countdownView)
+        let window = NSWindow(
+            contentRect: screen.frame,
+            styleMask: .borderless,
+            backing: .buffered,
+            defer: false
+        )
+        window.contentView = hostingView
+        window.level = .statusBar
+        window.isOpaque = false
+        window.backgroundColor = .clear
+        window.isReleasedWhenClosed = false
+        window.collectionBehavior = [.canJoinAllSpaces, .stationary]
+        window.makeKeyAndOrderFront(nil)
+        recordingCountdownWindow = window
     }
 
     // MARK: - Coordinate Helpers

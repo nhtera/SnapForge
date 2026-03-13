@@ -124,6 +124,7 @@ final class ScreenRecordingService: NSObject {
         captureMicrophone: Bool = false,
         showCursor: Bool = true,
         codec: AVVideoCodecType = .h264,
+        useRetinaScale: Bool = true,
         saveDirectory: URL
     ) async throws {
         guard state == .idle else { return }
@@ -159,7 +160,7 @@ final class ScreenRecordingService: NSObject {
             throw RecordingError.noDisplayFound
         }
 
-        let scaleFactor = screen?.backingScaleFactor ?? 2.0
+        let scaleFactor = useRetinaScale ? (screen?.backingScaleFactor ?? 2.0) : 1.0
         let outputWidth = Int(ceil(rect.width * scaleFactor))
         let outputHeight = Int(ceil(rect.height * scaleFactor))
 

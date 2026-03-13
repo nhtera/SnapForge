@@ -122,10 +122,13 @@ struct RecordingToolbarView: View {
                         .background(.yellow, in: RoundedRectangle(cornerRadius: 3))
                 }
 
-                Text(recorder.formattedDuration)
-                    .font(.system(size: 12, weight: .medium, design: .monospaced))
-                    .foregroundStyle(.white)
-                    .frame(minWidth: 40)
+                // Show elapsed time only if showRecordingTimer is enabled
+                if UserDefaults.standard.bool(forKey: "showRecordingTimer") {
+                    Text(recorder.formattedDuration)
+                        .font(.system(size: 12, weight: .medium, design: .monospaced))
+                        .foregroundStyle(.white)
+                        .frame(minWidth: 40)
+                }
             }
             .padding(.horizontal, 10)
 

@@ -46,6 +46,23 @@ struct GeneralSettingsTab: View {
         Form {
             Section("Startup") {
                 Toggle("Start at login", isOn: $launchAtLogin)
+                    .onChange(of: launchAtLogin) { _, newValue in
+                        do {
+                            if newValue {
+                                try SMAppService.mainApp.register()
+                            } else {
+                                try SMAppService.mainApp.unregister()
+                            }
+                        } catch {
+                            print("❌ Failed to update login item: \(error)")
+                            // Revert toggle on failure
+                            launchAtLogin = !newValue
+                        }
+                    }
+                    .onAppear {
+                        // Sync toggle with actual system state
+                        launchAtLogin = (SMAppService.mainApp.status == .enabled)
+                    }
             }
 
             Section("Sounds") {

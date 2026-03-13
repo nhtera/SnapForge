@@ -4,6 +4,7 @@ import SwiftUI
 struct QuickAccessView: View {
     let capturedImage: NSImage
     @State private var isHovering = false
+    @State private var autoCloseTask: Task<Void, Never>?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -17,6 +18,16 @@ struct QuickAccessView: View {
                 .onDrag {
                     let provider = NSItemProvider(object: capturedImage)
                     provider.suggestedName = StorageService().generateImageFilename()
+
+                    // Close after drag unless ⌥ (Option) is held
+                    if UserDefaults.standard.bool(forKey: "quickAccessCloseAfterDrag") {
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                            if !NSEvent.modifierFlags.contains(.option) {
+                                AppCoordinator.shared.dismissQuickAccess()
+                            }
+                        }
+                    }
+
                     return provider
                 }
                 .overlay(alignment: .topTrailing) {
@@ -98,12 +109,42 @@ struct QuickAccessView: View {
         .background(.ultraThinMaterial)
         .clipShape(RoundedRectangle(cornerRadius: 12))
         .shadow(color: .black.opacity(0.2), radius: 10, y: 4)
+        .onAppear {
+            startAutoCloseTimerIfNeeded()
+        }
+        .onHover { hovering in
+            isHovering = hovering
+            if hovering {
+                // Cancel auto-close while user is interacting
+                autoCloseTask?.cancel()
+            } else {
+                // Restart timer when mouse leaves
+                startAutoCloseTimerIfNeeded()
+            }
+        }
+        .onDisappear {
+            autoCloseTask?.cancel()
+        }
     }
 
     private func saveImage() {
         let storage = StorageService()
         let filename = storage.generateImageFilename()
         if let _ = try? storage.saveImage(capturedImage, filename: filename) {
+            AppCoordinator.shared.dismissQuickAccess()
+        }
+    }
+
+    private func startAutoCloseTimerIfNeeded() {
+        let defaults = UserDefaults.standard
+        guard defaults.bool(forKey: "quickAccessAutoClose") else { return }
+        let timeout = defaults.double(forKey: "quickAccessTimeout")
+        let delay = timeout > 0 ? timeout : 5.0
+
+        autoCloseTask?.cancel()
+        autoCloseTask = Task { @MainActor in
+            try? await Task.sleep(for: .seconds(delay))
+            guard !Task.isCancelled else { return }
             AppCoordinator.shared.dismissQuickAccess()
         }
     }

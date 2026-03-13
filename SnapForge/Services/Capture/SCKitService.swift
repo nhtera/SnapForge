@@ -94,7 +94,7 @@ final class SCKitService {
         let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
         let targetDisplay = display ?? content.displays.first!
 
-        let filter = SCContentFilter(display: targetDisplay, excludingWindows: [])
+        let filter = makeContentFilter(display: targetDisplay, content: content)
         let config = SCStreamConfiguration()
 
         let scaleFactor = NSScreen.main?.backingScaleFactor ?? 2.0
@@ -117,7 +117,7 @@ final class SCKitService {
         let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
         let targetDisplay = display ?? content.displays.first!
 
-        let filter = SCContentFilter(display: targetDisplay, excludingWindows: [])
+        let filter = makeContentFilter(display: targetDisplay, content: content)
         let config = SCStreamConfiguration()
 
         let scaleFactor = NSScreen.main?.backingScaleFactor ?? 2.0
@@ -138,7 +138,7 @@ final class SCKitService {
     }
 
     /// Capture a specific window.
-    func captureWindow(_ window: SCWindow) async throws -> NSImage {
+    func captureWindow(_ window: SCWindow, includeShadow: Bool = true) async throws -> NSImage {
         let filter = SCContentFilter(desktopIndependentWindow: window)
         let config = SCStreamConfiguration()
 
@@ -147,7 +147,7 @@ final class SCKitService {
         config.height = Int(window.frame.height * scaleFactor)
         config.showsCursor = false
         config.captureResolution = .best
-        config.shouldBeOpaque = false // Preserve window transparency/rounded corners
+        config.shouldBeOpaque = !includeShadow // opaque = no shadow/transparency
 
         let cgImage = try await SCScreenshotManager.captureImage(
             contentFilter: filter,
@@ -184,6 +184,33 @@ final class SCKitService {
         return NSImage(
             cgImage: cgImage,
             size: NSSize(width: display.width, height: display.height)
+        )
+    }
+
+    // MARK: - Content Filter Builder
+
+    /// Build an SCContentFilter that optionally excludes desktop icons and widgets.
+    /// Uses DesktopIconManager to identify Finder desktop windows (windowLayer > 0)
+    /// and widget apps. Regular Finder windows are preserved via exceptingWindows.
+    private func makeContentFilter(display: SCDisplay, content: SCShareableContent) -> SCContentFilter {
+        let iconManager = DesktopIconManager.shared
+
+        guard iconManager.isIconHidingEnabled else {
+            // No exclusion — simple filter
+            return SCContentFilter(display: display, excludingWindows: [])
+        }
+
+        // Exclude Finder (desktop icons) and widget apps
+        var excludedApps = iconManager.getFinderApps(from: content)
+        excludedApps += iconManager.getWidgetApps(from: content)
+
+        // But keep visible Finder windows (file browser, etc.)
+        let exceptedWindows = iconManager.getVisibleFinderWindows(from: content)
+
+        return SCContentFilter(
+            display: display,
+            excludingApplications: excludedApps,
+            exceptingWindows: exceptedWindows
         )
     }
 }

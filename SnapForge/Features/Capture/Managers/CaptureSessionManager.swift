@@ -278,7 +278,8 @@ final class CaptureSessionManager {
                     return
                 }
 
-                let image = try await scKitService.captureWindow(scWindow.scWindow)
+                let includeShadow = UserDefaults.standard.bool(forKey: "captureWindowShadow")
+                let image = try await scKitService.captureWindow(scWindow.scWindow, includeShadow: includeShadow)
                 handleCapturedImage(image)
             } catch {
                 print("❌ Window capture failed: \(error)")

@@ -29,8 +29,10 @@ final class AppEnvironment {
             "showMagnifier": true,
             "showCrosshair": true,
             "showDimensions": true,
+            "captureWindowShadow": true,
             "freezeScreen": false,
             "timerDelay": 5,
+            "hideDesktopIcons": false,
             // After-capture actions
             "autoCopyToClipboard": true,
             "autoSave": true,
@@ -41,13 +43,23 @@ final class AppEnvironment {
             // Recording
             "recordingFPS": 30,
             "recordingCodec": "h264",
+            "recordingResolution": "retina",
             "showCursorInRecording": true,
             "highlightClicks": false,
+            "showRecordingControls": true,
+            "showRecordingTimer": true,
+            "showRecordingCountdown": false,
+            "dimScreenWhileRecording": true,
+            "showKeystrokes": false,
             // Quick Access
             "quickAccessTimeout": 5.0,
+            "quickAccessAutoClose": false,
+            "quickAccessCloseAfterDrag": true,
             // GIF
             "gifFPS": 15,
             "gifMaxWidth": 640,
+            "gifQuality": 0.8,
+            "gifLoopCount": 0,
         ])
     }
 }
