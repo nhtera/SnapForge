@@ -135,7 +135,7 @@ final class CaptureSessionManager {
                 let ciImage = CIImage(cgImage: cgImage)
                 let filter = CIFilter(name: "CIGaussianBlur")
                 filter?.setValue(ciImage, forKey: kCIInputImageKey)
-                filter?.setValue(15.0, forKey: kCIInputRadiusKey)
+                filter?.setValue(6.0, forKey: kCIInputRadiusKey)
 
                 if let output = filter?.outputImage {
                     let cropped = output.cropped(to: ciImage.extent)
