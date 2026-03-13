@@ -1,224 +1,596 @@
 import SwiftUI
+import AVFoundation
 
-/// Beautiful onboarding screen with permission requests.
+// MARK: - Onboarding Flow (4 steps, adapted from Snapzy)
+
 struct OnboardingView: View {
     @State private var currentStep = 0
     @State private var permissionService = PermissionService()
 
-    private let steps = [
-        OnboardingStep(
-            icon: "hammer.fill",
-            title: "Welcome to SnapForge",
-            subtitle: "Forge perfect captures.",
-            description: "The beautiful, blazing-fast screenshot & recording app for Mac."
-        ),
-        OnboardingStep(
-            icon: "rectangle.on.rectangle.angled",
-            title: "Screen Recording",
-            subtitle: "Required to capture your screen",
-            description: "SnapForge needs Screen Recording permission to take screenshots and record your screen."
-        ),
-        OnboardingStep(
-            icon: "mic.fill",
-            title: "Microphone",
-            subtitle: "Optional – for voice recordings",
-            description: "Enable microphone access to record your voice alongside screen recordings."
-        ),
-        OnboardingStep(
-            icon: "camera.fill",
-            title: "Camera",
-            subtitle: "Optional – for webcam overlay",
-            description: "Allow camera access to show your webcam during screen recordings."
-        ),
-        OnboardingStep(
-            icon: "hand.raised.fill",
-            title: "Accessibility",
-            subtitle: "Optional – for keystroke display",
-            description: "Enable Accessibility to show key presses during recordings and enable scrolling capture."
-        ),
-        OnboardingStep(
-            icon: "checkmark.circle.fill",
-            title: "You're All Set!",
-            subtitle: "Start capturing with SnapForge",
-            description: "Use the menu bar icon or press ⌘⇧4 to take your first screenshot."
-        ),
-    ]
+    private let totalSteps = 4
 
     var body: some View {
-        VStack(spacing: 0) {
-            // Progress indicator
-            HStack(spacing: 4) {
-                ForEach(0..<steps.count, id: \.self) { index in
-                    Capsule()
-                        .fill(index <= currentStep ? Color.accentColor : Color.secondary.opacity(0.3))
-                        .frame(height: 3)
-                        .animation(.easeInOut, value: currentStep)
+        ZStack {
+            // Background gradient
+            LinearGradient(
+                colors: [
+                    Color(white: 0.08),
+                    Color(white: 0.12),
+                    Color(white: 0.08),
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            .ignoresSafeArea()
+
+            // Content
+            Group {
+                switch currentStep {
+                case 0:
+                    welcomeStep
+                case 1:
+                    permissionsStep
+                case 2:
+                    shortcutsStep
+                case 3:
+                    completionStep
+                default:
+                    EmptyView()
                 }
             }
-            .padding(.horizontal, 32)
+            .transition(.asymmetric(
+                insertion: .move(edge: .trailing).combined(with: .opacity),
+                removal: .move(edge: .leading).combined(with: .opacity)
+            ))
+
+            // Page indicator dots
+            if currentStep > 0 {
+                VStack {
+                    Spacer()
+                    HStack(spacing: 8) {
+                        ForEach(0..<totalSteps, id: \.self) { index in
+                            Circle()
+                                .fill(index == currentStep ? Color.white : Color.white.opacity(0.3))
+                                .frame(width: 7, height: 7)
+                                .animation(.easeInOut(duration: 0.3), value: currentStep)
+                        }
+                    }
+                    .padding(.bottom, 24)
+                }
+            }
+        }
+        .frame(width: 600, height: 560)
+        .preferredColorScheme(.dark)
+    }
+
+    // MARK: - Step 1: Welcome
+
+    private var welcomeStep: some View {
+        VStack(spacing: 24) {
+            Spacer()
+
+            // App icon
+            Image(nsImage: NSApp.applicationIconImage)
+                .resizable()
+                .frame(width: 128, height: 128)
+                .shadow(color: .blue.opacity(0.3), radius: 20, y: 8)
+
+            Text("SnapForge")
+                .font(.system(size: 28, weight: .bold))
+                .foregroundStyle(.white)
+
+            Text("The beautiful, blazing-fast screenshot & recording app for Mac.")
+                .font(.system(size: 14))
+                .foregroundStyle(.white.opacity(0.6))
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: 340)
+
+            // Feature highlights
+            VStack(alignment: .leading, spacing: 12) {
+                FeatureHighlight(icon: "camera.viewfinder", text: "Capture area, fullscreen, or window screenshots")
+                FeatureHighlight(icon: "record.circle", text: "Record screen with system audio & microphone")
+                FeatureHighlight(icon: "pencil.and.outline", text: "Annotate and edit captures instantly")
+            }
+            .padding(.top, 8)
+
+            Spacer()
+
+            Button("Let's do it!") {
+                withAnimation(.easeInOut(duration: 0.4)) { currentStep = 1 }
+            }
+            .buttonStyle(OnboardingPrimaryButton())
+            .keyboardShortcut(.return, modifiers: [])
+
+            Spacer().frame(height: 48)
+        }
+        .padding(.horizontal, 40)
+    }
+
+    // MARK: - Step 2: Grant Permissions (all on one page)
+
+    private var permissionsStep: some View {
+        VStack(spacing: 0) {
+            Spacer()
+
+            // Header
+            Image(systemName: "lock.shield")
+                .font(.system(size: 48))
+                .foregroundStyle(.white.opacity(0.7))
+
+            Text("Grant Permissions")
+                .font(.system(size: 24, weight: .bold))
+                .foregroundStyle(.white)
+                .padding(.top, 20)
+
+            Text("SnapForge needs permissions for capture, audio, and accessibility.")
+                .font(.system(size: 13))
+                .foregroundStyle(.white.opacity(0.6))
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: 340)
+                .padding(.top, 4)
+
+            // Permission rows
+            VStack(spacing: 12) {
+                OnboardingPermissionRow(
+                    icon: "rectangle.dashed.badge.record",
+                    title: "Screen Recording",
+                    description: "Required for screenshots and recordings",
+                    isRequired: true,
+                    isGranted: permissionService.screenRecordingStatus == .granted,
+                    onGrant: { Task { await permissionService.requestScreenRecording() } }
+                )
+
+                OnboardingPermissionRow(
+                    icon: "mic.fill",
+                    title: "Microphone",
+                    description: "Optional for voice recording",
+                    isRequired: false,
+                    isGranted: permissionService.microphoneStatus == .granted,
+                    onGrant: { Task { await permissionService.requestMicrophone() } }
+                )
+
+                OnboardingPermissionRow(
+                    icon: "camera.fill",
+                    title: "Camera",
+                    description: "Optional for webcam overlay",
+                    isRequired: false,
+                    isGranted: permissionService.cameraStatus == .granted,
+                    onGrant: { Task { await permissionService.requestCamera() } }
+                )
+
+                OnboardingPermissionRow(
+                    icon: "hand.raised.fill",
+                    title: "Accessibility",
+                    description: "Optional for keystroke display & shortcuts",
+                    isRequired: false,
+                    isGranted: permissionService.accessibilityStatus == .granted,
+                    onGrant: { permissionService.requestAccessibility() }
+                )
+            }
+            .frame(maxWidth: 420)
+            .padding(.top, 24)
+
+            Spacer()
+
+            // Bottom navigation
+            HStack(spacing: 16) {
+                Button("Quit") {
+                    NSApplication.shared.terminate(nil)
+                }
+                .buttonStyle(OnboardingSecondaryButton())
+
+                Button("Next") {
+                    withAnimation(.easeInOut(duration: 0.4)) { currentStep = 2 }
+                }
+                .buttonStyle(OnboardingPrimaryButton())
+                .disabled(permissionService.screenRecordingStatus != .granted)
+                .keyboardShortcut(.return, modifiers: [])
+            }
+            .padding(.bottom, 48)
+        }
+        .padding(.horizontal, 40)
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            permissionService.refreshAll()
+        }
+    }
+
+    // MARK: - Step 3: Keyboard Shortcuts
+
+    private var shortcutsStep: some View {
+        VStack(spacing: 0) {
+            Spacer()
+
+            Image(systemName: "keyboard")
+                .font(.system(size: 44))
+                .foregroundStyle(.white.opacity(0.7))
+
+            Text("Keyboard Shortcuts")
+                .font(.system(size: 24, weight: .bold))
+                .foregroundStyle(.white)
+                .padding(.top, 20)
+
+            Text("Use these shortcuts for quick access to SnapForge.")
+                .font(.system(size: 13))
+                .foregroundStyle(.white.opacity(0.6))
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: 340)
+                .padding(.top, 4)
+
+            // Shortcut groups
+            VStack(spacing: 14) {
+                ShortcutGroupCard(title: "CAPTURE", shortcuts: [
+                    ("⌘⇧3", "Capture Fullscreen"),
+                    ("⌘⇧4", "Capture Area"),
+                    ("⌘⇧W", "Capture Window"),
+                ])
+
+                ShortcutGroupCard(title: "RECORDING", shortcuts: [
+                    ("⌘⇧5", "Record Screen"),
+                ])
+
+                ShortcutGroupCard(title: "TOOLS", shortcuts: [
+                    ("⌘⇧A", "Open Annotate"),
+                ])
+            }
+            .frame(maxWidth: 380)
+            .padding(.top, 20)
+
+            // Hint text
+            HStack(spacing: 8) {
+                Image(systemName: "gearshape")
+                    .font(.system(size: 12))
+                    .foregroundStyle(.white.opacity(0.3))
+                Text("Customize shortcuts anytime in Preferences → Shortcuts.")
+                    .font(.system(size: 12))
+                    .foregroundStyle(.white.opacity(0.3))
+            }
+            .padding(.top, 12)
+
+            Spacer()
+
+            HStack(spacing: 16) {
+                Button("Skip") {
+                    withAnimation(.easeInOut(duration: 0.4)) { currentStep = 3 }
+                }
+                .buttonStyle(OnboardingSecondaryButton())
+
+                Button("Next") {
+                    withAnimation(.easeInOut(duration: 0.4)) { currentStep = 3 }
+                }
+                .buttonStyle(OnboardingPrimaryButton())
+                .keyboardShortcut(.return, modifiers: [])
+            }
+            .padding(.bottom, 48)
+        }
+        .padding(.horizontal, 40)
+    }
+
+    // MARK: - Step 4: Completion
+
+    private var completionStep: some View {
+        VStack(spacing: 0) {
+            Spacer()
+
+            Image(systemName: "checkmark.circle")
+                .font(.system(size: 48, weight: .light))
+                .foregroundStyle(.green.opacity(0.85))
+
+            Text("You're all set!")
+                .font(.system(size: 24, weight: .bold))
+                .foregroundStyle(.white)
+                .padding(.top, 20)
+
+            Text("SnapForge is ready. Access it from the menu bar or use your keyboard shortcuts.")
+                .font(.system(size: 13))
+                .foregroundStyle(.white.opacity(0.6))
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: 340)
+                .padding(.top, 4)
+
+            // Quick reference hint cards
+            VStack(spacing: 10) {
+                CompletionHintCard(
+                    icon: "menubar.arrow.up.rectangle",
+                    title: "Menu Bar",
+                    description: "Look for the SnapForge icon in your menu bar"
+                )
+                CompletionHintCard(
+                    icon: "keyboard",
+                    title: "Shortcuts",
+                    description: "Use ⌘⇧3, ⌘⇧4, ⌘⇧5 to capture anytime"
+                )
+                CompletionHintCard(
+                    icon: "gearshape",
+                    title: "Preferences",
+                    description: "Customize shortcuts, output format, and more"
+                )
+            }
+            .frame(maxWidth: 380)
             .padding(.top, 20)
 
             Spacer()
 
-            // Step content
-            let step = steps[currentStep]
-
-            VStack(spacing: 16) {
-                Image(systemName: step.icon)
-                    .font(.system(size: 56))
-                    .foregroundStyle(Color.accentColor)
-                    .symbolEffect(.bounce, value: currentStep)
-
-                Text(step.title)
-                    .font(.title)
-                    .fontWeight(.bold)
-
-                Text(step.subtitle)
-                    .font(.title3)
-                    .foregroundStyle(.secondary)
-
-                Text(step.description)
-                    .font(.body)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-                    .frame(maxWidth: 400)
-                    .padding(.top, 4)
-
-                // Permission button (for steps 1-4)
-                if currentStep >= 1 && currentStep <= 4 {
-                    permissionButton(for: currentStep)
-                        .padding(.top, 12)
-                }
-            }
-            .padding(.horizontal, 40)
-
-            Spacer()
-
-            // Navigation
-            HStack {
-                if currentStep > 0 {
-                    Button("Back") {
-                        withAnimation { currentStep -= 1 }
+            // Actions
+            VStack(spacing: 10) {
+                HStack(spacing: 16) {
+                    Button("Open Preferences") {
+                        NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+                        AppCoordinator.shared.dismissOnboarding()
                     }
                     .buttonStyle(.plain)
-                    .foregroundStyle(.secondary)
-                }
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(.white.opacity(0.5))
 
-                Spacer()
-
-                if currentStep < steps.count - 1 {
-                    Button("Continue") {
-                        withAnimation { currentStep += 1 }
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.large)
-                } else {
                     Button("Get Started") {
                         AppCoordinator.shared.dismissOnboarding()
                     }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.large)
+                    .buttonStyle(OnboardingSuccessButton())
+                    .keyboardShortcut(.return, modifiers: [])
                 }
-            }
-            .padding(.horizontal, 32)
-            .padding(.bottom, 24)
-        }
-        .frame(width: 600, height: 500)
-    }
 
-    @ViewBuilder
-    private func permissionButton(for step: Int) -> some View {
-        switch step {
-        case 1:
-            PermissionRow(
-                status: permissionService.screenRecordingStatus,
-                grantAction: { Task { await permissionService.requestScreenRecording() } },
-                refreshAction: { permissionService.checkScreenRecording() }
-            )
-        case 2:
-            PermissionRow(
-                status: permissionService.microphoneStatus,
-                grantAction: { Task { await permissionService.requestMicrophone() } },
-                refreshAction: { permissionService.checkMicrophone() }
-            )
-        case 3:
-            PermissionRow(
-                status: permissionService.cameraStatus,
-                grantAction: { Task { await permissionService.requestCamera() } },
-                refreshAction: { permissionService.checkCamera() }
-            )
-        case 4:
-            PermissionRow(
-                status: permissionService.accessibilityStatus,
-                grantAction: { permissionService.requestAccessibility() },
-                refreshAction: { permissionService.checkAccessibility() }
-            )
-        default:
-            EmptyView()
+                Text("Press Enter ↵")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.white.opacity(0.25))
+            }
+            .padding(.bottom, 48)
         }
+        .padding(.horizontal, 40)
     }
 }
 
-// MARK: - Permission Row
+// MARK: - Feature Highlight (Welcome Step)
 
-struct PermissionRow: View {
-    let status: PermissionService.PermissionStatus
-    let grantAction: () -> Void
-    let refreshAction: () -> Void
+private struct FeatureHighlight: View {
+    let icon: String
+    let text: String
 
     var body: some View {
         HStack(spacing: 12) {
-            // Status indicator
-            Image(systemName: statusIcon)
-                .foregroundStyle(statusColor)
-                .font(.title3)
+            Image(systemName: icon)
+                .font(.system(size: 14))
+                .foregroundStyle(.blue)
+                .frame(width: 24)
 
-            Text(status.rawValue)
-                .font(.subheadline)
-                .foregroundStyle(statusColor)
-
-            Spacer()
-
-            if status != .granted {
-                Button("Grant Access") {
-                    grantAction()
-                }
-                .buttonStyle(.bordered)
-
-                Button(action: refreshAction) {
-                    Image(systemName: "arrow.clockwise")
-                }
-                .buttonStyle(.plain)
-                .foregroundStyle(.secondary)
-            }
-        }
-        .padding(.horizontal, 20)
-        .padding(.vertical, 12)
-        .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 10))
-    }
-
-    private var statusIcon: String {
-        switch status {
-        case .granted: return "checkmark.circle.fill"
-        case .denied: return "xmark.circle.fill"
-        case .notDetermined: return "questionmark.circle"
-        }
-    }
-
-    private var statusColor: Color {
-        switch status {
-        case .granted: return .green
-        case .denied: return .red
-        case .notDetermined: return .orange
+            Text(text)
+                .font(.system(size: 13))
+                .foregroundStyle(.white.opacity(0.6))
         }
     }
 }
 
-// MARK: - Onboarding Step Model
+// MARK: - Permission Row (Permissions Step)
 
-struct OnboardingStep {
+private struct OnboardingPermissionRow: View {
     let icon: String
     let title: String
-    let subtitle: String
     let description: String
+    let isRequired: Bool
+    let isGranted: Bool
+    let onGrant: () -> Void
+
+    var body: some View {
+        HStack(spacing: 16) {
+            // Icon
+            Image(systemName: icon)
+                .font(.system(size: 22))
+                .foregroundStyle(.white)
+                .frame(width: 44, height: 44)
+                .background(
+                    RoundedRectangle(cornerRadius: 10)
+                        .fill(.white.opacity(0.08))
+                )
+
+            // Title + description
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 6) {
+                    Text(title)
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(.white)
+
+                    Text(isRequired ? "Required" : "Optional")
+                        .font(.caption2)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(
+                            isRequired
+                                ? Color.orange.opacity(0.3)
+                                : Color.white.opacity(0.08)
+                        )
+                        .foregroundStyle(isRequired ? .orange : .white.opacity(0.5))
+                        .clipShape(RoundedRectangle(cornerRadius: 4))
+                }
+
+                Text(description)
+                    .font(.system(size: 12))
+                    .foregroundStyle(.white.opacity(0.45))
+            }
+
+            Spacer()
+
+            // Action / Status
+            if isGranted {
+                HStack(spacing: 4) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 16))
+                        .foregroundStyle(.green)
+                    Text("Granted")
+                        .font(.caption)
+                        .foregroundStyle(.green)
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(.green.opacity(0.15))
+                .clipShape(RoundedRectangle(cornerRadius: 6))
+            } else {
+                Button("Grant Access") {
+                    onGrant()
+                }
+                .buttonStyle(OnboardingPrimaryButton())
+                .controlSize(.small)
+            }
+        }
+        .padding(16)
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(.white.opacity(0.05))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(.white.opacity(0.08), lineWidth: 1)
+        )
+    }
+}
+
+// MARK: - Shortcut Group Card (Shortcuts Step)
+
+private struct ShortcutGroupCard: View {
+    let title: String
+    let shortcuts: [(String, String)]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            // Category label
+            Text(title)
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(.white.opacity(0.3))
+                .tracking(1.2)
+                .padding(.horizontal, 14)
+                .padding(.bottom, 8)
+
+            // Shortcut rows
+            VStack(spacing: 0) {
+                ForEach(Array(shortcuts.enumerated()), id: \.offset) { index, item in
+                    HStack(spacing: 12) {
+                        // Key badge
+                        Text(item.0)
+                            .font(.system(size: 13, weight: .medium, design: .monospaced))
+                            .foregroundStyle(.white)
+                            .frame(width: 56, alignment: .center)
+                            .padding(.vertical, 5)
+                            .padding(.horizontal, 6)
+                            .background(
+                                RoundedRectangle(cornerRadius: 6)
+                                    .fill(.white.opacity(0.08))
+                            )
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 6)
+                                    .stroke(.white.opacity(0.1), lineWidth: 1)
+                            )
+
+                        // Action label
+                        Text(item.1)
+                            .font(.system(size: 13))
+                            .foregroundStyle(.white.opacity(0.65))
+
+                        Spacer()
+                    }
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 8)
+
+                    if index < shortcuts.count - 1 {
+                        Divider()
+                            .background(.white.opacity(0.06))
+                            .padding(.horizontal, 14)
+                    }
+                }
+            }
+            .background(
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(.white.opacity(0.05))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 10)
+                    .stroke(.white.opacity(0.08), lineWidth: 1)
+            )
+        }
+    }
+}
+
+// MARK: - Completion Hint Card
+
+private struct CompletionHintCard: View {
+    let icon: String
+    let title: String
+    let description: String
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: icon)
+                .font(.system(size: 14))
+                .foregroundStyle(.white.opacity(0.45))
+                .frame(width: 24, alignment: .center)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(.white)
+
+                Text(description)
+                    .font(.system(size: 12))
+                    .foregroundStyle(.white.opacity(0.45))
+            }
+
+            Spacer()
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(.white.opacity(0.05))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(.white.opacity(0.08), lineWidth: 1)
+        )
+    }
+}
+
+// MARK: - Button Styles
+
+private struct OnboardingPrimaryButton: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.system(size: 14, weight: .semibold))
+            .foregroundStyle(.white)
+            .padding(.vertical, 8)
+            .padding(.horizontal, 20)
+            .background(
+                Capsule()
+                    .fill(.white.opacity(0.18))
+            )
+            .overlay(Capsule().stroke(.white.opacity(0.25), lineWidth: 1))
+            .opacity(configuration.isPressed ? 0.8 : 1.0)
+    }
+}
+
+private struct OnboardingSecondaryButton: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.system(size: 14, weight: .medium))
+            .foregroundStyle(.white.opacity(0.6))
+            .padding(.vertical, 8)
+            .padding(.horizontal, 20)
+            .background(
+                Capsule()
+                    .fill(.white.opacity(0.08))
+            )
+            .overlay(Capsule().stroke(.white.opacity(0.15), lineWidth: 1))
+            .opacity(configuration.isPressed ? 0.7 : 1.0)
+    }
+}
+
+private struct OnboardingSuccessButton: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.system(size: 14, weight: .semibold))
+            .foregroundStyle(.white)
+            .padding(.vertical, 8)
+            .padding(.horizontal, 20)
+            .background(
+                Capsule()
+                    .fill(Color.green.opacity(0.3))
+            )
+            .overlay(Capsule().stroke(.green.opacity(0.5), lineWidth: 1))
+            .opacity(configuration.isPressed ? 0.8 : 1.0)
+    }
 }
