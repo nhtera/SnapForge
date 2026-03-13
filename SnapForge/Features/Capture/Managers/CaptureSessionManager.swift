@@ -209,7 +209,6 @@ final class CaptureSessionManager {
             return
         }
 
-        let ownBundleID = Bundle.main.bundleIdentifier ?? "com.snapforge.app"
         let excludedOwners: Set<String> = ["Window Server", "Dock", "SystemUIServer"]
 
         // Find the topmost window at the click point

@@ -3,6 +3,7 @@ import AVFoundation
 import AppKit
 
 /// Floating webcam overlay for screen recording — shows camera feed in a draggable circle.
+@MainActor
 final class WebcamOverlayManager: NSObject, ObservableObject {
     private var panel: NSPanel?
     private var captureSession: AVCaptureSession?
@@ -22,7 +23,6 @@ final class WebcamOverlayManager: NSObject, ObservableObject {
     func show() {
         guard panel == nil else { return }
 
-        // Set up capture session
         let session = AVCaptureSession()
         session.sessionPreset = .medium
 
@@ -36,11 +36,9 @@ final class WebcamOverlayManager: NSObject, ObservableObject {
             session.addInput(input)
         }
 
-        // Create preview layer
         let preview = AVCaptureVideoPreviewLayer(session: session)
         preview.videoGravity = .resizeAspectFill
 
-        // Create the floating panel
         let size = diameter
         let screenFrame = NSScreen.main?.visibleFrame ?? .zero
         let panelFrame = NSRect(
@@ -63,7 +61,6 @@ final class WebcamOverlayManager: NSObject, ObservableObject {
         overlayPanel.isMovableByWindowBackground = true
         overlayPanel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
 
-        // Create the content view with camera preview
         let contentView = WebcamContentView(frame: panelFrame)
         contentView.wantsLayer = true
         contentView.layer?.cornerRadius = size / 2
@@ -77,9 +74,8 @@ final class WebcamOverlayManager: NSObject, ObservableObject {
 
         overlayPanel.contentView = contentView
         overlayPanel.alphaValue = CGFloat(opacity)
-        overlayPanel.makeKeyAndOrderFront(nil)
+        overlayPanel.orderFrontRegardless()
 
-        // Start capture
         session.startRunning()
 
         self.panel = overlayPanel

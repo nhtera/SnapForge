@@ -2,6 +2,7 @@ import AppKit
 import SwiftUI
 
 /// Displays expanding ripple effects at mouse click locations during screen recording.
+@MainActor
 final class ClickVisualizer: ObservableObject {
     private var clickMonitor: Any?
     private var rippleWindows: [NSWindow] = []
@@ -19,7 +20,11 @@ final class ClickVisualizer: ObservableObject {
         clickMonitor = NSEvent.addGlobalMonitorForEvents(
             matching: [.leftMouseDown, .rightMouseDown]
         ) { [weak self] event in
-            self?.showRipple(at: event.locationInWindow, isRightClick: event.type == .rightMouseDown)
+            let point = event.locationInWindow
+            let isRight = event.type == .rightMouseDown
+            Task { @MainActor [weak self] in
+                self?.showRipple(at: point, isRightClick: isRight)
+            }
         }
         isActive = true
         print("🖱️ Click visualizer started")
@@ -30,7 +35,6 @@ final class ClickVisualizer: ObservableObject {
             NSEvent.removeMonitor(monitor)
             clickMonitor = nil
         }
-        // Clean up any remaining ripple windows
         rippleWindows.forEach { $0.orderOut(nil) }
         rippleWindows.removeAll()
         isActive = false
@@ -44,10 +48,9 @@ final class ClickVisualizer: ObservableObject {
     // MARK: - Ripple Effect
 
     private func showRipple(at screenPoint: CGPoint, isRightClick: Bool) {
-        let size = rippleSize * 2  // Start small, expand to this
+        let size = rippleSize * 2
         let color = isRightClick ? NSColor.systemBlue : rippleColor
 
-        // Convert screen coordinates — NSEvent gives bottom-left origin
         let origin = NSPoint(
             x: screenPoint.x - size / 2,
             y: screenPoint.y - size / 2
@@ -72,18 +75,19 @@ final class ClickVisualizer: ObservableObject {
             color: color
         )
         window.contentView = rippleView
-        window.makeKeyAndOrderFront(nil)
+        window.orderFrontRegardless()
 
         rippleWindows.append(window)
 
-        // Animate expand + fade
         NSAnimationContext.runAnimationGroup({ ctx in
             ctx.duration = fadeDuration
             ctx.timingFunction = CAMediaTimingFunction(name: .easeOut)
             window.animator().alphaValue = 0
-        }, completionHandler: { [weak self] in
-            window.orderOut(nil)
-            self?.rippleWindows.removeAll { $0 === window }
+        }, completionHandler: {
+            MainActor.assumeIsolated { [weak self] in
+                window.orderOut(nil)
+                self?.rippleWindows.removeAll { $0 === window }
+            }
         })
     }
 }
@@ -98,7 +102,6 @@ private class RippleView: NSView {
         super.init(frame: frame)
         wantsLayer = true
 
-        // Draw concentric circles
         let circleLayer = CAShapeLayer()
         let inset: CGFloat = 4
         let circleRect = bounds.insetBy(dx: inset, dy: inset)
@@ -108,7 +111,6 @@ private class RippleView: NSView {
         circleLayer.lineWidth = 3
         layer?.addSublayer(circleLayer)
 
-        // Inner dot
         let dotSize: CGFloat = 12
         let dotRect = CGRect(
             x: bounds.midX - dotSize / 2,
@@ -121,7 +123,6 @@ private class RippleView: NSView {
         dotLayer.fillColor = color.withAlphaComponent(0.9).cgColor
         layer?.addSublayer(dotLayer)
 
-        // Scale animation (expand from center)
         let scaleAnim = CABasicAnimation(keyPath: "transform.scale")
         scaleAnim.fromValue = 0.3
         scaleAnim.toValue = 1.0

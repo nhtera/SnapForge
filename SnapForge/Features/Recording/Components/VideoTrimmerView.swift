@@ -193,16 +193,17 @@ struct VideoTrimmerView: View {
                 end: CMTime(seconds: trimEnd, preferredTimescale: 600)
             )
 
-            await exportSession.export()
-
-            await MainActor.run {
-                isExporting = false
-                if exportSession.status == .completed {
+            do {
+                try await exportSession.export(to: outputURL, as: .mp4)
+                await MainActor.run {
+                    isExporting = false
                     print("✅ Trimmed video exported: \(outputURL.lastPathComponent)")
-                    // Open in Finder
                     NSWorkspace.shared.activateFileViewerSelecting([outputURL])
                     dismiss()
-                } else if let error = exportSession.error {
+                }
+            } catch {
+                await MainActor.run {
+                    isExporting = false
                     print("❌ Export failed: \(error)")
                 }
             }
