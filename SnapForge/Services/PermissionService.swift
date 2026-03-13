@@ -35,20 +35,25 @@ final class PermissionService {
     // MARK: - Screen Recording
 
     func checkScreenRecording() {
-        Task {
-            do {
-                _ = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
-                self.screenRecordingStatus = .granted
-            } catch {
-                self.screenRecordingStatus = .denied
-            }
+        // Use CGPreflightScreenCaptureAccess (macOS 10.15+) — lightweight check
+        // that does NOT trigger macOS 15's re-consent dialog like SCShareableContent does
+        if CGPreflightScreenCaptureAccess() {
+            screenRecordingStatus = .granted
+        } else {
+            screenRecordingStatus = .denied
         }
     }
 
     func requestScreenRecording() {
-        // Open System Settings → Privacy → Screen Recording
-        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture") {
-            NSWorkspace.shared.open(url)
+        // CGRequestScreenCaptureAccess shows the system dialog on first call,
+        // opens System Settings on subsequent calls
+        if CGRequestScreenCaptureAccess() {
+            screenRecordingStatus = .granted
+        } else {
+            // Also open System Settings as a fallback
+            if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture") {
+                NSWorkspace.shared.open(url)
+            }
         }
     }
 

@@ -5,6 +5,7 @@ import SwiftUI
 @MainActor
 @Observable
 final class AppEnvironment {
+    static let shared = AppEnvironment()
     // MARK: - Services
     let permissionService = PermissionService()
     let hotkeyService = HotkeyService()

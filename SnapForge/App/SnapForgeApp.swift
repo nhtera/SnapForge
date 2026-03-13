@@ -3,7 +3,7 @@ import SwiftUI
 @main
 struct SnapForgeApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
-    @State private var appEnvironment = AppEnvironment()
+    @State private var appEnvironment = AppEnvironment.shared
 
     var body: some Scene {
         // Menu Bar
@@ -25,6 +25,7 @@ struct SnapForgeApp: App {
 }
 
 // MARK: - App Delegate
+@MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var coordinator: AppCoordinator?
 
@@ -38,9 +39,43 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if !UserDefaults.standard.bool(forKey: "hasCompletedOnboarding") {
             coordinator?.showOnboarding()
         }
+
+        // Register global hotkeys
+        registerHotkeys()
+    }
+
+    private func registerHotkeys() {
+        let hotkeys = AppEnvironment.shared.hotkeyService
+
+        hotkeys.register(hotkey: .captureArea) { @Sendable in
+            Task { @MainActor in
+                CaptureSessionManager.shared.startCapture(mode: .area)
+            }
+        }
+        hotkeys.register(hotkey: .captureFullscreen) { @Sendable in
+            Task { @MainActor in
+                CaptureSessionManager.shared.startCapture(mode: .fullscreen)
+            }
+        }
+        hotkeys.register(hotkey: .captureWindow) { @Sendable in
+            Task { @MainActor in
+                CaptureSessionManager.shared.startCapture(mode: .window)
+            }
+        }
+        hotkeys.register(hotkey: .startRecording) { @Sendable in
+            print("📹 Recording hotkey pressed")
+        }
+        hotkeys.register(hotkey: .toggleOCR) { @Sendable in
+            print("🔍 OCR hotkey pressed")
+        }
+
+        hotkeys.startListening()
+        print("⌨️ Global hotkeys registered and listening")
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        AppEnvironment.shared.hotkeyService.stopListening()
         coordinator?.cleanup()
     }
 }
+

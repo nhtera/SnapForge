@@ -49,31 +49,11 @@ final class AppCoordinator {
     // MARK: - Capture Overlay
 
     func showCaptureOverlay(for mode: CaptureMode) {
-        guard let screen = NSScreen.main else { return }
-
-        let captureView = CaptureView(mode: mode)
-        let hostingView = NSHostingView(rootView: captureView)
-
-        let window = NSWindow(
-            contentRect: screen.frame,
-            styleMask: .borderless,
-            backing: .buffered,
-            defer: false
-        )
-        window.contentView = hostingView
-        window.level = .screenSaver
-        window.isOpaque = false
-        window.backgroundColor = .clear
-        window.ignoresMouseEvents = false
-        window.acceptsMouseMovedEvents = true
-        window.makeKeyAndOrderFront(nil)
-
-        captureOverlayWindow = window
+        CaptureSessionManager.shared.startCapture(mode: mode)
     }
 
     func dismissCaptureOverlay() {
-        captureOverlayWindow?.close()
-        captureOverlayWindow = nil
+        CaptureSessionManager.shared.dismissOverlay()
     }
 
     // MARK: - Quick Access Overlay

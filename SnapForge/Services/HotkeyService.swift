@@ -2,7 +2,7 @@ import Foundation
 import AppKit
 import Carbon.HIToolbox
 
-/// Manages global keyboard shortcuts using CGEvent taps.
+/// Manages global keyboard shortcuts using NSEvent monitors (sandbox-compatible).
 @Observable
 final class HotkeyService {
 
@@ -14,6 +14,17 @@ final class HotkeyService {
 
         var modifiers: CGEventFlags {
             CGEventFlags(rawValue: modifiersRawValue)
+        }
+
+        /// Convert CGEventFlags to NSEvent.ModifierFlags for comparison
+        var nsModifiers: NSEvent.ModifierFlags {
+            var flags: NSEvent.ModifierFlags = []
+            let cg = modifiers
+            if cg.contains(.maskCommand) { flags.insert(.command) }
+            if cg.contains(.maskShift) { flags.insert(.shift) }
+            if cg.contains(.maskAlternate) { flags.insert(.option) }
+            if cg.contains(.maskControl) { flags.insert(.control) }
+            return flags
         }
 
         init(id: String, keyCode: UInt16, modifiers: CGEventFlags, label: String) {
@@ -59,8 +70,8 @@ final class HotkeyService {
         )
     }
 
-    private var eventTap: CFMachPort?
-    private var runLoopSource: CFRunLoopSource?
+    private var globalMonitor: Any?
+    private var localMonitor: Any?
     private var hotkeyActions: [String: @Sendable () -> Void] = [:]
 
     var registeredHotkeys: [Hotkey] = [
@@ -84,66 +95,57 @@ final class HotkeyService {
     func startListening() {
         guard !isListening else { return }
 
-        let eventMask: CGEventMask = (1 << CGEventType.keyDown.rawValue)
-
-        let callback: CGEventTapCallBack = { proxy, type, event, refcon -> Unmanaged<CGEvent>? in
-            guard let refcon = refcon else { return Unmanaged.passRetained(event) }
-            let service = Unmanaged<HotkeyService>.fromOpaque(refcon).takeUnretainedValue()
-            return service.handleEvent(proxy: proxy, type: type, event: event)
+        // Global monitor — catches events when app is NOT focused (sandbox-safe)
+        globalMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            self?.handleKeyEvent(event)
         }
 
-        eventTap = CGEvent.tapCreate(
-            tap: .cgSessionEventTap,
-            place: .headInsertEventTap,
-            options: .defaultTap,
-            eventsOfInterest: eventMask,
-            callback: callback,
-            userInfo: Unmanaged.passUnretained(self).toOpaque()
-        )
-
-        guard let eventTap = eventTap else {
-            print("⚠️ HotkeyService: Failed to create event tap. Accessibility permission may be required.")
-            return
+        // Local monitor — catches events when app IS focused
+        localMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            guard let self = self else { return event }
+            let consumed = self.handleKeyEvent(event)
+            return consumed ? nil : event
         }
 
-        runLoopSource = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, eventTap, 0)
-        CFRunLoopAddSource(CFRunLoopGetCurrent(), runLoopSource, .commonModes)
-        CGEvent.tapEnable(tap: eventTap, enable: true)
         isListening = true
+        print("✅ HotkeyService: NSEvent monitors active (sandbox-compatible)")
     }
 
     func stopListening() {
-        guard isListening, let eventTap = eventTap else { return }
-        CGEvent.tapEnable(tap: eventTap, enable: false)
-        if let source = runLoopSource {
-            CFRunLoopRemoveSource(CFRunLoopGetCurrent(), source, .commonModes)
+        if let global = globalMonitor {
+            NSEvent.removeMonitor(global)
+            globalMonitor = nil
+        }
+        if let local = localMonitor {
+            NSEvent.removeMonitor(local)
+            localMonitor = nil
         }
         isListening = false
     }
 
     // MARK: - Event Handling
 
-    private func handleEvent(proxy: CGEventTapProxy, type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
-        guard type == .keyDown else { return Unmanaged.passRetained(event) }
-
-        let keyCode = UInt16(event.getIntegerValueField(.keyboardEventKeycode))
-        let flags = event.flags
+    /// Returns true if the event was consumed by a hotkey action.
+    @discardableResult
+    private func handleKeyEvent(_ event: NSEvent) -> Bool {
+        let keyCode = event.keyCode
+        // Mask out caps lock, num lock, function keys — only check modifier keys we care about
+        let flags = event.modifierFlags.intersection([.command, .shift, .option, .control])
 
         for hotkey in registeredHotkeys {
-            if keyCode == hotkey.keyCode && flags.contains(hotkey.modifiers) {
+            if keyCode == hotkey.keyCode && flags == hotkey.nsModifiers {
                 if let action = hotkeyActions[hotkey.id] {
-                    DispatchQueue.main.async { @Sendable in
-                        action()
-                    }
-                    return nil // Consume the event
+                    action()
+                    return true
                 }
             }
         }
 
-        return Unmanaged.passRetained(event)
+        return false
     }
 
     deinit {
         stopListening()
     }
 }
+

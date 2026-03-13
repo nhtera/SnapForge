@@ -6,10 +6,6 @@
     <key>com.apple.security.app-sandbox</key>
     <true/>
 
-    <!-- Screen Recording (ScreenCaptureKit) -->
-    <key>com.apple.security.screen-recording</key>
-    <true/>
-
     <!-- Camera access -->
     <key>com.apple.security.device.camera</key>
     <true/>
@@ -29,5 +25,12 @@
     <!-- Network (for future cloud features) -->
     <key>com.apple.security.network.client</key>
     <true/>
+
+    <!-- Read system keyboard shortcut preferences (from Snapzy) -->
+    <key>com.apple.security.temporary-exception.shared-preference.read-only</key>
+    <array>
+        <string>com.apple.symbolichotkeys</string>
+    </array>
 </dict>
 </plist>
+
