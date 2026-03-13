@@ -35,14 +35,20 @@ class CaptureOverlayPanel: NSPanel {
 }
 
 /// NSView subclass that handles mouse events and renders the selection overlay.
+/// In window mode: detects windows under cursor, highlights them with blue border + camera icon.
+/// In area mode: crosshair + drag-to-select area.
 class CaptureOverlayNSView: NSView {
     var mode: CaptureMode = .area
 
-    // Selection state
+    // Selection state (area mode)
     var selectionStart: CGPoint?
     var selectionRect: CGRect?
     var currentMousePosition: CGPoint = .zero
     var isDragging = false
+
+    // Window mode state
+    var detectedWindowRect: CGRect?  // In view coordinates (bottom-up)
+    var detectedWindowTitle: String?
 
     // Callbacks
     var onSelectionComplete: ((CGRect) -> Void)?
@@ -79,23 +85,230 @@ class CaptureOverlayNSView: NSView {
         super.draw(dirtyRect)
         guard let context = NSGraphicsContext.current?.cgContext else { return }
 
-        // 1. Draw dim overlay (outside selection)
+        if mode == .window {
+            drawWindowMode(context: context)
+        } else {
+            drawAreaMode(context: context)
+        }
+    }
+
+    // MARK: - Window Mode Drawing (CleanShot X style)
+
+    private func drawWindowMode(context: CGContext) {
+        // Dim the entire screen
+        context.setFillColor(NSColor.black.withAlphaComponent(0.25).cgColor)
+        context.fill(bounds)
+
+        if let windowRect = detectedWindowRect {
+            // Clear the window area (bright hole — window shows through)
+            context.setBlendMode(.clear)
+            context.fill(windowRect)
+            context.setBlendMode(.normal)
+
+            // Draw highlighted border around detected window
+            context.setStrokeColor(NSColor.systemBlue.cgColor)
+            context.setLineWidth(3)
+            let borderRect = windowRect.insetBy(dx: -1.5, dy: -1.5)
+            let borderPath = CGPath(roundedRect: borderRect, cornerWidth: 6, cornerHeight: 6, transform: nil)
+            context.addPath(borderPath)
+            context.strokePath()
+
+            // Draw subtle glow effect
+            context.saveGState()
+            context.setShadow(offset: .zero, blur: 12, color: NSColor.systemBlue.withAlphaComponent(0.4).cgColor)
+            context.setStrokeColor(NSColor.systemBlue.withAlphaComponent(0.5).cgColor)
+            context.setLineWidth(2)
+            context.addPath(borderPath)
+            context.strokePath()
+            context.restoreGState()
+
+            // Draw centered camera icon
+            drawCameraIcon(context: context, in: windowRect)
+
+            // Draw window title pill below the window
+            if let title = detectedWindowTitle, !title.isEmpty {
+                drawWindowTitlePill(context: context, title: title, windowRect: windowRect)
+            }
+        }
+
+        // Instruction text at bottom center
+        drawInstructionText(context: context, text: "Click a window to capture  •  ESC to cancel")
+    }
+
+    /// Draw camera icon centered in the window rect — dark circle + white camera SF Symbol
+    private func drawCameraIcon(context: CGContext, in rect: CGRect) {
+        let iconSize: CGFloat = 48
+        let centerX = rect.midX
+        let centerY = rect.midY
+
+        // Background circle
+        let circleRect = CGRect(
+            x: centerX - iconSize / 2 - 8,
+            y: centerY - iconSize / 2 - 8,
+            width: iconSize + 16,
+            height: iconSize + 16
+        )
+        context.saveGState()
+        context.setFillColor(NSColor.black.withAlphaComponent(0.55).cgColor)
+        context.fillEllipse(in: circleRect)
+
+        // Circle border
+        context.setStrokeColor(NSColor.white.withAlphaComponent(0.4).cgColor)
+        context.setLineWidth(1.5)
+        context.strokeEllipse(in: circleRect)
+        context.restoreGState()
+
+        // Draw SF Symbol camera icon (tinted white)
+        let config = NSImage.SymbolConfiguration(pointSize: iconSize * 0.6, weight: .medium)
+        if let cameraImage = NSImage(systemSymbolName: "camera.fill", accessibilityDescription: nil)?
+            .withSymbolConfiguration(config) {
+            let imageRect = CGRect(
+                x: centerX - cameraImage.size.width / 2,
+                y: centerY - cameraImage.size.height / 2,
+                width: cameraImage.size.width,
+                height: cameraImage.size.height
+            )
+            // Tint the icon white
+            let tinted = cameraImage.copy() as! NSImage
+            tinted.lockFocus()
+            NSColor.white.set()
+            NSRect(origin: .zero, size: tinted.size).fill(using: .sourceAtop)
+            tinted.unlockFocus()
+            tinted.draw(in: imageRect, from: .zero, operation: .sourceOver, fraction: 0.9)
+        }
+    }
+
+    /// Draw window title pill below the detected window
+    private func drawWindowTitlePill(context: CGContext, title: String, windowRect: CGRect) {
+        let nsTitle = title as NSString
+        let attrs: [NSAttributedString.Key: Any] = [
+            .font: NSFont.systemFont(ofSize: 12, weight: .medium),
+            .foregroundColor: NSColor.white,
+        ]
+        let textSize = nsTitle.size(withAttributes: attrs)
+        let padding: CGFloat = 10
+
+        let pillRect = CGRect(
+            x: windowRect.midX - (textSize.width + padding * 2) / 2,
+            y: windowRect.minY - textSize.height - padding * 2 - 8,
+            width: textSize.width + padding * 2,
+            height: textSize.height + padding
+        )
+
+        let adjustedPill = pillRect.minY < 4
+            ? CGRect(x: pillRect.origin.x, y: windowRect.maxY + 8, width: pillRect.width, height: pillRect.height)
+            : pillRect
+
+        context.setFillColor(NSColor.black.withAlphaComponent(0.7).cgColor)
+        let path = CGPath(roundedRect: adjustedPill, cornerWidth: 6, cornerHeight: 6, transform: nil)
+        context.addPath(path)
+        context.fillPath()
+
+        let textOrigin = CGPoint(
+            x: adjustedPill.origin.x + padding,
+            y: adjustedPill.origin.y + padding / 2
+        )
+        nsTitle.draw(at: textOrigin, withAttributes: attrs)
+    }
+
+    /// Draw instruction text at bottom center
+    private func drawInstructionText(context: CGContext, text: String) {
+        let nsText = text as NSString
+        let attrs: [NSAttributedString.Key: Any] = [
+            .font: NSFont.systemFont(ofSize: 13, weight: .medium),
+            .foregroundColor: NSColor.white.withAlphaComponent(0.8),
+        ]
+        let textSize = nsText.size(withAttributes: attrs)
+        let padding: CGFloat = 12
+
+        let pillRect = CGRect(
+            x: bounds.midX - (textSize.width + padding * 2) / 2,
+            y: 40,
+            width: textSize.width + padding * 2,
+            height: textSize.height + padding
+        )
+
+        context.setFillColor(NSColor.black.withAlphaComponent(0.6).cgColor)
+        let path = CGPath(roundedRect: pillRect, cornerWidth: 8, cornerHeight: 8, transform: nil)
+        context.addPath(path)
+        context.fillPath()
+
+        let textOrigin = CGPoint(
+            x: pillRect.origin.x + padding,
+            y: pillRect.origin.y + padding / 2
+        )
+        nsText.draw(at: textOrigin, withAttributes: attrs)
+    }
+
+    // MARK: - Window Detection
+
+    /// Detect the window under the current mouse position using CGWindowListCopyWindowInfo
+    private func detectWindowUnderCursor() {
+        guard mode == .window else { return }
+        guard let screen = window?.screen ?? NSScreen.main else { return }
+
+        let screenHeight = screen.frame.height
+        // Convert view coordinates (bottom-up) to CG coordinates (top-down)
+        let cgMousePoint = CGPoint(x: currentMousePosition.x, y: screenHeight - currentMousePosition.y)
+
+        guard let windowInfoList = CGWindowListCopyWindowInfo(
+            [.optionOnScreenOnly, .excludeDesktopElements],
+            kCGNullWindowID
+        ) as? [[String: Any]] else { return }
+
+        let ownPID = ProcessInfo.processInfo.processIdentifier
+        let excludedOwners: Set<String> = ["Window Server", "Dock", "SystemUIServer"]
+
+        var foundRect: CGRect?
+        var foundTitle: String?
+
+        for info in windowInfoList {
+            if let ownerPID = info[kCGWindowOwnerPID as String] as? Int32, ownerPID == ownPID { continue }
+            if let ownerName = info[kCGWindowOwnerName as String] as? String, excludedOwners.contains(ownerName) { continue }
+
+            guard let boundsDict = info[kCGWindowBounds as String] as? [String: CGFloat],
+                  let x = boundsDict["X"],
+                  let y = boundsDict["Y"],
+                  let w = boundsDict["Width"],
+                  let h = boundsDict["Height"] else { continue }
+
+            guard w > 50 && h > 50 else { continue }
+
+            let cgWindowRect = CGRect(x: x, y: y, width: w, height: h)
+
+            if cgWindowRect.contains(cgMousePoint) {
+                // Convert CG coordinates (top-down) to view coordinates (bottom-up)
+                foundRect = CGRect(x: x, y: screenHeight - y - h, width: w, height: h)
+                foundTitle = (info[kCGWindowName as String] as? String)
+                    ?? (info[kCGWindowOwnerName as String] as? String)
+                break
+            }
+        }
+
+        let changed = foundRect != detectedWindowRect
+        detectedWindowRect = foundRect
+        detectedWindowTitle = foundTitle
+
+        if changed {
+            needsDisplay = true
+        }
+    }
+
+    // MARK: - Area Mode Drawing
+
+    private func drawAreaMode(context: CGContext) {
         if let selection = selectionRect {
-            // Dim the entire screen
             context.setFillColor(NSColor.black.withAlphaComponent(0.35).cgColor)
             context.fill(bounds)
 
-            // Clear the selection area (bright hole)
             context.setBlendMode(.clear)
             context.fill(selection)
             context.setBlendMode(.normal)
 
-            // Draw selection border
             context.setStrokeColor(NSColor.systemBlue.cgColor)
             context.setLineWidth(1.5)
             context.stroke(selection)
 
-            // Draw resize handles (corner squares)
             let handleSize: CGFloat = 6
             let handles = [
                 CGPoint(x: selection.minX, y: selection.minY),
@@ -121,17 +334,14 @@ class CaptureOverlayNSView: NSView {
                 context.stroke(handleRect)
             }
 
-            // Draw dimension label
             if showDimensions {
                 drawDimensionLabel(context: context, rect: selection)
             }
         } else if !isDragging {
-            // No selection yet — light dim with crosshair
             context.setFillColor(NSColor.black.withAlphaComponent(0.15).cgColor)
             context.fill(bounds)
         }
 
-        // 2. Draw crosshair (when not dragging)
         if showCrosshair && !isDragging {
             drawCrosshair(context: context)
         }
@@ -144,19 +354,16 @@ class CaptureOverlayNSView: NSView {
         context.setLineWidth(0.5)
         context.setLineDash(phase: 0, lengths: [4, 4])
 
-        // Vertical line
         context.move(to: CGPoint(x: pos.x, y: 0))
         context.addLine(to: CGPoint(x: pos.x, y: bounds.height))
         context.strokePath()
 
-        // Horizontal line
         context.move(to: CGPoint(x: 0, y: pos.y))
         context.addLine(to: CGPoint(x: bounds.width, y: pos.y))
         context.strokePath()
 
         context.setLineDash(phase: 0, lengths: [])
 
-        // Coordinate label near cursor
         let coordText = "\(Int(pos.x)), \(Int(bounds.height - pos.y))" as NSString
         let attrs: [NSAttributedString.Key: Any] = [
             .font: NSFont.monospacedSystemFont(ofSize: 11, weight: .medium),
@@ -184,7 +391,6 @@ class CaptureOverlayNSView: NSView {
         let textSize = dimText.size(withAttributes: attrs)
         let padding: CGFloat = 8
 
-        // Background pill
         let pillRect = CGRect(
             x: rect.midX - (textSize.width + padding * 2) / 2,
             y: rect.minY - textSize.height - padding * 2 - 8,
@@ -192,7 +398,6 @@ class CaptureOverlayNSView: NSView {
             height: textSize.height + padding
         )
 
-        // Ensure pill is within screen bounds
         let adjustedPill = pillRect.minY < 4
             ? CGRect(x: pillRect.origin.x, y: rect.maxY + 8, width: pillRect.width, height: pillRect.height)
             : pillRect
@@ -202,7 +407,6 @@ class CaptureOverlayNSView: NSView {
         context.addPath(path)
         context.fillPath()
 
-        // Text
         let textOrigin = CGPoint(
             x: adjustedPill.origin.x + padding,
             y: adjustedPill.origin.y + padding / 2
@@ -249,11 +453,9 @@ class CaptureOverlayNSView: NSView {
             return
         }
 
-        // Convert from view coordinates to screen coordinates
         guard let window = self.window, let screen = window.screen else { return }
         let screenFrame = screen.frame
 
-        // NSView coordinates are flipped vs screen coordinates
         let screenRect = CGRect(
             x: rect.origin.x + screenFrame.origin.x,
             y: screenFrame.height - rect.origin.y - rect.height + screenFrame.origin.y,
@@ -266,6 +468,11 @@ class CaptureOverlayNSView: NSView {
 
     override func mouseMoved(with event: NSEvent) {
         currentMousePosition = convert(event.locationInWindow, from: nil)
+
+        if mode == .window {
+            detectWindowUnderCursor()
+        }
+
         needsDisplay = true
     }
 
@@ -278,6 +485,10 @@ class CaptureOverlayNSView: NSView {
     // MARK: - Cursor
 
     override func resetCursorRects() {
-        addCursorRect(bounds, cursor: .crosshair)
+        if mode == .window {
+            addCursorRect(bounds, cursor: .pointingHand)
+        } else {
+            addCursorRect(bounds, cursor: .crosshair)
+        }
     }
 }
