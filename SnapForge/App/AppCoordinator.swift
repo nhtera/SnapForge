@@ -178,13 +178,14 @@ final class AppCoordinator {
 
         let hostingView = NSHostingView(rootView: indicatorView)
 
-        // Expand window 48px below selection to show the toolbar
+        // Convert CG coordinates (y=0 at top) → Cocoa coordinates (y=0 at bottom)
         let toolbarHeight: CGFloat = 48
+        let cocoaRect = cgToCocoaRect(rect)
         let expandedRect = CGRect(
-            x: rect.origin.x,
-            y: rect.origin.y - toolbarHeight,
-            width: rect.width,
-            height: rect.height + toolbarHeight
+            x: cocoaRect.origin.x,
+            y: cocoaRect.origin.y - toolbarHeight,
+            width: cocoaRect.width,
+            height: cocoaRect.height + toolbarHeight
         )
 
         let window = NSWindow(
@@ -290,11 +291,12 @@ final class AppCoordinator {
         let hostingView = NSHostingView(rootView: indicatorView)
 
         let toolbarHeight: CGFloat = 48
+        let cocoaRect = cgToCocoaRect(rect)
         let expandedRect = CGRect(
-            x: rect.origin.x,
-            y: rect.origin.y - toolbarHeight,
-            width: rect.width,
-            height: rect.height + toolbarHeight
+            x: cocoaRect.origin.x,
+            y: cocoaRect.origin.y - toolbarHeight,
+            width: cocoaRect.width,
+            height: cocoaRect.height + toolbarHeight
         )
 
         let window = NSWindow(
@@ -318,6 +320,19 @@ final class AppCoordinator {
     func dismissRecordingIndicator() {
         recordingIndicatorWindow?.close()
         recordingIndicatorWindow = nil
+    }
+
+    // MARK: - Coordinate Helpers
+
+    /// Convert CG screen coordinates (y=0 at top) to Cocoa screen coordinates (y=0 at bottom)
+    private func cgToCocoaRect(_ cgRect: CGRect) -> CGRect {
+        guard let screenHeight = NSScreen.main?.frame.height else { return cgRect }
+        return CGRect(
+            x: cgRect.origin.x,
+            y: screenHeight - cgRect.origin.y - cgRect.height,
+            width: cgRect.width,
+            height: cgRect.height
+        )
     }
 
     // MARK: - Cleanup
