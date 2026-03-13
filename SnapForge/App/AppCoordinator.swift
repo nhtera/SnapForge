@@ -162,15 +162,12 @@ final class AppCoordinator {
             defer: false
         )
 
-        // Create the view with closures that capture THIS panel
+        // Create the view with close callback that captures THIS panel
         let pinView = FloatingPinView(
             image: image,
             onClose: { [weak self, weak panel] in
                 guard let panel else { return }
                 self?.removePin(panel)
-            },
-            onToggleLock: { [weak panel] locked in
-                panel?.ignoresMouseEvents = locked
             }
         )
         let hostingView = NSHostingView(rootView: pinView)

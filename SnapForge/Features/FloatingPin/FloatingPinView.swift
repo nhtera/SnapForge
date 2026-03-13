@@ -6,11 +6,8 @@ struct FloatingPinView: View {
     let image: NSImage
     /// Called to close/remove this pin — injected by AppCoordinator
     let onClose: () -> Void
-    /// Called to toggle click-through — injected by AppCoordinator
-    let onToggleLock: (Bool) -> Void
 
     @State private var pinOpacity: Double = 1.0
-    @State private var isLocked = false
     @State private var isHovering = false
     @State private var isOCRRunning = false
 
@@ -24,28 +21,9 @@ struct FloatingPinView: View {
                 .shadow(color: .black.opacity(0.25), radius: 8, y: 4)
 
             // Toolbar — appears on hover
-            if isHovering && !isLocked {
+            if isHovering {
                 toolbar
                     .transition(.opacity.combined(with: .move(edge: .top)))
-            }
-
-            // Lock badge — always visible when locked, tappable to unlock
-            if isLocked {
-                HStack {
-                    Spacer()
-                    VStack {
-                        Button(action: toggleLock) {
-                            Image(systemName: "lock.fill")
-                                .font(.system(size: 10))
-                                .foregroundColor(.white)
-                                .padding(5)
-                                .background(.black.opacity(0.6), in: Circle())
-                        }
-                        .buttonStyle(.plain)
-                        .padding(6)
-                        Spacer()
-                    }
-                }
             }
         }
         .opacity(pinOpacity)
@@ -68,15 +46,6 @@ struct FloatingPinView: View {
                 .frame(width: 60)
 
             Divider().frame(height: 16)
-
-            // Lock toggle (click-through)
-            Button(action: toggleLock) {
-                Image(systemName: isLocked ? "lock.fill" : "lock.open")
-                    .font(.system(size: 11))
-                    .foregroundColor(isLocked ? .yellow : .secondary)
-            }
-            .buttonStyle(.plain)
-            .help("Lock: enable click-through")
 
             // OCR
             Button(action: runOCR) {
@@ -110,11 +79,6 @@ struct FloatingPinView: View {
     }
 
     // MARK: - Actions
-
-    private func toggleLock() {
-        isLocked.toggle()
-        onToggleLock(isLocked)
-    }
 
     private func runOCR() {
         isOCRRunning = true
