@@ -7,14 +7,28 @@ struct QuickAccessView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Image preview
+            // Image preview — draggable to any app
             Image(nsImage: capturedImage)
                 .resizable()
                 .aspectRatio(contentMode: .fit)
                 .frame(maxHeight: 140)
                 .clipShape(RoundedRectangle(cornerRadius: 8))
                 .shadow(color: .black.opacity(0.15), radius: 4, y: 2)
+                .onDrag {
+                    let provider = NSItemProvider(object: capturedImage)
+                    provider.suggestedName = StorageService().generateImageFilename()
+                    return provider
+                }
+                .overlay(alignment: .topTrailing) {
+                    Image(systemName: "arrow.up.forward.app")
+                        .font(.system(size: 10))
+                        .foregroundColor(.secondary)
+                        .padding(6)
+                        .background(.ultraThinMaterial, in: Circle())
+                        .padding(4)
+                }
                 .padding(12)
+                .help("Drag to any app")
 
             Divider()
 

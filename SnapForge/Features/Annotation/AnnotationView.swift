@@ -14,6 +14,10 @@ struct AnnotationView: View {
     @State private var imageRect: CGRect = .zero
     // Crop undo history — stores (image, annotations) snapshots before each crop
     @State private var cropHistory: [(image: NSImage, annotations: [any AnnotationItem])] = []
+    // Export settings
+    @State private var showExportPicker = false
+    @State private var exportFormat: ImageExportFormat = .png
+    @State private var exportQuality: CGFloat = 0.9
 
     var body: some View {
         HSplitView {
@@ -93,11 +97,54 @@ struct AnnotationView: View {
                 Divider()
 
                 Button("Export") {
-                    exportImage()
+                    showExportPicker.toggle()
+                }
+                .buttonStyle(.borderedProminent)
+                .popover(isPresented: $showExportPicker) {
+                    exportFormatPicker
+                }
+            }
+        }
+    }
+
+    // MARK: - Export Format Picker
+
+    private var exportFormatPicker: some View {
+        VStack(spacing: 12) {
+            Text("Export Format")
+                .font(.headline)
+
+            Picker("Format", selection: $exportFormat) {
+                ForEach(ImageExportFormat.allCases) { fmt in
+                    Text(fmt.rawValue).tag(fmt)
+                }
+            }
+            .pickerStyle(.segmented)
+
+            if exportFormat != .png {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Quality: \(Int(exportQuality * 100))%")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Slider(value: $exportQuality, in: 0.1...1.0, step: 0.05)
+                }
+            }
+
+            HStack(spacing: 12) {
+                Button("Copy") {
+                    exportImage(copyOnly: true)
+                    showExportPicker = false
+                }
+
+                Button("Save") {
+                    exportImage(copyOnly: false)
+                    showExportPicker = false
                 }
                 .buttonStyle(.borderedProminent)
             }
         }
+        .padding()
+        .frame(width: 260)
     }
 
     // MARK: - Image Rect Calculation
@@ -853,7 +900,7 @@ struct AnnotationView: View {
 
     // MARK: - Export
 
-    private func exportImage() {
+    private func exportImage(copyOnly: Bool = false) {
         let exportService = ExportService()
         guard let rendered = exportService.renderAnnotatedImage(
             baseImage: image,
@@ -862,12 +909,24 @@ struct AnnotationView: View {
             imageRect: imageRect
         ) else { return }
 
-        // Save via StorageService
-        let storage = StorageService()
-        let filename = storage.generateImageFilename()
-        if let savedURL = try? storage.saveImage(rendered, filename: filename) {
-            print("✅ Exported annotated image: \(savedURL.path)")
-            ClipboardService().copyImage(rendered)
+        // Always copy to clipboard
+        ClipboardService().copyImage(rendered)
+
+        if !copyOnly {
+            // Save with chosen format and quality
+            let storage = StorageService()
+            let filename = exportService.generateFilename(format: exportFormat)
+            let url = storage.snapForgeDirectory.appendingPathComponent(filename)
+
+            do {
+                try exportService.exportImage(rendered, format: exportFormat, quality: exportQuality, to: url)
+                print("✅ Exported as \(exportFormat.rawValue): \(url.lastPathComponent)")
+                NSWorkspace.shared.activateFileViewerSelecting([url])
+            } catch {
+                print("❌ Export failed: \(error)")
+            }
+        } else {
+            print("✅ Copied to clipboard as image")
         }
     }
 }
