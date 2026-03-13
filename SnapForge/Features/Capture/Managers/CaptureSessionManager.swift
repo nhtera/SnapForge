@@ -99,27 +99,122 @@ final class CaptureSessionManager {
 
     // MARK: - Window Capture
 
-    private func handleWindowClicked(at screenPoint: CGPoint) {
+    private func handleWindowClicked(at viewPoint: CGPoint) {
+        // Dismiss overlay FIRST so it's not in the window list
         dismissOverlay()
 
+        // Small delay to let the overlay disappear before querying windows
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
+            self?.captureWindowUnderCursor()
+        }
+    }
+
+    private func captureWindowUnderCursor() {
+        // Get mouse location in CG coordinates (top-left origin)
+        let mouseLocation = NSEvent.mouseLocation
+        guard let screen = NSScreen.main else { return }
+        let screenHeight = screen.frame.height
+        let cgMousePoint = CGPoint(x: mouseLocation.x, y: screenHeight - mouseLocation.y)
+
+        // Use CGWindowListCopyWindowInfo to get windows in z-order (front to back)
+        guard let windowInfoList = CGWindowListCopyWindowInfo(
+            [.optionOnScreenOnly, .excludeDesktopElements],
+            kCGNullWindowID
+        ) as? [[String: Any]] else {
+            print("⚠️ Failed to get window list")
+            return
+        }
+
+        let ownBundleID = Bundle.main.bundleIdentifier ?? "com.snapforge.app"
+        let excludedOwners: Set<String> = ["Window Server", "Dock", "SystemUIServer"]
+
+        // Find the topmost window at the click point
+        var targetWindowID: CGWindowID?
+        for info in windowInfoList {
+            // Skip our own windows
+            if let ownerPID = info[kCGWindowOwnerPID as String] as? Int32 {
+                if ownerPID == ProcessInfo.processInfo.processIdentifier { continue }
+            }
+            if let ownerName = info[kCGWindowOwnerName as String] as? String {
+                if excludedOwners.contains(ownerName) { continue }
+            }
+
+            // Get window bounds in CG coordinates
+            guard let boundsDict = info[kCGWindowBounds as String] as? [String: CGFloat],
+                  let x = boundsDict["X"],
+                  let y = boundsDict["Y"],
+                  let w = boundsDict["Width"],
+                  let h = boundsDict["Height"] else { continue }
+
+            let windowFrame = CGRect(x: x, y: y, width: w, height: h)
+
+            // Skip very small windows (toolbars, hidden windows)
+            guard w > 50 && h > 50 else { continue }
+
+            if windowFrame.contains(cgMousePoint) {
+                targetWindowID = info[kCGWindowNumber as String] as? CGWindowID
+                break // First match = topmost window in z-order
+            }
+        }
+
+        guard let windowID = targetWindowID else {
+            print("⚠️ No window found at cursor position")
+            return
+        }
+
+        // Now find the matching SCWindow and capture it
         Task {
             do {
                 try await scKitService.refreshContent()
 
-                // Find the window under the click point
-                let matchingWindow = scKitService.availableWindows.first { window in
-                    window.frame.contains(screenPoint)
-                }
-
-                guard let target = matchingWindow else {
-                    print("⚠️ No window found at click point")
+                guard let scWindow = scKitService.availableWindows.first(where: { $0.id == windowID }) else {
+                    // Fallback: capture using CGWindowListCreateImage
+                    print("ℹ️ Window \(windowID) not in SCShareableContent, using CGWindowListCreateImage fallback")
+                    captureWindowFallback(windowID: windowID)
                     return
                 }
 
-                let image = try await scKitService.captureWindow(target.scWindow)
+                let image = try await scKitService.captureWindow(scWindow.scWindow)
                 handleCapturedImage(image)
             } catch {
                 print("❌ Window capture failed: \(error)")
+                // Try fallback
+                captureWindowFallback(windowID: windowID)
+            }
+        }
+    }
+
+    /// Fallback: Use full SCShareableContent to search all windows by ID
+    private func captureWindowFallback(windowID: CGWindowID) {
+        Task {
+            do {
+                let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
+                guard let scWindow = content.windows.first(where: { $0.windowID == windowID }) else {
+                    print("❌ Window \(windowID) not found in SCShareableContent")
+                    return
+                }
+
+                let filter = SCContentFilter(desktopIndependentWindow: scWindow)
+                let config = SCStreamConfiguration()
+                let scaleFactor = NSScreen.main?.backingScaleFactor ?? 2.0
+                config.width = Int(scWindow.frame.width * scaleFactor)
+                config.height = Int(scWindow.frame.height * scaleFactor)
+                config.showsCursor = false
+                config.captureResolution = .best
+                config.shouldBeOpaque = false
+
+                let cgImage = try await SCScreenshotManager.captureImage(
+                    contentFilter: filter,
+                    configuration: config
+                )
+
+                let nsImage = NSImage(
+                    cgImage: cgImage,
+                    size: NSSize(width: scWindow.frame.width, height: scWindow.frame.height)
+                )
+                handleCapturedImage(nsImage)
+            } catch {
+                print("❌ Window capture fallback failed: \(error)")
             }
         }
     }
