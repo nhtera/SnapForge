@@ -147,19 +147,25 @@ struct AnnotationView: View {
     }
 
     private func handleTap() {
+        // If currently editing text, commit it first
+        if isEditing, let editID = editingTextID {
+            commitTextEditing(id: editID)
+            return
+        }
+
         let pos = viewModel.cursorPosition
         switch viewModel.selectedTool {
         case .text:
             viewModel.addAnnotation(TextAnnotation(
                 position: pos,
-                text: "Text",
+                text: "",
                 font: .systemFont(ofSize: 16),
                 color: viewModel.selectedColor,
                 backgroundColor: nil,
                 style: .plain
             ))
             editingTextID = viewModel.annotations.last?.id
-            editingText = "Text"
+            editingText = ""
             isEditing = true
         case .counter:
             let num = viewModel.nextCounterNumber()
@@ -273,6 +279,11 @@ struct AnnotationView: View {
     }
 
     private func drawAnnotation(_ annotation: any AnnotationItem, context: inout GraphicsContext) {
+        // Skip rendering text that is currently being edited (TextField is shown instead)
+        if annotation.id == editingTextID && isEditing {
+            return
+        }
+
         if let shape = annotation as? ShapeAnnotation {
             drawShape(shape, context: &context)
         } else if let arrow = annotation as? ArrowAnnotation {
@@ -548,15 +559,42 @@ struct AnnotationView: View {
         let textAnnotation = viewModel.annotations.first { $0.id == id } as? TextAnnotation
         let pos = textAnnotation?.position ?? .zero
 
-        return TextField("Enter text", text: $editingText)
-            .textFieldStyle(.roundedBorder)
-            .frame(width: 200)
-            .position(x: pos.x + 100, y: pos.y)
-            .onSubmit {
-                viewModel.updateText(id: id, newText: editingText)
-                isEditing = false
-                editingTextID = nil
-            }
+        return ZStack {
+            // Click-away backdrop to commit text
+            Color.clear
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    commitTextEditing(id: id)
+                }
+
+            TextField("Type here...", text: $editingText)
+                .textFieldStyle(.roundedBorder)
+                .font(.system(size: 16))
+                .foregroundColor(Color(nsColor: NSColor(textAnnotation?.color ?? .red)))
+                .frame(minWidth: 120, maxWidth: 300)
+                .fixedSize()
+                .position(x: pos.x + 60, y: pos.y + 10)
+                .onSubmit {
+                    commitTextEditing(id: id)
+                }
+                .onAppear {
+                    // Focus the text field after a short delay
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                        NSApp.keyWindow?.makeFirstResponder(nil)
+                    }
+                }
+        }
+    }
+
+    private func commitTextEditing(id: UUID) {
+        if editingText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            // Remove empty text annotations
+            viewModel.removeAnnotation(id: id)
+        } else {
+            viewModel.updateText(id: id, newText: editingText)
+        }
+        isEditing = false
+        editingTextID = nil
     }
 
     // MARK: - Export
