@@ -24,7 +24,7 @@ struct HistoryView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 ScrollView {
-                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 160))], spacing: 12) {
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 200), spacing: 16)], spacing: 16) {
                         ForEach(viewModel.filteredCaptures) { capture in
                             HistoryItemView(capture: capture)
                                 .contextMenu {
@@ -42,7 +42,7 @@ struct HistoryView: View {
                                 }
                         }
                     }
-                    .padding()
+                    .padding(16)
                 }
             }
         }
@@ -109,61 +109,85 @@ struct FilterChip: View {
     }
 }
 
-// MARK: - History Item
+// MARK: - History Item Card
 
 struct HistoryItemView: View {
     let capture: HistoryCapture
+    @State private var isHovered = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            // Thumbnail
-            if let image = NSImage(contentsOfFile: capture.filePath) {
-                Image(nsImage: image)
-                    .resizable()
-                    .aspectRatio(contentMode: .fill)
-                    .frame(height: 100)
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
-                    .overlay(alignment: .topTrailing) {
-                        typeIcon
-                    }
-            } else {
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(.quaternary)
-                    .frame(height: 100)
-                    .overlay {
-                        Image(systemName: capture.type.icon)
-                            .foregroundStyle(.secondary)
-                    }
-                    .overlay(alignment: .topTrailing) {
-                        typeIcon
-                    }
+        VStack(alignment: .leading, spacing: 0) {
+            // Thumbnail — fixed height, clipped properly
+            ZStack(alignment: .topTrailing) {
+                if let image = NSImage(contentsOfFile: capture.filePath) {
+                    Image(nsImage: image)
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                        .frame(height: 130)
+                        .frame(maxWidth: .infinity)
+                        .clipped()
+                } else {
+                    Rectangle()
+                        .fill(Color(white: 0.15))
+                        .frame(height: 130)
+                        .overlay {
+                            Image(systemName: capture.type.icon)
+                                .font(.title2)
+                                .foregroundStyle(.secondary)
+                        }
+                }
+
+                // Type badge
+                typeBadge
+                    .padding(6)
             }
 
-            // Filename
-            Text(capture.filename)
-                .font(.caption)
-                .lineLimit(1)
+            // Info section
+            VStack(alignment: .leading, spacing: 4) {
+                Text(capture.displayName)
+                    .font(.system(size: 11, weight: .medium))
+                    .lineLimit(1)
+                    .truncationMode(.middle)
 
-            // Date + size
-            HStack {
-                Text(capture.date.formatted(.relative(presentation: .named)))
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                Spacer()
-                Text(capture.formattedSize)
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
+                HStack(spacing: 0) {
+                    Text(capture.date.formatted(.relative(presentation: .named)))
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Text(capture.formattedSize)
+                        .font(.system(size: 10, design: .monospaced))
+                        .foregroundStyle(.tertiary)
+                }
             }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 8)
         }
+        .background(Color(white: 0.12), in: RoundedRectangle(cornerRadius: 10))
+        .overlay(
+            RoundedRectangle(cornerRadius: 10)
+                .stroke(
+                    isHovered ? Color.accentColor.opacity(0.5) : Color.white.opacity(0.06),
+                    lineWidth: 1
+                )
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 10))
+        .shadow(color: .black.opacity(isHovered ? 0.25 : 0.1), radius: isHovered ? 8 : 4, y: 2)
+        .scaleEffect(isHovered ? 1.02 : 1.0)
+        .animation(.easeOut(duration: 0.15), value: isHovered)
+        .onHover { hovering in isHovered = hovering }
     }
 
-    private var typeIcon: some View {
-        Image(systemName: capture.type.icon)
-            .font(.system(size: 9))
-            .foregroundColor(.white)
-            .padding(4)
-            .background(.black.opacity(0.5), in: RoundedRectangle(cornerRadius: 4))
-            .padding(4)
+    private var typeBadge: some View {
+        HStack(spacing: 3) {
+            Image(systemName: capture.type.icon)
+                .font(.system(size: 8, weight: .semibold))
+            Text(capture.type.label)
+                .font(.system(size: 8, weight: .semibold))
+        }
+        .foregroundColor(.white)
+        .padding(.horizontal, 6)
+        .padding(.vertical, 3)
+        .background(.black.opacity(0.6), in: Capsule())
     }
 }
 
@@ -178,9 +202,7 @@ final class HistoryViewModel {
 
     var filteredCaptures: [HistoryCapture] {
         captures.filter { capture in
-            // Type filter
             if let typeFilter, capture.type != typeFilter { return false }
-            // Text search
             if !searchText.isEmpty {
                 return capture.filename.localizedCaseInsensitiveContains(searchText)
             }
@@ -286,6 +308,18 @@ struct HistoryCapture: Identifiable {
     let fileSize: Int64
     let type: CaptureType
 
+    /// Shortened display name: remove "SnapForge_" prefix
+    var displayName: String {
+        var name = filename
+        if name.hasPrefix("SnapForge_") {
+            name = String(name.dropFirst("SnapForge_".count))
+        }
+        if name.hasPrefix("Recording_") {
+            name = String(name.dropFirst("Recording_".count))
+        }
+        return name
+    }
+
     var formattedSize: String {
         ByteCountFormatter.string(fromByteCount: fileSize, countStyle: .file)
     }
@@ -298,6 +332,14 @@ struct HistoryCapture: Identifiable {
             case .screenshot: "photo"
             case .recording: "video"
             case .gif: "photo.stack"
+            }
+        }
+
+        var label: String {
+            switch self {
+            case .screenshot: "IMG"
+            case .recording: "MOV"
+            case .gif: "GIF"
             }
         }
     }
