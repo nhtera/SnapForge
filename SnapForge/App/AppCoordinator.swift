@@ -141,9 +141,6 @@ final class AppCoordinator {
     // MARK: - Floating Pin
 
     func pinImage(_ image: NSImage, at frame: NSRect) {
-        let pinView = FloatingPinView(image: image)
-        let hostingView = NSHostingView(rootView: pinView)
-
         // Auto-size to image aspect ratio (max 400px wide)
         let maxWidth: CGFloat = 400
         let scale = min(1.0, maxWidth / image.size.width)
@@ -164,6 +161,20 @@ final class AppCoordinator {
             backing: .buffered,
             defer: false
         )
+
+        // Create the view with closures that capture THIS panel
+        let pinView = FloatingPinView(
+            image: image,
+            onClose: { [weak self, weak panel] in
+                guard let panel else { return }
+                self?.removePin(panel)
+            },
+            onToggleLock: { [weak panel] locked in
+                panel?.ignoresMouseEvents = locked
+            }
+        )
+        let hostingView = NSHostingView(rootView: pinView)
+
         panel.contentView = hostingView
         panel.level = .floating
         panel.isFloatingPanel = true
