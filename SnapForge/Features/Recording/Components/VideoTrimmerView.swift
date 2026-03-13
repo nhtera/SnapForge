@@ -39,7 +39,7 @@ struct VideoTrimmerView: View {
                 HStack(spacing: 8) {
                     Text(formatTime(trimStart))
                         .font(.system(.caption, design: .monospaced))
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
 
                     GeometryReader { geo in
                         ZStack(alignment: .leading) {
@@ -73,7 +73,7 @@ struct VideoTrimmerView: View {
 
                     Text(formatTime(trimEnd))
                         .font(.system(.caption, design: .monospaced))
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                 }
 
                 // Trim controls
@@ -81,7 +81,7 @@ struct VideoTrimmerView: View {
                     VStack(alignment: .leading, spacing: 4) {
                         Text("Start")
                             .font(.caption)
-                            .foregroundColor(.secondary)
+                            .foregroundStyle(.secondary)
                         Slider(value: $trimStart, in: 0...max(0.01, duration)) { editing in
                             if !editing { seekToTime(trimStart) }
                         }
@@ -89,7 +89,7 @@ struct VideoTrimmerView: View {
                     VStack(alignment: .leading, spacing: 4) {
                         Text("End")
                             .font(.caption)
-                            .foregroundColor(.secondary)
+                            .foregroundStyle(.secondary)
                         Slider(value: $trimEnd, in: 0...max(0.01, duration)) { editing in
                             if !editing { seekToTime(trimEnd) }
                         }
@@ -108,7 +108,7 @@ struct VideoTrimmerView: View {
 
                     Text("Duration: \(formatTime(max(0, trimEnd - trimStart)))")
                         .font(.system(.body, design: .monospaced))
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
 
                     Spacer()
 

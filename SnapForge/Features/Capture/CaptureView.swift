@@ -121,7 +121,7 @@ struct DimensionLabel: View {
             .padding(.horizontal, 8)
             .padding(.vertical, 4)
             .background(.black.opacity(0.7), in: RoundedRectangle(cornerRadius: 4))
-            .foregroundColor(.white)
+            .foregroundStyle(.white)
             .position(x: rect.midX, y: rect.maxY + 20)
     }
 }

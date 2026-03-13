@@ -22,7 +22,7 @@ struct QuickAccessView: View {
                 .overlay(alignment: .topTrailing) {
                     Image(systemName: "arrow.up.forward.app")
                         .font(.system(size: 10))
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                         .padding(6)
                         .background(.ultraThinMaterial, in: Circle())
                         .padding(4)
@@ -130,7 +130,7 @@ struct QuickActionButton: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .foregroundColor(isHovered ? Color.accentColor : Color.primary)
+        .foregroundStyle(isHovered ? Color.accentColor : Color.primary)
         .background(isHovered ? Color.accentColor.opacity(0.1) : .clear)
         .onHover { hovering in
             isHovered = hovering

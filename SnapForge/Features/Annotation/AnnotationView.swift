@@ -451,7 +451,7 @@ struct AnnotationView: View {
         let resolvedText = context.resolve(
             Text(text.text)
                 .font(.system(size: text.font.pointSize))
-                .foregroundColor(text.color)
+                .foregroundStyle(text.color)
         )
 
         // Background for boxed/callout styles
@@ -594,7 +594,7 @@ struct AnnotationView: View {
         let numberText = context.resolve(
             Text("\(counter.number)")
                 .font(.system(size: counter.size * 0.55, weight: .bold))
-                .foregroundColor(.white)
+                .foregroundStyle(.white)
         )
         context.draw(numberText, at: counter.position, anchor: .center)
     }
@@ -693,7 +693,7 @@ struct AnnotationView: View {
             TextField("Type here...", text: $editingText)
                 .textFieldStyle(.roundedBorder)
                 .font(.system(size: 16))
-                .foregroundColor(Color(nsColor: NSColor(textAnnotation?.color ?? .red)))
+                .foregroundStyle(Color(nsColor: NSColor(textAnnotation?.color ?? .red)))
                 .frame(minWidth: 120, maxWidth: 300)
                 .fixedSize()
                 .position(x: pos.x + 60, y: pos.y + 10)
@@ -780,7 +780,7 @@ struct AnnotationView: View {
         let sizeLabel = context.resolve(
             Text("\(w) × \(h)")
                 .font(.system(size: 11, weight: .medium))
-                .foregroundColor(.white)
+                .foregroundStyle(.white)
         )
         let labelBg = CGRect(
             x: cropRect.midX - 35,
@@ -810,7 +810,7 @@ struct AnnotationView: View {
                         .padding(.horizontal, 12)
                         .padding(.vertical, 6)
                         .background(Color.accentColor, in: RoundedRectangle(cornerRadius: 8))
-                        .foregroundColor(.white)
+                        .foregroundStyle(.white)
                 }
                 .buttonStyle(.plain)
             }

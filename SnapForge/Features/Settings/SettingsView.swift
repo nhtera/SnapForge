@@ -6,23 +6,29 @@ import ServiceManagement
 struct SettingsView: View {
     var body: some View {
         TabView {
-            GeneralSettingsTab()
-                .tabItem { Label("General", systemImage: "gearshape.fill") }
+            Tab("General", systemImage: "gearshape.fill") {
+                GeneralSettingsTab()
+            }
 
-            ScreenshotsSettingsTab()
-                .tabItem { Label("Screenshots", systemImage: "camera.fill") }
+            Tab("Screenshots", systemImage: "camera.fill") {
+                ScreenshotsSettingsTab()
+            }
 
-            RecordingSettingsTab()
-                .tabItem { Label("Recording", systemImage: "video.fill") }
+            Tab("Recording", systemImage: "video.fill") {
+                RecordingSettingsTab()
+            }
 
-            QuickAccessSettingsTab()
-                .tabItem { Label("Quick Access", systemImage: "rectangle.portrait.and.arrow.forward") }
+            Tab("Quick Access", systemImage: "rectangle.portrait.and.arrow.forward") {
+                QuickAccessSettingsTab()
+            }
 
-            ShortcutsSettingsTab()
-                .tabItem { Label("Shortcuts", systemImage: "command") }
+            Tab("Shortcuts", systemImage: "command") {
+                ShortcutsSettingsTab()
+            }
 
-            AboutSettingsTab()
-                .tabItem { Label("About", systemImage: "info.circle") }
+            Tab("About", systemImage: "info.circle") {
+                AboutSettingsTab()
+            }
         }
         .frame(width: 560, height: 480)
     }

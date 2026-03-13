@@ -10,7 +10,7 @@ struct MenuBarView: View {
             HStack {
                 Image(systemName: "hammer.fill")
                     .font(.title2)
-                    .foregroundColor(.accentColor)
+                    .foregroundStyle(Color.accentColor)
                 Text(String(localized: "menu.title"))
                     .font(.headline)
                 Spacer()
@@ -175,6 +175,6 @@ struct MenuBarActionRow: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .cornerRadius(6)
+        .clipShape(.rect(cornerRadius: 6))
     }
 }

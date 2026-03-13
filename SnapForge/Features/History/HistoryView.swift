@@ -103,7 +103,7 @@ struct FilterChip: View {
                 .padding(.horizontal, 10)
                 .padding(.vertical, 4)
                 .background(isSelected ? Color.accentColor.opacity(0.15) : Color.clear, in: Capsule())
-                .foregroundColor(isSelected ? .accentColor : .secondary)
+                .foregroundStyle(isSelected ? Color.accentColor : .secondary)
         }
         .buttonStyle(.plain)
     }
@@ -184,7 +184,7 @@ struct HistoryItemView: View {
             Text(capture.type.label)
                 .font(.system(size: 8, weight: .semibold))
         }
-        .foregroundColor(.white)
+        .foregroundStyle(.white)
         .padding(.horizontal, 6)
         .padding(.vertical, 3)
         .background(.black.opacity(0.6), in: Capsule())

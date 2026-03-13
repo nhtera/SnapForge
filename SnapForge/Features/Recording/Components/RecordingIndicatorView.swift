@@ -48,7 +48,7 @@ struct PreRecordToolbarView: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .foregroundColor(.white)
+            .foregroundStyle(.white)
 
             divider
 
@@ -65,7 +65,7 @@ struct PreRecordToolbarView: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .foregroundColor(.white)
+            .foregroundStyle(.white)
 
             divider
 
@@ -78,7 +78,7 @@ struct PreRecordToolbarView: View {
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .foregroundColor(.white.opacity(0.7))
+            .foregroundStyle(.white.opacity(0.7))
         }
         .fixedSize()
         .background(.black.opacity(0.85), in: Capsule())
@@ -116,7 +116,7 @@ struct RecordingToolbarView: View {
                 if isGIFMode {
                     Text("GIF")
                         .font(.system(size: 10, weight: .bold, design: .monospaced))
-                        .foregroundColor(.black)
+                        .foregroundStyle(.black)
                         .padding(.horizontal, 5)
                         .padding(.vertical, 2)
                         .background(.yellow, in: RoundedRectangle(cornerRadius: 3))
@@ -124,7 +124,7 @@ struct RecordingToolbarView: View {
 
                 Text(recorder.formattedDuration)
                     .font(.system(size: 12, weight: .medium, design: .monospaced))
-                    .foregroundColor(.white)
+                    .foregroundStyle(.white)
                     .frame(minWidth: 40)
             }
             .padding(.horizontal, 10)
@@ -135,7 +135,7 @@ struct RecordingToolbarView: View {
             Button(action: { recorder.togglePause() }) {
                 Image(systemName: recorder.isPaused ? "play.fill" : "pause.fill")
                     .font(.system(size: 14))
-                    .foregroundColor(.white)
+                    .foregroundStyle(.white)
                     .frame(width: 36, height: 36)
                     .contentShape(Rectangle())
             }
@@ -151,7 +151,7 @@ struct RecordingToolbarView: View {
             }) {
                 Image(systemName: "trash")
                     .font(.system(size: 13))
-                    .foregroundColor(.white.opacity(0.7))
+                    .foregroundStyle(.white.opacity(0.7))
                     .frame(width: 36, height: 36)
                     .contentShape(Rectangle())
             }
@@ -167,7 +167,7 @@ struct RecordingToolbarView: View {
             }) {
                 Image(systemName: "stop.fill")
                     .font(.system(size: 12))
-                    .foregroundColor(.white)
+                    .foregroundStyle(.white)
                     .frame(width: 36, height: 36)
                     .contentShape(Rectangle())
                     .background(.red, in: RoundedRectangle(cornerRadius: 6))
