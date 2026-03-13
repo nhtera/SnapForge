@@ -45,6 +45,7 @@ struct PreRecordToolbarView: View {
                 }
                 .padding(.horizontal, 14)
                 .padding(.vertical, 8)
+                .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .foregroundColor(.white)
@@ -61,6 +62,7 @@ struct PreRecordToolbarView: View {
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
+                .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .foregroundColor(.white)
@@ -73,6 +75,7 @@ struct PreRecordToolbarView: View {
                     .font(.system(size: 11, weight: .bold))
                     .padding(.horizontal, 10)
                     .padding(.vertical, 8)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .foregroundColor(.white.opacity(0.7))
@@ -91,20 +94,33 @@ struct PreRecordToolbarView: View {
 
 // MARK: - Recording Toolbar (during active recording)
 
-/// Floating toolbar: REC badge + timer + pause/stop/delete
+/// Floating toolbar: REC/GIF badge + timer + pause/stop/delete.
+/// Stop and cancel route through AppCoordinator so GIF conversion runs.
 struct RecordingToolbarView: View {
     @ObservedObject private var recorder = ScreenRecordingService.shared
     @State private var isBlinking = true
 
+    /// Whether recording in GIF mode (shows GIF badge)
+    var isGIFMode: Bool = false
+
     var body: some View {
         HStack(spacing: 0) {
-            // REC indicator
+            // REC / GIF indicator
             HStack(spacing: 6) {
                 Circle()
                     .fill(.red)
                     .frame(width: 8, height: 8)
                     .opacity(isBlinking ? 1.0 : 0.3)
                     .animation(.easeInOut(duration: 0.5).repeatForever(), value: isBlinking)
+
+                if isGIFMode {
+                    Text("GIF")
+                        .font(.system(size: 10, weight: .bold, design: .monospaced))
+                        .foregroundColor(.black)
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 2)
+                        .background(.yellow, in: RoundedRectangle(cornerRadius: 3))
+                }
 
                 Text(recorder.formattedDuration)
                     .font(.system(size: 12, weight: .medium, design: .monospaced))
@@ -127,10 +143,10 @@ struct RecordingToolbarView: View {
 
             divider
 
-            // Delete (cancel recording)
+            // Delete (cancel recording without saving)
             Button(action: {
                 Task {
-                    await cancelRecording()
+                    await AppCoordinator.shared.cancelRecording()
                 }
             }) {
                 Image(systemName: "trash")
@@ -143,10 +159,10 @@ struct RecordingToolbarView: View {
 
             divider
 
-            // Stop (save)
+            // Stop (save — triggers GIF conversion if in GIF mode)
             Button(action: {
                 Task {
-                    await stopRecording()
+                    await AppCoordinator.shared.stopRecording()
                 }
             }) {
                 Image(systemName: "stop.fill")
@@ -170,20 +186,6 @@ struct RecordingToolbarView: View {
         Rectangle()
             .fill(.white.opacity(0.2))
             .frame(width: 1, height: 20)
-    }
-
-    private func stopRecording() async {
-        if let savedURL = await recorder.stopRecording() {
-            AppEnvironment.shared.isRecording = false
-            print("✅ Recording saved: \(savedURL.path)")
-        }
-        AppCoordinator.shared.dismissRecordingIndicator()
-    }
-
-    private func cancelRecording() async {
-        await recorder.cancelRecording()
-        AppEnvironment.shared.isRecording = false
-        AppCoordinator.shared.dismissRecordingIndicator()
     }
 }
 

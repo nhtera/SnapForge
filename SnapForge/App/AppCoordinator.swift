@@ -265,7 +265,7 @@ final class AppCoordinator {
         showBorderWindow(cocoaRect: cocoaRect, isPreRecord: false)
 
         // 2. Toolbar panel — non-activating, accepts first mouse
-        let toolbarView = RecordingToolbarView()
+        let toolbarView = RecordingToolbarView(isGIFMode: isGIFMode)
         showToolbarPanel(toolbarView: toolbarView, cocoaRect: cocoaRect)
     }
 
