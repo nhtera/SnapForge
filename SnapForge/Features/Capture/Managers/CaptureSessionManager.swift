@@ -114,66 +114,36 @@ final class CaptureSessionManager {
         NSSound(named: .init("Tink"))?.play()
     }
 
-    /// Window capture with frosted/blurred background (CleanShot X style)
+    /// Window capture with clear background + window highlight (CleanShot X style)
     private func showWindowOverlayWithBlur() {
         guard let screen = NSScreen.main else { return }
         let screenFrame = screen.frame
 
-        Task {
-            // 1. Capture freeze-frame of current screen
-            var freezeImage: NSImage?
-            do {
-                freezeImage = try await scKitService.captureFreezeFrame()
-            } catch {
-                print("⚠️ Freeze frame for window capture failed: \(error)")
-            }
+        let panel = CaptureOverlayPanel(
+            contentRect: screenFrame,
+            styleMask: [.borderless, .nonactivatingPanel],
+            backing: .buffered,
+            defer: false
+        )
 
-            // 2. Blur the freeze-frame for frosted background
-            var blurredBG: NSImage?
-            if let freeze = freezeImage,
-               let cgImage = freeze.cgImage(forProposedRect: nil, context: nil, hints: nil) {
-                let ciImage = CIImage(cgImage: cgImage)
-                let filter = CIFilter(name: "CIGaussianBlur")
-                filter?.setValue(ciImage, forKey: kCIInputImageKey)
-                filter?.setValue(6.0, forKey: kCIInputRadiusKey)
+        let view = CaptureOverlayNSView(frame: screenFrame)
+        view.mode = .window
 
-                if let output = filter?.outputImage {
-                    let cropped = output.cropped(to: ciImage.extent)
-                    let ctx = CIContext(options: [.cacheIntermediates: false])
-                    if let blurredCG = ctx.createCGImage(cropped, from: ciImage.extent) {
-                        blurredBG = NSImage(cgImage: blurredCG, size: freeze.size)
-                    }
-                }
-            }
-
-            // 3. Show overlay with blurred background
-            let panel = CaptureOverlayPanel(
-                contentRect: screenFrame,
-                styleMask: [.borderless, .nonactivatingPanel],
-                backing: .buffered,
-                defer: false
-            )
-
-            let view = CaptureOverlayNSView(frame: screenFrame)
-            view.mode = .window
-            view.backgroundImage = blurredBG
-
-            view.onWindowClicked = { [weak self] point in
-                self?.handleWindowClicked(at: point)
-            }
-            view.onCancel = { [weak self] in
-                self?.dismissOverlay()
-            }
-
-            panel.contentView = view
-            panel.makeKeyAndOrderFront(nil)
-            panel.makeFirstResponder(view)
-
-            self.overlayPanel = panel
-            self.overlayView = view
-
-            NSSound(named: .init("Tink"))?.play()
+        view.onWindowClicked = { [weak self] point in
+            self?.handleWindowClicked(at: point)
         }
+        view.onCancel = { [weak self] in
+            self?.dismissOverlay()
+        }
+
+        panel.contentView = view
+        panel.makeKeyAndOrderFront(nil)
+        panel.makeFirstResponder(view)
+
+        self.overlayPanel = panel
+        self.overlayView = view
+
+        NSSound(named: .init("Tink"))?.play()
     }
 
     func dismissOverlay() {

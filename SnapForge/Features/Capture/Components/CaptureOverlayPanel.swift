@@ -96,28 +96,22 @@ class CaptureOverlayNSView: NSView {
     // MARK: - Window Mode Drawing (CleanShot X style)
 
     private func drawWindowMode(context: CGContext) {
-        // Draw frosted background (blurred freeze-frame) or dim overlay
-        if let bgImage = backgroundImage {
-            bgImage.draw(in: bounds, from: .zero, operation: .sourceOver, fraction: 1.0)
-            // Add slight additional dim on top for contrast
-            context.setFillColor(NSColor.black.withAlphaComponent(0.15).cgColor)
-            context.fill(bounds)
-        } else {
-            context.setFillColor(NSColor.black.withAlphaComponent(0.25).cgColor)
-            context.fill(bounds)
-        }
+        // Very subtle dim on entire screen (barely visible, just to show overlay is active)
+        context.setFillColor(NSColor.black.withAlphaComponent(0.08).cgColor)
+        context.fill(bounds)
 
         if let windowRect = detectedWindowRect {
-            // Clear the window area (bright hole — window shows through)
-            context.setBlendMode(.clear)
-            context.fill(windowRect)
-            context.setBlendMode(.normal)
+            // Tint the detected window with a light overlay
+            context.setFillColor(NSColor.systemBlue.withAlphaComponent(0.12).cgColor)
+            let windowPath = CGPath(roundedRect: windowRect, cornerWidth: 8, cornerHeight: 8, transform: nil)
+            context.addPath(windowPath)
+            context.fillPath()
 
             // Draw highlighted border around detected window
             context.setStrokeColor(NSColor.systemBlue.cgColor)
             context.setLineWidth(3)
             let borderRect = windowRect.insetBy(dx: -1.5, dy: -1.5)
-            let borderPath = CGPath(roundedRect: borderRect, cornerWidth: 6, cornerHeight: 6, transform: nil)
+            let borderPath = CGPath(roundedRect: borderRect, cornerWidth: 8, cornerHeight: 8, transform: nil)
             context.addPath(borderPath)
             context.strokePath()
 
