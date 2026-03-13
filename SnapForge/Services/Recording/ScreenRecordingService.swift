@@ -371,12 +371,17 @@ final class ScreenRecordingService: NSObject, ObservableObject {
         config.pixelFormat = kCVPixelFormatType_32BGRA
         config.showsCursor = true
 
-        // Area selection → sourceRect (convert Cocoa → CG top-left coords)
+        // Area selection → sourceRect
+        // The incoming rect is already in CG screen coordinates (Y=0 at top)
+        // SCStreamConfiguration.sourceRect also uses CG coordinates
+        // Just make it relative to the display's origin
         if let screen {
             let screenFrame = screen.frame
+            // Convert absolute screen coords to display-relative coords
+            // For CG coords: just subtract screen origin
             let relativeRect = CGRect(
                 x: rect.origin.x - screenFrame.origin.x,
-                y: rect.origin.y - screenFrame.origin.y,
+                y: rect.origin.y,  // Already in CG top-down coords
                 width: rect.width,
                 height: rect.height
             )
@@ -387,13 +392,7 @@ final class ScreenRecordingService: NSObject, ObservableObject {
                 throw RecordingError.setupFailed("Selection area is outside display bounds")
             }
 
-            let flippedY = screenFrame.height - clampedRect.origin.y - clampedRect.height
-            config.sourceRect = CGRect(
-                x: clampedRect.origin.x,
-                y: flippedY,
-                width: clampedRect.width,
-                height: clampedRect.height
-            )
+            config.sourceRect = clampedRect
             config.width = Int(ceil(clampedRect.width * scaleFactor))
             config.height = Int(ceil(clampedRect.height * scaleFactor))
         }
