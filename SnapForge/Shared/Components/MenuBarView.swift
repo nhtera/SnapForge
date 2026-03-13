@@ -4,6 +4,7 @@ import SwiftUI
 struct MenuBarView: View {
     @Environment(AppEnvironment.self) private var env
     @Environment(\.openSettings) private var openSettings
+    @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         VStack(spacing: 0) {
@@ -27,7 +28,8 @@ struct MenuBarView: View {
                 MenuBarActionRow(
                     icon: "rectangle.dashed",
                     label: String(localized: "menu.capture_area"),
-                    shortcut: "⌘⇧4"
+                    shortcut: "⌘⇧4",
+                    dismiss: dismiss
                 ) {
                     AppCoordinator.shared.showCaptureOverlay(for: .area)
                 }
@@ -35,7 +37,8 @@ struct MenuBarView: View {
                 MenuBarActionRow(
                     icon: "macwindow",
                     label: String(localized: "menu.capture_window"),
-                    shortcut: "⌘⇧W"
+                    shortcut: "⌘⇧W",
+                    dismiss: dismiss
                 ) {
                     AppCoordinator.shared.showCaptureOverlay(for: .window)
                 }
@@ -43,7 +46,8 @@ struct MenuBarView: View {
                 MenuBarActionRow(
                     icon: "rectangle.inset.filled",
                     label: String(localized: "menu.capture_fullscreen"),
-                    shortcut: "⌘⇧3"
+                    shortcut: "⌘⇧3",
+                    dismiss: dismiss
                 ) {
                     AppCoordinator.shared.showCaptureOverlay(for: .fullscreen)
                 }
@@ -51,7 +55,8 @@ struct MenuBarView: View {
                 MenuBarActionRow(
                     icon: "timer",
                     label: String(localized: "menu.self_timer"),
-                    shortcut: "⌘⇧T"
+                    shortcut: "⌘⇧T",
+                    dismiss: dismiss
                 ) {
                     AppCoordinator.shared.showCaptureOverlay(for: .timedArea)
                 }
@@ -69,7 +74,8 @@ struct MenuBarView: View {
                         ? String(localized: "menu.stop_recording")
                         : String(localized: "menu.record_screen"),
                     shortcut: "⌘⇧5",
-                    tintColor: env.isRecording ? .red : nil
+                    tintColor: env.isRecording ? .red : nil,
+                    dismiss: dismiss
                 ) {
                     AppCoordinator.shared.toggleRecording()
                 }
@@ -84,7 +90,8 @@ struct MenuBarView: View {
                 MenuBarActionRow(
                     icon: "doc.text.viewfinder",
                     label: String(localized: "menu.ocr_capture"),
-                    shortcut: "⌘⇧O"
+                    shortcut: "⌘⇧O",
+                    dismiss: dismiss
                 ) {
                     AppCoordinator.shared.showCaptureOverlay(for: .ocrCapture)
                 }
@@ -92,7 +99,8 @@ struct MenuBarView: View {
                 MenuBarActionRow(
                     icon: "pin.fill",
                     label: String(localized: "menu.pin_clipboard"),
-                    shortcut: ""
+                    shortcut: "",
+                    dismiss: dismiss
                 ) {
                     if let image = NSPasteboard.general.readObjects(forClasses: [NSImage.self], options: nil)?.first as? NSImage {
                         let screenFrame = NSScreen.main?.visibleFrame ?? NSRect(x: 0, y: 0, width: 800, height: 600)
@@ -111,7 +119,8 @@ struct MenuBarView: View {
                 MenuBarActionRow(
                     icon: "clock.arrow.circlepath",
                     label: String(localized: "menu.capture_history"),
-                    shortcut: ""
+                    shortcut: "",
+                    dismiss: dismiss
                 ) {
                     AppCoordinator.shared.showHistory()
                 }
@@ -124,10 +133,7 @@ struct MenuBarView: View {
             // Footer
             HStack(spacing: 12) {
                 Button(action: {
-                    // Activate the app first — required for .accessory policy apps
-                    // so the Settings window reliably comes to front.
-                    // Async delay is needed: the MenuBarExtra popover dismissal
-                    // races with activation, causing openSettings() to silently fail.
+                    dismiss()
                     NSApp.activate(ignoringOtherApps: true)
                     Task { @MainActor in
                         try? await Task.sleep(for: .milliseconds(100))
@@ -164,10 +170,14 @@ struct MenuBarActionRow: View {
     let label: String
     let shortcut: String
     var tintColor: Color? = nil
+    let dismiss: DismissAction
     let action: () -> Void
 
     var body: some View {
-        Button(action: action) {
+        Button(action: {
+            dismiss()
+            action()
+        }) {
             HStack(spacing: 10) {
                 Image(systemName: icon)
                     .frame(width: 20)
