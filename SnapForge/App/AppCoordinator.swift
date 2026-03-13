@@ -178,8 +178,17 @@ final class AppCoordinator {
 
         let hostingView = NSHostingView(rootView: indicatorView)
 
+        // Expand window 48px below selection to show the toolbar
+        let toolbarHeight: CGFloat = 48
+        let expandedRect = CGRect(
+            x: rect.origin.x,
+            y: rect.origin.y - toolbarHeight,
+            width: rect.width,
+            height: rect.height + toolbarHeight
+        )
+
         let window = NSWindow(
-            contentRect: rect,
+            contentRect: expandedRect,
             styleMask: .borderless,
             backing: .buffered,
             defer: false
@@ -280,8 +289,16 @@ final class AppCoordinator {
         )
         let hostingView = NSHostingView(rootView: indicatorView)
 
+        let toolbarHeight: CGFloat = 48
+        let expandedRect = CGRect(
+            x: rect.origin.x,
+            y: rect.origin.y - toolbarHeight,
+            width: rect.width,
+            height: rect.height + toolbarHeight
+        )
+
         let window = NSWindow(
-            contentRect: rect,
+            contentRect: expandedRect,
             styleMask: .borderless,
             backing: .buffered,
             defer: false

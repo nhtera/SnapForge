@@ -114,7 +114,7 @@ struct RecordingIndicatorView: View {
         }
         .background(.black.opacity(0.85), in: Capsule())
         .shadow(color: .black.opacity(0.3), radius: 8, y: 4)
-        .padding(.bottom, -36)  // Position just below the area
+        .padding(.bottom, 8)
     }
 
     // MARK: - Recording Toolbar (during active recording)
@@ -195,7 +195,7 @@ struct RecordingIndicatorView: View {
         .padding(.vertical, 4)
         .background(.black.opacity(0.85), in: Capsule())
         .shadow(color: .black.opacity(0.3), radius: 8, y: 4)
-        .padding(.bottom, -36)
+        .padding(.bottom, 8)
         .onAppear { isBlinking = true }
     }
 
