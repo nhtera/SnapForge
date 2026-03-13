@@ -740,4 +740,323 @@ final class ExportServiceAnnotationTests: XCTestCase {
         XCTAssertNotNil(result)
         XCTAssertEqual(result?.size, image.size)
     }
+
+    func testRenderAnnotatedImage_withFilledShape() {
+        let service = ExportService()
+        let image = makeTestImage()
+
+        let annotations: [any AnnotationItem] = [
+            ShapeAnnotation(type: .rectangle, rect: CGRect(x: 10, y: 10, width: 80, height: 60),
+                          color: .red, strokeWidth: 2, isFilled: true, cornerRadius: 8)
+        ]
+
+        let result = service.renderAnnotatedImage(
+            baseImage: image, annotations: annotations,
+            canvasSize: CGSize(width: 800, height: 600),
+            imageRect: CGRect(x: 20, y: 20, width: 760, height: 560)
+        )
+        XCTAssertNotNil(result)
+    }
+
+    func testRenderAnnotatedImage_withCurvedArrow() {
+        let service = ExportService()
+        let image = makeTestImage()
+
+        let annotations: [any AnnotationItem] = [
+            ArrowAnnotation(startPoint: CGPoint(x: 50, y: 50), endPoint: CGPoint(x: 200, y: 150),
+                          color: .red, strokeWidth: 2, isCurved: true,
+                          controlPoint: CGPoint(x: 125, y: 20))
+        ]
+
+        let result = service.renderAnnotatedImage(
+            baseImage: image, annotations: annotations,
+            canvasSize: CGSize(width: 800, height: 600),
+            imageRect: CGRect(x: 20, y: 20, width: 760, height: 560)
+        )
+        XCTAssertNotNil(result)
+    }
+
+    func testRenderAnnotatedImage_withHighlighter() {
+        let service = ExportService()
+        let image = makeTestImage()
+
+        let annotations: [any AnnotationItem] = [
+            PencilAnnotation(
+                type: .highlighter,
+                points: [CGPoint(x: 10, y: 50), CGPoint(x: 100, y: 50), CGPoint(x: 200, y: 50)],
+                color: .yellow.opacity(0.3), strokeWidth: 12, isSmoothed: false
+            )
+        ]
+
+        let result = service.renderAnnotatedImage(
+            baseImage: image, annotations: annotations,
+            canvasSize: CGSize(width: 800, height: 600),
+            imageRect: CGRect(x: 20, y: 20, width: 760, height: 560)
+        )
+        XCTAssertNotNil(result)
+    }
+
+    func testRenderAnnotatedImage_withLineAnnotation() {
+        let service = ExportService()
+        let image = makeTestImage()
+
+        let annotations: [any AnnotationItem] = [
+            ArrowAnnotation(type: .line, startPoint: CGPoint(x: 10, y: 10),
+                          endPoint: CGPoint(x: 200, y: 200),
+                          color: .green, strokeWidth: 2, isCurved: false)
+        ]
+
+        let result = service.renderAnnotatedImage(
+            baseImage: image, annotations: annotations,
+            canvasSize: CGSize(width: 800, height: 600),
+            imageRect: CGRect(x: 20, y: 20, width: 760, height: 560)
+        )
+        XCTAssertNotNil(result)
+    }
+}
+
+// MARK: - Crop Tool Tests
+
+final class CropToolTests: XCTestCase {
+
+    private func makeVM() -> AnnotationViewModel {
+        AnnotationViewModel()
+    }
+
+    func testCropRect_initiallyNil() {
+        let vm = makeVM()
+        XCTAssertNil(vm.cropRect)
+    }
+
+    func testCropRect_setAndClear() {
+        let vm = makeVM()
+        let rect = CGRect(x: 50, y: 50, width: 300, height: 200)
+        vm.cropRect = rect
+        XCTAssertEqual(vm.cropRect, rect)
+
+        vm.cropRect = nil
+        XCTAssertNil(vm.cropRect)
+    }
+
+    func testCropRect_preservesDimensions() {
+        let vm = makeVM()
+        let rect = CGRect(x: 100, y: 100, width: 400, height: 300)
+        vm.cropRect = rect
+        XCTAssertEqual(vm.cropRect?.width, 400)
+        XCTAssertEqual(vm.cropRect?.height, 300)
+        XCTAssertEqual(vm.cropRect?.origin, CGPoint(x: 100, y: 100))
+    }
+
+    func testClearAll_doesNotAffectCropRect() {
+        let vm = makeVM()
+        let rect = CGRect(x: 10, y: 10, width: 200, height: 150)
+        vm.cropRect = rect
+        vm.addAnnotation(ShapeAnnotation(type: .rectangle, rect: .zero, color: .red, strokeWidth: 1, isFilled: false, cornerRadius: 0))
+        vm.clearAll()
+
+        // clearAll only clears annotations --- crop rect is separate
+        XCTAssertEqual(vm.cropRect, rect, "Crop rect should survive clearAll")
+    }
+}
+
+// MARK: - Effect Isolation Tests
+
+final class EffectIsolationTests: XCTestCase {
+
+    private func makeVM() -> AnnotationViewModel {
+        AnnotationViewModel()
+    }
+
+    func testBlurThenCounter_bothExist() {
+        let vm = makeVM()
+        vm.addAnnotation(EffectAnnotation(
+            type: .blur,
+            rect: CGRect(x: 50, y: 50, width: 100, height: 80),
+            intensity: 0.8
+        ))
+        vm.addAnnotation(CounterAnnotation(
+            position: CGPoint(x: 200, y: 200),
+            number: 1, color: .red, size: 28
+        ))
+
+        XCTAssertEqual(vm.annotations.count, 2)
+        XCTAssertTrue(vm.annotations[0] is EffectAnnotation)
+        XCTAssertTrue(vm.annotations[1] is CounterAnnotation)
+    }
+
+    func testPixelateThenArrow_bothExist() {
+        let vm = makeVM()
+        vm.addAnnotation(EffectAnnotation(
+            type: .pixelate,
+            rect: CGRect(x: 0, y: 0, width: 100, height: 100),
+            intensity: 0.5
+        ))
+        vm.addAnnotation(ArrowAnnotation(
+            startPoint: CGPoint(x: 200, y: 50),
+            endPoint: CGPoint(x: 350, y: 150),
+            color: .red, strokeWidth: 3, isCurved: false
+        ))
+
+        XCTAssertEqual(vm.annotations.count, 2)
+        let effect = vm.annotations[0] as? EffectAnnotation
+        let arrow = vm.annotations[1] as? ArrowAnnotation
+        XCTAssertEqual(effect?.type, .pixelate)
+        XCTAssertNotNil(arrow)
+    }
+
+    func testSpotlightThenText_bothExist() {
+        let vm = makeVM()
+        vm.addAnnotation(EffectAnnotation(
+            type: .spotlight,
+            rect: CGRect(x: 100, y: 100, width: 200, height: 200),
+            intensity: 1.0
+        ))
+        vm.addAnnotation(TextAnnotation(
+            position: CGPoint(x: 150, y: 150),
+            text: "Spotlight text",
+            font: .systemFont(ofSize: 16),
+            color: .white, backgroundColor: nil, style: .plain
+        ))
+
+        XCTAssertEqual(vm.annotations.count, 2)
+        let text = vm.annotations[1] as? TextAnnotation
+        XCTAssertEqual(text?.text, "Spotlight text")
+    }
+
+    func testMultipleEffects_allPreserved() {
+        let vm = makeVM()
+        vm.addAnnotation(EffectAnnotation(type: .blur, rect: CGRect(x: 10, y: 10, width: 50, height: 50), intensity: 0.5))
+        vm.addAnnotation(EffectAnnotation(type: .pixelate, rect: CGRect(x: 80, y: 80, width: 50, height: 50), intensity: 0.7))
+        vm.addAnnotation(EffectAnnotation(type: .spotlight, rect: CGRect(x: 150, y: 150, width: 100, height: 100), intensity: 1.0))
+        vm.addAnnotation(CounterAnnotation(position: CGPoint(x: 300, y: 50), number: 1, color: .red, size: 28))
+        vm.addAnnotation(ArrowAnnotation(startPoint: .zero, endPoint: CGPoint(x: 100, y: 100), color: .green, strokeWidth: 2, isCurved: false))
+
+        XCTAssertEqual(vm.annotations.count, 5)
+    }
+
+    func testEffect_rendering_doesNotCrash() {
+        let service = ExportService()
+        let image = NSImage(size: NSSize(width: 200, height: 200))
+        image.lockFocus()
+        NSColor.white.setFill()
+        NSBezierPath.fill(NSRect(origin: .zero, size: image.size))
+        image.unlockFocus()
+
+        // Mix effects and other annotations (the scenario that was broken)
+        let annotations: [any AnnotationItem] = [
+            EffectAnnotation(type: .blur, rect: CGRect(x: 10, y: 10, width: 50, height: 50), intensity: 0.8),
+            CounterAnnotation(position: CGPoint(x: 150, y: 150), number: 1, color: .red, size: 28),
+            EffectAnnotation(type: .pixelate, rect: CGRect(x: 60, y: 60, width: 50, height: 50), intensity: 0.5),
+            ArrowAnnotation(startPoint: CGPoint(x: 0, y: 0), endPoint: CGPoint(x: 100, y: 100), color: .blue, strokeWidth: 2, isCurved: false),
+        ]
+
+        let result = service.renderAnnotatedImage(
+            baseImage: image, annotations: annotations,
+            canvasSize: CGSize(width: 400, height: 400),
+            imageRect: CGRect(x: 0, y: 0, width: 400, height: 400)
+        )
+        XCTAssertNotNil(result, "Rendering effects + annotations should not crash")
+    }
+}
+
+// MARK: - Multi-Tool Workflow Integration Tests
+
+final class AnnotationWorkflowTests: XCTestCase {
+
+    func testCompleteWorkflow_addMultipleTypes_undoAll_redoAll() {
+        let vm = AnnotationViewModel()
+
+        // Add various annotations
+        vm.addAnnotation(ShapeAnnotation(type: .rectangle, rect: CGRect(x: 10, y: 10, width: 100, height: 50), color: .red, strokeWidth: 2, isFilled: false, cornerRadius: 0))
+        vm.addAnnotation(ArrowAnnotation(startPoint: CGPoint(x: 200, y: 50), endPoint: CGPoint(x: 300, y: 150), color: .blue, strokeWidth: 3, isCurved: false))
+        vm.addAnnotation(TextAnnotation(position: CGPoint(x: 100, y: 200), text: "Hello", font: .systemFont(ofSize: 16), color: .green, backgroundColor: nil, style: .plain))
+        let num = vm.nextCounterNumber()
+        vm.addAnnotation(CounterAnnotation(position: CGPoint(x: 350, y: 50), number: num, color: .red, size: 28))
+        vm.addAnnotation(PencilAnnotation(points: [CGPoint(x: 10, y: 300), CGPoint(x: 50, y: 280), CGPoint(x: 100, y: 310)], color: .purple, strokeWidth: 2, isSmoothed: true))
+
+        XCTAssertEqual(vm.annotations.count, 5)
+
+        // Undo all
+        vm.undo(); vm.undo(); vm.undo(); vm.undo(); vm.undo()
+        XCTAssertEqual(vm.annotations.count, 0)
+        XCTAssertFalse(vm.canUndo)
+        XCTAssertTrue(vm.canRedo)
+
+        // Redo all
+        vm.redo(); vm.redo(); vm.redo(); vm.redo(); vm.redo()
+        XCTAssertEqual(vm.annotations.count, 5)
+        XCTAssertTrue(vm.canUndo)
+        XCTAssertFalse(vm.canRedo)
+    }
+
+    func testSelectAndRemove_workflow() {
+        let vm = AnnotationViewModel()
+        let shape = ShapeAnnotation(type: .rectangle, rect: CGRect(x: 50, y: 50, width: 100, height: 100), color: .red, strokeWidth: 2, isFilled: false, cornerRadius: 0)
+        vm.addAnnotation(shape)
+        vm.addAnnotation(ArrowAnnotation(startPoint: CGPoint(x: 250, y: 250), endPoint: CGPoint(x: 350, y: 350), color: .blue, strokeWidth: 2, isCurved: false))
+
+        // Select the shape (click inside it, away from the arrow)
+        vm.selectAnnotation(at: CGPoint(x: 75, y: 75))
+        XCTAssertTrue(vm.annotations[0].isSelected)
+        XCTAssertFalse(vm.annotations[1].isSelected)
+
+        // Remove it
+        vm.removeAnnotation(id: shape.id)
+        XCTAssertEqual(vm.annotations.count, 1)
+
+        // The remaining annotation should be the arrow
+        XCTAssertTrue(vm.annotations[0] is ArrowAnnotation)
+    }
+
+    func testTextEditAndUndoWorkflow() {
+        let vm = AnnotationViewModel()
+        let textAnnotation = TextAnnotation(position: CGPoint(x: 100, y: 100), text: "Initial", font: .systemFont(ofSize: 14), color: .red, backgroundColor: nil, style: .plain)
+        vm.addAnnotation(textAnnotation)
+
+        // Update text
+        vm.updateText(id: textAnnotation.id, newText: "Updated")
+        let updated = vm.annotations[0] as? TextAnnotation
+        XCTAssertEqual(updated?.text, "Updated")
+
+        // Undo should restore original text
+        vm.undo()
+        let restored = vm.annotations[0] as? TextAnnotation
+        XCTAssertEqual(restored?.text, "Initial")
+
+        // Redo
+        vm.redo()
+        let redone = vm.annotations[0] as? TextAnnotation
+        XCTAssertEqual(redone?.text, "Updated")
+    }
+
+    func testHitTest_pencilAnnotation() {
+        let vm = AnnotationViewModel()
+        vm.addAnnotation(PencilAnnotation(
+            points: [CGPoint(x: 50, y: 50), CGPoint(x: 100, y: 50), CGPoint(x: 150, y: 50)],
+            color: .red, strokeWidth: 3, isSmoothed: false
+        ))
+
+        // Click near the pencil path
+        vm.selectAnnotation(at: CGPoint(x: 100, y: 52))
+        XCTAssertTrue(vm.annotations[0].isSelected)
+
+        // Click far away
+        vm.selectAnnotation(at: CGPoint(x: 300, y: 300))
+        XCTAssertFalse(vm.annotations[0].isSelected)
+    }
+
+    func testHitTest_effectAnnotation() {
+        let vm = AnnotationViewModel()
+        vm.addAnnotation(EffectAnnotation(
+            type: .blur,
+            rect: CGRect(x: 50, y: 50, width: 100, height: 80),
+            intensity: 0.8
+        ))
+
+        vm.selectAnnotation(at: CGPoint(x: 100, y: 90))
+        XCTAssertTrue(vm.annotations[0].isSelected)
+
+        vm.selectAnnotation(at: CGPoint(x: 300, y: 300))
+        XCTAssertFalse(vm.annotations[0].isSelected)
+    }
 }

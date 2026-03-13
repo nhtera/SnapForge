@@ -2,7 +2,7 @@ import SwiftUI
 
 /// Annotation editor view — full canvas with tool palette for marking up captured images.
 struct AnnotationView: View {
-    let image: NSImage
+    @State var image: NSImage
     @State private var viewModel = AnnotationViewModel()
     @State private var currentDragStart: CGPoint?
     @State private var currentDragEnd: CGPoint?
@@ -49,6 +49,11 @@ struct AnnotationView: View {
                     // Text editing overlay
                     if isEditing, let editID = editingTextID {
                         textEditingOverlay(for: editID)
+                    }
+
+                    // Crop overlay buttons
+                    if viewModel.cropRect != nil {
+                        cropOverlayButtons
                     }
                 }
                 .onChange(of: geo.size) { _, newSize in
@@ -275,6 +280,11 @@ struct AnnotationView: View {
     private func drawAnnotations(context: inout GraphicsContext, size: CGSize) {
         for annotation in viewModel.annotations {
             drawAnnotation(annotation, context: &context)
+        }
+
+        // Draw crop overlay on top of everything
+        if let cropRect = viewModel.cropRect {
+            drawCropOverlay(cropRect, context: &context, size: size)
         }
     }
 
@@ -620,6 +630,156 @@ struct AnnotationView: View {
         }
         isEditing = false
         editingTextID = nil
+    }
+
+    // MARK: - Crop
+
+    private func drawCropOverlay(_ cropRect: CGRect, context: inout GraphicsContext, size: CGSize) {
+        // Dim everything outside the crop region
+        context.drawLayer { layerContext in
+            layerContext.fill(Path(CGRect(origin: .zero, size: size)),
+                            with: .color(.black.opacity(0.5)))
+            layerContext.blendMode = .destinationOut
+            layerContext.fill(Path(cropRect), with: .color(.white))
+        }
+
+        // Crop border
+        context.stroke(Path(cropRect), with: .color(.white), lineWidth: 2)
+
+        // Rule-of-thirds grid
+        let thirdW = cropRect.width / 3
+        let thirdH = cropRect.height / 3
+        for i in 1...2 {
+            let xLine = cropRect.minX + thirdW * CGFloat(i)
+            let yLine = cropRect.minY + thirdH * CGFloat(i)
+
+            var vPath = Path()
+            vPath.move(to: CGPoint(x: xLine, y: cropRect.minY))
+            vPath.addLine(to: CGPoint(x: xLine, y: cropRect.maxY))
+            context.stroke(vPath, with: .color(.white.opacity(0.4)), lineWidth: 0.5)
+
+            var hPath = Path()
+            hPath.move(to: CGPoint(x: cropRect.minX, y: yLine))
+            hPath.addLine(to: CGPoint(x: cropRect.maxX, y: yLine))
+            context.stroke(hPath, with: .color(.white.opacity(0.4)), lineWidth: 0.5)
+        }
+
+        // Corner handles (L-shaped)
+        let handleLen: CGFloat = 16
+        let handleWidth: CGFloat = 3
+        let corners: [(CGPoint, CGFloat, CGFloat)] = [
+            (CGPoint(x: cropRect.minX, y: cropRect.minY), 1, 1),   // top-left
+            (CGPoint(x: cropRect.maxX, y: cropRect.minY), -1, 1),  // top-right
+            (CGPoint(x: cropRect.minX, y: cropRect.maxY), 1, -1),  // bottom-left
+            (CGPoint(x: cropRect.maxX, y: cropRect.maxY), -1, -1), // bottom-right
+        ]
+
+        for (corner, dx, dy) in corners {
+            var hLine = Path()
+            hLine.move(to: corner)
+            hLine.addLine(to: CGPoint(x: corner.x + handleLen * dx, y: corner.y))
+            context.stroke(hLine, with: .color(.white), lineWidth: handleWidth)
+
+            var vLine = Path()
+            vLine.move(to: corner)
+            vLine.addLine(to: CGPoint(x: corner.x, y: corner.y + handleLen * dy))
+            context.stroke(vLine, with: .color(.white), lineWidth: handleWidth)
+        }
+
+        // Dimension label
+        let w = Int(cropRect.width)
+        let h = Int(cropRect.height)
+        let sizeLabel = context.resolve(
+            Text("\(w) × \(h)")
+                .font(.system(size: 11, weight: .medium))
+                .foregroundColor(.white)
+        )
+        let labelBg = CGRect(
+            x: cropRect.midX - 35,
+            y: cropRect.maxY + 6,
+            width: 70,
+            height: 18
+        )
+        context.fill(Path(roundedRect: labelBg, cornerRadius: 4),
+                    with: .color(.black.opacity(0.7)))
+        context.draw(sizeLabel, at: CGPoint(x: cropRect.midX, y: cropRect.maxY + 15), anchor: .center)
+    }
+
+    private var cropOverlayButtons: some View {
+        VStack {
+            Spacer()
+            HStack(spacing: 12) {
+                Button(action: { viewModel.cropRect = nil }) {
+                    Label("Cancel", systemImage: "xmark")
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 8))
+                }
+                .buttonStyle(.plain)
+
+                Button(action: { applyCrop() }) {
+                    Label("Apply Crop", systemImage: "checkmark")
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(Color.accentColor, in: RoundedRectangle(cornerRadius: 8))
+                        .foregroundColor(.white)
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.bottom, 20)
+        }
+    }
+
+    private func applyCrop() {
+        guard let cropRect = viewModel.cropRect else { return }
+
+        // Map canvas cropRect → image pixel coordinates
+        let scaleX = image.size.width / imageRect.width
+        let scaleY = image.size.height / imageRect.height
+
+        let imageCropX = (cropRect.minX - imageRect.minX) * scaleX
+        let imageCropY = (cropRect.minY - imageRect.minY) * scaleY
+        let imageCropW = cropRect.width * scaleX
+        let imageCropH = cropRect.height * scaleY
+
+        let pixelRect = CGRect(
+            x: max(0, imageCropX),
+            y: max(0, imageCropY),
+            width: min(imageCropW, image.size.width - max(0, imageCropX)),
+            height: min(imageCropH, image.size.height - max(0, imageCropY))
+        )
+
+        guard pixelRect.width > 1, pixelRect.height > 1 else {
+            viewModel.cropRect = nil
+            return
+        }
+
+        // Crop the image
+        guard let cgImage = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else {
+            viewModel.cropRect = nil
+            return
+        }
+
+        // NSImage coordinates are bottom-up, CGImage is top-down
+        let flippedY = image.size.height - pixelRect.origin.y - pixelRect.height
+        let cgCropRect = CGRect(x: pixelRect.origin.x, y: flippedY,
+                                width: pixelRect.width, height: pixelRect.height)
+
+        guard let croppedCG = cgImage.cropping(to: cgCropRect) else {
+            viewModel.cropRect = nil
+            return
+        }
+
+        let croppedImage = NSImage(cgImage: croppedCG, size: NSSize(width: croppedCG.width, height: croppedCG.height))
+
+        // Replace image and clear state
+        image = croppedImage
+        viewModel.cropRect = nil
+        viewModel.clearAll()
+        // Recalculate image rect
+        imageRect = calcImageRect(canvasSize: canvasSize, imageSize: croppedImage.size)
+
+        print("✅ Crop applied: \(Int(pixelRect.width))×\(Int(pixelRect.height))")
     }
 
     // MARK: - Export
