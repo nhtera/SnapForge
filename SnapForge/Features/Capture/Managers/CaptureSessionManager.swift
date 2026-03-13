@@ -1,4 +1,5 @@
 import AppKit
+import SwiftUI
 import ScreenCaptureKit
 
 /// Orchestrates the complete capture lifecycle:
@@ -315,16 +316,59 @@ final class CaptureSessionManager {
         }
     }
 
-    // MARK: - Timed Capture
+    private var countdownWindow: NSWindow?
 
     private func startTimedCapture() {
         let delay = UserDefaults.standard.integer(forKey: "timerDelay")
         let seconds = delay > 0 ? delay : 5
 
-        // TODO: Show countdown overlay
-        DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(seconds)) { [weak self] in
-            self?.showOverlay(mode: .area)
+        guard let screen = NSScreen.main else { return }
+
+        let countdownView = CountdownOverlayView(
+            totalSeconds: seconds,
+            onComplete: { [weak self] in
+                self?.dismissCountdown()
+                // After countdown, show area selection
+                self?.showOverlay(mode: .area)
+            },
+            onCancel: { [weak self] in
+                self?.dismissCountdown()
+            }
+        )
+
+        let hostingView = NSHostingView(rootView: countdownView)
+
+        let window = NSWindow(
+            contentRect: screen.frame,
+            styleMask: .borderless,
+            backing: .buffered,
+            defer: false
+        )
+        window.contentView = hostingView
+        window.level = .statusBar
+        window.isOpaque = false
+        window.backgroundColor = .clear
+        window.isReleasedWhenClosed = false
+        window.collectionBehavior = [.canJoinAllSpaces, .stationary]
+
+        // Handle Esc key via local monitor
+        NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            if event.keyCode == 53 { // Esc
+                self?.dismissCountdown()
+                return nil
+            }
+            return event
         }
+
+        window.makeKeyAndOrderFront(nil)
+        countdownWindow = window
+
+        NSSound(named: .init("Tink"))?.play()
+    }
+
+    private func dismissCountdown() {
+        countdownWindow?.close()
+        countdownWindow = nil
     }
 
     // MARK: - Freeze Screen
