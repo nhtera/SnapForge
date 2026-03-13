@@ -3,6 +3,7 @@ import SwiftUI
 /// Full-screen countdown overlay for Self-Timer Capture — CleanShot X style.
 /// Shows the selected area with a thin border, dimmed surroundings, and a compact
 /// countdown badge at the top-center of the selection.
+/// Hover over the badge to reveal Cancel; click to dismiss.
 struct CountdownOverlayView: View {
     let totalSeconds: Int
     let captureRect: CGRect  // In screen (AppKit) coordinates
@@ -12,6 +13,7 @@ struct CountdownOverlayView: View {
 
     @State private var remaining: Int
     @State private var pulseScale: CGFloat = 1.0
+    @State private var isHovering = false
 
     init(
         totalSeconds: Int = 5,
@@ -90,21 +92,37 @@ struct CountdownOverlayView: View {
     // MARK: - Countdown Badge (CleanShot X style)
 
     private var countdownBadge: some View {
-        HStack(spacing: 6) {
-            Image(systemName: "timer")
-                .font(.system(size: 14, weight: .semibold))
-            Text("\(remaining)")
-                .font(.system(size: 20, weight: .bold, design: .rounded))
-                .monospacedDigit()
+        Button(action: onCancel) {
+            HStack(spacing: 6) {
+                if isHovering {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 14, weight: .semibold))
+                    Text("Cancel")
+                        .font(.system(size: 14, weight: .semibold, design: .rounded))
+                } else {
+                    Image(systemName: "timer")
+                        .font(.system(size: 14, weight: .semibold))
+                    Text("\(remaining)")
+                        .font(.system(size: 20, weight: .bold, design: .rounded))
+                        .monospacedDigit()
+                }
+            }
+            .foregroundStyle(.white)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+            .background(
+                Capsule()
+                    .fill(isHovering ? Color.red : Color.orange)
+                    .shadow(color: .black.opacity(0.4), radius: 8, y: 4)
+            )
+            .scaleEffect(pulseScale)
+            .contentShape(Capsule())
         }
-        .foregroundStyle(.white)
-        .padding(.horizontal, 16)
-        .padding(.vertical, 8)
-        .background(
-            Capsule()
-                .fill(Color.orange)
-                .shadow(color: .black.opacity(0.4), radius: 8, y: 4)
-        )
-        .scaleEffect(pulseScale)
+        .buttonStyle(.plain)
+        .onHover { hovering in
+            withAnimation(.easeInOut(duration: 0.15)) {
+                isHovering = hovering
+            }
+        }
     }
 }
