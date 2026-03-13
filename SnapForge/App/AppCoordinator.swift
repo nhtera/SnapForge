@@ -2,6 +2,18 @@ import SwiftUI
 import AppKit
 import AVFoundation
 
+/// NSPanel subclass that stays interactive even when the app is inactive.
+/// Ensures Quick Access overlay buttons remain clickable after a second capture.
+private class QuickAccessPanel: NSPanel {
+    override var canBecomeKey: Bool { true }
+    override var canBecomeMain: Bool { false }
+}
+
+/// NSView that accepts clicks without requiring the window to be activated first.
+private class FirstMouseView: NSView {
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+}
+
 /// Central coordinator for window management, z-ordering, and navigation.
 /// Follows Snapzy's Coordinator Pattern — single source of truth for all window operations.
 @MainActor
@@ -62,20 +74,37 @@ final class AppCoordinator {
     // MARK: - Quick Access Overlay
 
     func showQuickAccess(image: NSImage, at point: NSPoint) {
+        // Dismiss any existing panel first
+        dismissQuickAccess()
+
         let quickAccessView = QuickAccessView(capturedImage: image)
         let hostingView = NSHostingView(rootView: quickAccessView)
 
-        let panel = NSPanel(
+        // Wrap in FirstMouseView so clicks work even when app is inactive
+        let containerView = FirstMouseView()
+        hostingView.translatesAutoresizingMaskIntoConstraints = false
+        containerView.addSubview(hostingView)
+        NSLayoutConstraint.activate([
+            hostingView.topAnchor.constraint(equalTo: containerView.topAnchor),
+            hostingView.bottomAnchor.constraint(equalTo: containerView.bottomAnchor),
+            hostingView.leadingAnchor.constraint(equalTo: containerView.leadingAnchor),
+            hostingView.trailingAnchor.constraint(equalTo: containerView.trailingAnchor),
+        ])
+
+        let panel = QuickAccessPanel(
             contentRect: NSRect(x: point.x, y: point.y, width: 320, height: 200),
             styleMask: [.titled, .closable, .nonactivatingPanel, .hudWindow],
             backing: .buffered,
             defer: false
         )
-        panel.contentView = hostingView
+        panel.contentView = containerView
         panel.level = .floating
         panel.isFloatingPanel = true
         panel.hidesOnDeactivate = false
         panel.isReleasedWhenClosed = false
+        panel.becomesKeyOnlyIfNeeded = true
+        panel.acceptsMouseMovedEvents = true
+        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         panel.makeKeyAndOrderFront(nil)
 
         quickAccessPanel = panel
