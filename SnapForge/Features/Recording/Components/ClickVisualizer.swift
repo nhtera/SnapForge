@@ -5,6 +5,8 @@ import SwiftUI
 @MainActor
 @Observable
 final class ClickVisualizer {
+    static let shared = ClickVisualizer()
+
     private var clickMonitor: Any?
     private var rippleWindows: [NSWindow] = []
 

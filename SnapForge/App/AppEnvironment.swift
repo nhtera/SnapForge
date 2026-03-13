@@ -23,15 +23,29 @@ final class AppEnvironment {
         UserDefaults.standard.register(defaults: [
             "hasCompletedOnboarding": false,
             "saveLocation": URL.picturesDirectory.path(),
+            // Screenshots
             "imageFormat": "png",
             "jpegQuality": 0.9,
-            "showQuickAccess": true,
-            "quickAccessTimeout": 5.0,
-            "autoCopyToClipboard": true,
             "showMagnifier": true,
             "showCrosshair": true,
+            "showDimensions": true,
+            "freezeScreen": false,
+            "timerDelay": 5,
+            // After-capture actions
+            "autoCopyToClipboard": true,
+            "autoSave": true,
+            "showQuickAccess": true,
+            "openAnnotateAfterCapture": false,
+            "pinAfterCapture": false,
+            "playSounds": true,
+            // Recording
             "recordingFPS": 30,
             "recordingCodec": "h264",
+            "showCursorInRecording": true,
+            "highlightClicks": false,
+            // Quick Access
+            "quickAccessTimeout": 5.0,
+            // GIF
             "gifFPS": 15,
             "gifMaxWidth": 640,
         ])

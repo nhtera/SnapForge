@@ -98,6 +98,8 @@ final class ScreenRecordingService: NSObject {
     private var fps: Int = 30
     private var captureSystemAudio: Bool = true
     private var captureMicrophone: Bool = false
+    private var showCursor: Bool = true
+    private var recordingCodec: AVVideoCodecType = .h264
     private var outputURL: URL?
     private var registeredOutputTypes: Set<SCStreamOutputType> = []
 
@@ -120,6 +122,8 @@ final class ScreenRecordingService: NSObject {
         fps: Int = 30,
         captureSystemAudio: Bool = true,
         captureMicrophone: Bool = false,
+        showCursor: Bool = true,
+        codec: AVVideoCodecType = .h264,
         saveDirectory: URL
     ) async throws {
         guard state == .idle else { return }
@@ -133,6 +137,8 @@ final class ScreenRecordingService: NSObject {
         self.fps = fps
         self.captureSystemAudio = captureSystemAudio
         self.captureMicrophone = captureMicrophone
+        self.showCursor = showCursor
+        self.recordingCodec = codec
 
         // Load shareable content (this will fail if permission is denied)
         let content: SCShareableContent
@@ -291,7 +297,7 @@ final class ScreenRecordingService: NSObject {
         // Video: H.264
         let bitrate = width * height * videoQuality.bitrateMultiplier
         let videoSettings: [String: Any] = [
-            AVVideoCodecKey: AVVideoCodecType.h264,
+            AVVideoCodecKey: recordingCodec,
             AVVideoWidthKey: width,
             AVVideoHeightKey: height,
             AVVideoCompressionPropertiesKey: [
@@ -370,7 +376,7 @@ final class ScreenRecordingService: NSObject {
         config.height = Int(ceil(rect.height * scaleFactor))
         config.minimumFrameInterval = CMTime(value: 1, timescale: CMTimeScale(fps))
         config.pixelFormat = kCVPixelFormatType_32BGRA
-        config.showsCursor = true
+        config.showsCursor = showCursor
 
         // Area selection → sourceRect
         // The incoming rect is already in CG screen coordinates (Y=0 at top)

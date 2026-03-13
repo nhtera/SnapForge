@@ -3,6 +3,7 @@ import SwiftUI
 /// Menu bar dropdown view — the primary UI entry point for SnapForge.
 struct MenuBarView: View {
     @Environment(AppEnvironment.self) private var env
+    @Environment(\.openSettings) private var openSettings
 
     var body: some View {
         VStack(spacing: 0) {
@@ -122,7 +123,12 @@ struct MenuBarView: View {
 
             // Footer
             HStack(spacing: 12) {
-                SettingsLink {
+                Button(action: {
+                    // Activate the app first — required for .accessory policy apps
+                    // so the Settings window reliably comes to front
+                    NSApp.activate(ignoringOtherApps: true)
+                    openSettings()
+                }) {
                     Label(String(localized: "menu.settings"), systemImage: "gearshape")
                         .font(.subheadline)
                 }

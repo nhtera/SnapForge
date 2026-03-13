@@ -27,7 +27,12 @@ final class CaptureSessionManager {
         case .window:
             showWindowOverlayWithBlur()
         case .area:
-            showOverlay(mode: .area)
+            // Check "Freeze screen during capture" setting
+            if UserDefaults.standard.bool(forKey: "freezeScreen") {
+                Task { await showFreezeScreen() }
+            } else {
+                showOverlay(mode: .area)
+            }
         case .timedArea:
             startTimedCapture()
         }
@@ -72,7 +77,9 @@ final class CaptureSessionManager {
         self.overlayPanel = panel
         self.overlayView = view
 
-        NSSound(named: .init("Tink"))?.play()
+        if UserDefaults.standard.bool(forKey: "playSounds") {
+            NSSound(named: .init("Tink"))?.play()
+        }
     }
 
     // MARK: - Overlay Management
@@ -97,7 +104,8 @@ final class CaptureSessionManager {
         let view = CaptureOverlayNSView(frame: screenFrame)
         view.mode = mode
         view.showCrosshair = UserDefaults.standard.bool(forKey: "showCrosshair")
-        view.showDimensions = true
+        view.showMagnifier = UserDefaults.standard.bool(forKey: "showMagnifier")
+        view.showDimensions = UserDefaults.standard.bool(forKey: "showDimensions")
 
         // Wire up callbacks
         view.onSelectionComplete = { [weak self] rect in
@@ -124,8 +132,10 @@ final class CaptureSessionManager {
         self.overlayPanel = panel
         self.overlayView = view
 
-        // Play subtle sound
-        NSSound(named: .init("Tink"))?.play()
+        // Play subtle sound (respect setting)
+        if UserDefaults.standard.bool(forKey: "playSounds") {
+            NSSound(named: .init("Tink"))?.play()
+        }
     }
 
     /// Window capture with clear background + window highlight (CleanShot X style)
@@ -365,7 +375,9 @@ final class CaptureSessionManager {
         window.makeKeyAndOrderFront(nil)
         countdownWindow = window
 
-        NSSound(named: .init("Tink"))?.play()
+        if UserDefaults.standard.bool(forKey: "playSounds") {
+            NSSound(named: .init("Tink"))?.play()
+        }
     }
 
     private func dismissCountdown() {
@@ -415,30 +427,55 @@ final class CaptureSessionManager {
     // MARK: - Post-Capture
 
     private func handleCapturedImage(_ image: NSImage) {
-        // Increment capture count
+        let defaults = UserDefaults.standard
         let env = AppEnvironment.shared
+
+        // Increment capture count
         env.captureCount += 1
         env.lastCapture = image
 
         // Auto-copy to clipboard
-        if UserDefaults.standard.bool(forKey: "autoCopyToClipboard") {
+        if defaults.bool(forKey: "autoCopyToClipboard") {
             ClipboardService().copyImage(image)
         }
 
-        // Auto-save
-        let storage = StorageService()
-        let filename = storage.generateImageFilename()
-        if let saved = try? storage.saveImage(image, filename: filename) {
-            print("✅ Saved capture to: \(saved.path)")
+        // Auto-save (respect the toggle)
+        if defaults.bool(forKey: "autoSave") {
+            let storage = StorageService()
+            let format = defaults.string(forKey: "imageFormat") ?? "png"
+            let quality = defaults.double(forKey: "jpegQuality")
+            let filename = storage.generateImageFilename(format: format)
+            if let saved = try? storage.saveImage(image, filename: filename, format: format, quality: quality) {
+                print("✅ Saved capture to: \(saved.path)")
+            }
         }
 
         // Show Quick Access overlay
-        if UserDefaults.standard.bool(forKey: "showQuickAccess") {
+        if defaults.bool(forKey: "showQuickAccess") {
             let mouseLocation = NSEvent.mouseLocation
             AppCoordinator.shared.showQuickAccess(image: image, at: mouseLocation)
         }
 
-        // Play capture sound
-        NSSound(named: .init("Glass"))?.play()
+        // Open Annotate tool after capture
+        if defaults.bool(forKey: "openAnnotateAfterCapture") {
+            AppCoordinator.shared.showAnnotationEditor(for: image)
+        }
+
+        // Pin to screen after capture
+        if defaults.bool(forKey: "pinAfterCapture") {
+            let screenFrame = NSScreen.main?.visibleFrame ?? NSRect(x: 0, y: 0, width: 800, height: 600)
+            let pinFrame = NSRect(
+                x: screenFrame.midX - 150,
+                y: screenFrame.midY - 100,
+                width: 300,
+                height: 200
+            )
+            AppCoordinator.shared.pinImage(image, at: pinFrame)
+        }
+
+        // Play capture sound (respect the toggle)
+        if defaults.bool(forKey: "playSounds") {
+            NSSound(named: .init("Glass"))?.play()
+        }
     }
 }

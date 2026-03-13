@@ -31,16 +31,37 @@ final class StorageService {
 
     // MARK: - Save Image
 
-    func saveImage(_ image: NSImage, filename: String) throws -> URL {
+    func saveImage(_ image: NSImage, filename: String, format: String = "png", quality: Double = 0.9) throws -> URL {
         let url = snapForgeDirectory.appendingPathComponent(filename)
 
         guard let tiffData = image.tiffRepresentation,
-              let bitmapRep = NSBitmapImageRep(data: tiffData),
-              let pngData = bitmapRep.representation(using: .png, properties: [:]) else {
+              let bitmapRep = NSBitmapImageRep(data: tiffData) else {
             throw NSError(domain: "SnapForge", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to convert image"])
         }
 
-        try pngData.write(to: url)
+        let imageData: Data?
+        switch format.lowercased() {
+        case "jpg", "jpeg":
+            imageData = bitmapRep.representation(using: .jpeg, properties: [.compressionFactor: quality])
+        case "heic":
+            // CIImage route for HEIC — NSBitmapImageRep doesn't directly support HEIC
+            if let cgImage = bitmapRep.cgImage {
+                let ciImage = CIImage(cgImage: cgImage)
+                let context = CIContext()
+                let colorSpace = CGColorSpaceCreateDeviceRGB()
+                try context.writeHEIFRepresentation(of: ciImage, to: url, format: .RGBA8, colorSpace: colorSpace, options: [kCGImageDestinationLossyCompressionQuality as CIImageRepresentationOption: quality])
+                return url
+            }
+            imageData = bitmapRep.representation(using: .png, properties: [:])
+        default: // "png", "webp" (webp falls back to png)
+            imageData = bitmapRep.representation(using: .png, properties: [:])
+        }
+
+        guard let data = imageData else {
+            throw NSError(domain: "SnapForge", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to encode image as \(format)"])
+        }
+
+        try data.write(to: url)
         return url
     }
 

@@ -1,5 +1,6 @@
 import SwiftUI
 import AppKit
+import AVFoundation
 
 /// Central coordinator for window management, z-ordering, and navigation.
 /// Follows Snapzy's Coordinator Pattern — single source of truth for all window operations.
@@ -244,21 +245,33 @@ final class AppCoordinator {
     private func beginRecording(in rect: CGRect) async {
         let recorder = ScreenRecordingService.shared
         let storage = AppEnvironment.shared.storageService
+        let defaults = UserDefaults.standard
+
+        // Resolve codec from settings
+        let codecString = defaults.string(forKey: "recordingCodec") ?? "h264"
+        let codec: AVVideoCodecType = (codecString == "hevc") ? .hevc : .h264
 
         do {
             try await recorder.prepareRecording(
                 rect: rect,
                 format: .mov,
                 quality: .high,
-                fps: UserDefaults.standard.integer(forKey: "recordingFPS"),
+                fps: defaults.integer(forKey: "recordingFPS"),
                 captureSystemAudio: true,
                 captureMicrophone: false,
+                showCursor: defaults.bool(forKey: "showCursorInRecording"),
+                codec: codec,
                 saveDirectory: storage.snapForgeDirectory
             )
             try await recorder.startRecording()
 
             AppEnvironment.shared.isRecording = true
             pendingRecordingRect = nil
+
+            // Start click visualizer if highlight-clicks is enabled
+            if defaults.bool(forKey: "highlightClicks") {
+                ClickVisualizer.shared.start()
+            }
 
             // Switch from pre-record to recording mode
             showRecordingIndicator(in: rect)
@@ -278,6 +291,10 @@ final class AppCoordinator {
         }
         AppEnvironment.shared.isRecording = false
         isGIFMode = false
+
+        // Stop click visualizer if it was running
+        ClickVisualizer.shared.stop()
+
         dismissRecordingIndicator()
     }
 
