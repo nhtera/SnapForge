@@ -1,0 +1,72 @@
+import Foundation
+
+/// Defines the type of screen capture to perform.
+enum CaptureMode: String, CaseIterable, Identifiable {
+    case area = "Area"
+    case window = "Window"
+    case fullscreen = "Fullscreen"
+    case timedArea = "Self-Timer"
+
+    var id: String { rawValue }
+
+    var icon: String {
+        switch self {
+        case .area: return "rectangle.dashed"
+        case .window: return "macwindow"
+        case .fullscreen: return "rectangle.inset.filled"
+        case .timedArea: return "timer"
+        }
+    }
+
+    var shortcut: String {
+        switch self {
+        case .area: return "⌘⇧4"
+        case .window: return "⌘⇧W"
+        case .fullscreen: return "⌘⇧3"
+        case .timedArea: return "⌘⇧5"
+        }
+    }
+}
+
+/// Defines recording modes.
+enum RecordingMode: String, CaseIterable, Identifiable {
+    case area = "Area"
+    case window = "Window"
+    case fullscreen = "Fullscreen"
+
+    var id: String { rawValue }
+}
+
+/// Supported image export formats.
+enum ImageExportFormat: String, CaseIterable, Identifiable {
+    case png = "PNG"
+    case jpg = "JPG"
+    case webp = "WebP"
+    case heic = "HEIC"
+
+    var id: String { rawValue }
+
+    var fileExtension: String {
+        switch self {
+        case .png: return "png"
+        case .jpg: return "jpg"
+        case .webp: return "webp"
+        case .heic: return "heic"
+        }
+    }
+}
+
+/// Supported video export formats.
+enum VideoExportFormat: String, CaseIterable, Identifiable {
+    case mp4 = "MP4"
+    case gif = "GIF"
+
+    var id: String { rawValue }
+
+    var fileExtension: String {
+        switch self {
+        case .mp4: return "mp4"
+        case .gif: return "gif"
+        }
+    }
+}

@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleDevelopmentRegion</key>
+    <string>en</string>
+
+    <key>CFBundleDisplayName</key>
+    <string>SnapForge</string>
+
+    <key>CFBundleExecutable</key>
+    <string>$(EXECUTABLE_NAME)</string>
+
+    <key>CFBundleIdentifier</key>
+    <string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+
+    <key>CFBundleName</key>
+    <string>$(PRODUCT_NAME)</string>
+
+    <key>CFBundlePackageType</key>
+    <string>$(PRODUCT_BUNDLE_PACKAGE_TYPE)</string>
+
+    <key>CFBundleShortVersionString</key>
+    <string>1.0.0</string>
+
+    <key>CFBundleVersion</key>
+    <string>1</string>
+
+    <key>LSMinimumSystemVersion</key>
+    <string>$(MACOSX_DEPLOYMENT_TARGET)</string>
+
+    <key>LSUIElement</key>
+    <true/>
+
+    <!-- Privacy descriptions -->
+    <key>NSCameraUsageDescription</key>
+    <string>SnapForge needs camera access to show webcam overlay during screen recordings.</string>
+
+    <key>NSMicrophoneUsageDescription</key>
+    <string>SnapForge needs microphone access to record your voice during screen recordings.</string>
+
+    <key>NSScreenRecordingUsageDescription</key>
+    <string>SnapForge needs screen recording permission to capture screenshots and record your screen.</string>
+
+    <!-- Document types -->
+    <key>CFBundleDocumentTypes</key>
+    <array>
+        <dict>
+            <key>CFBundleTypeName</key>
+            <string>SnapForge Project</string>
+            <key>CFBundleTypeExtensions</key>
+            <array>
+                <string>snapforge</string>
+            </array>
+            <key>CFBundleTypeRole</key>
+            <string>Editor</string>
+            <key>LSTypeIsPackage</key>
+            <true/>
+        </dict>
+    </array>
+
+    <!-- Exported UTI for .snapforge -->
+    <key>UTExportedTypeDeclarations</key>
+    <array>
+        <dict>
+            <key>UTTypeConformsTo</key>
+            <array>
+                <string>com.apple.package</string>
+            </array>
+            <key>UTTypeDescription</key>
+            <string>SnapForge Project</string>
+            <key>UTTypeIdentifier</key>
+            <string>com.snapforge.project</string>
+            <key>UTTypeTagSpecification</key>
+            <dict>
+                <key>public.filename-extension</key>
+                <array>
+                    <string>snapforge</string>
+                </array>
+            </dict>
+        </dict>
+    </array>
+</dict>
+</plist>
