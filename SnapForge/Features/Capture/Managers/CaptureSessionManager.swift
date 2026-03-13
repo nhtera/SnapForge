@@ -36,6 +36,9 @@ final class CaptureSessionManager {
     func startRecordingAreaSelection(completion: @escaping (CGRect) -> Void) {
         recordingAreaCallback = completion
 
+        // Dismiss Quick Access if visible — it steals key window focus
+        AppCoordinator.shared.dismissQuickAccess()
+
         guard let screen = NSScreen.main else { return }
         let screenFrame = screen.frame
 
@@ -74,6 +77,9 @@ final class CaptureSessionManager {
     // MARK: - Overlay Management
 
     private func showOverlay(mode: CaptureMode) {
+        // Dismiss Quick Access if visible — it can steal key window focus
+        AppCoordinator.shared.dismissQuickAccess()
+
         // Use the main screen frame
         guard let screen = NSScreen.main else { return }
         let screenFrame = screen.frame
@@ -106,6 +112,12 @@ final class CaptureSessionManager {
         panel.contentView = view
         panel.makeKeyAndOrderFront(nil)
         panel.makeFirstResponder(view)
+
+        // Force key window after brief delay (ensures it takes focus from any other panels)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+            panel.makeKeyAndOrderFront(nil)
+            panel.makeFirstResponder(view)
+        }
 
         self.overlayPanel = panel
         self.overlayView = view

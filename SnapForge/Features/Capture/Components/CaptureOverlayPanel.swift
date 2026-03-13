@@ -486,6 +486,11 @@ class CaptureOverlayNSView: NSView {
         }
     }
 
+    // Fallback — AppKit sends cancelOperation: when ESC is pressed via responder chain
+    override func cancelOperation(_ sender: Any?) {
+        onCancel?()
+    }
+
     // MARK: - Cursor
 
     override func resetCursorRects() {
