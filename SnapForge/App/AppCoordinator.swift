@@ -129,22 +129,70 @@ final class AppCoordinator {
 
     // MARK: - Recording
 
+    /// Pending recording rect (after area selection, before user clicks Record)
+    private var pendingRecordingRect: CGRect?
+    private var isGIFMode = false
+
     func startRecording() {
-        // Use capture overlay to select recording area, then start recording
+        // Use capture overlay to select recording area
         let manager = CaptureSessionManager.shared
         manager.startRecordingAreaSelection { [weak self] rect in
             guard let self else { return }
             Task { @MainActor in
-                await self.beginRecording(in: rect)
+                self.showPreRecordIndicator(for: rect)
             }
         }
     }
 
     func startFullscreenRecording() {
         guard let screen = NSScreen.main else { return }
-        Task { @MainActor in
-            await beginRecording(in: screen.frame)
-        }
+        showPreRecordIndicator(for: screen.frame)
+    }
+
+    /// Show pre-record toolbar with highlighted area border
+    private func showPreRecordIndicator(for rect: CGRect) {
+        pendingRecordingRect = rect
+
+        let indicatorView = RecordingIndicatorView(
+            isPreRecord: true,
+            selectedRect: rect,
+            onStartVideo: { [weak self] in
+                guard let self, let rect = self.pendingRecordingRect else { return }
+                self.isGIFMode = false
+                Task { @MainActor in
+                    await self.beginRecording(in: rect)
+                }
+            },
+            onStartGIF: { [weak self] in
+                guard let self, let rect = self.pendingRecordingRect else { return }
+                self.isGIFMode = true
+                Task { @MainActor in
+                    await self.beginRecording(in: rect)
+                }
+            },
+            onCancel: { [weak self] in
+                self?.dismissRecordingIndicator()
+                self?.pendingRecordingRect = nil
+            }
+        )
+
+        let hostingView = NSHostingView(rootView: indicatorView)
+
+        let window = NSWindow(
+            contentRect: rect,
+            styleMask: .borderless,
+            backing: .buffered,
+            defer: false
+        )
+        window.contentView = hostingView
+        window.level = .statusBar
+        window.isOpaque = false
+        window.backgroundColor = .clear
+        window.ignoresMouseEvents = false
+        window.isReleasedWhenClosed = false
+        window.makeKeyAndOrderFront(nil)
+
+        recordingIndicatorWindow = window
     }
 
     private func beginRecording(in rect: CGRect) async {
@@ -164,6 +212,9 @@ final class AppCoordinator {
             try await recorder.startRecording()
 
             AppEnvironment.shared.isRecording = true
+            pendingRecordingRect = nil
+
+            // Switch indicator from pre-record to recording mode
             showRecordingIndicator(in: rect)
         } catch {
             print("❌ Recording failed: \(error)")
@@ -174,8 +225,41 @@ final class AppCoordinator {
         let recorder = ScreenRecordingService.shared
         if let savedURL = await recorder.stopRecording() {
             print("✅ Recording saved: \(savedURL.path)")
+
+            // Convert to GIF if GIF mode was selected
+            if isGIFMode {
+                await convertToGIF(videoURL: savedURL)
+            }
         }
         AppEnvironment.shared.isRecording = false
+        isGIFMode = false
+        dismissRecordingIndicator()
+    }
+
+    private func convertToGIF(videoURL: URL) async {
+        let encoder = GIFEncoder()
+        let gifURL = videoURL.deletingPathExtension().appendingPathExtension("gif")
+        let config = GIFEncoder.Configuration(fps: 10, maxWidth: 640, quality: 0.8)
+        do {
+            try await encoder.encode(
+                inputURL: videoURL,
+                outputURL: gifURL,
+                config: config
+            ) { @Sendable framesProcessed, totalFrames in
+                print("GIF encoding: \(framesProcessed)/\(totalFrames)")
+            }
+            print("✅ GIF saved: \(gifURL.lastPathComponent)")
+            try? FileManager.default.removeItem(at: videoURL)
+        } catch {
+            print("❌ GIF encoding failed: \(error)")
+        }
+    }
+
+    func cancelRecording() async {
+        let recorder = ScreenRecordingService.shared
+        await recorder.cancelRecording()
+        AppEnvironment.shared.isRecording = false
+        isGIFMode = false
         dismissRecordingIndicator()
     }
 
@@ -190,7 +274,10 @@ final class AppCoordinator {
     }
 
     func showRecordingIndicator(in rect: NSRect) {
-        let indicatorView = RecordingIndicatorView()
+        let indicatorView = RecordingIndicatorView(
+            isPreRecord: false,
+            selectedRect: rect
+        )
         let hostingView = NSHostingView(rootView: indicatorView)
 
         let window = NSWindow(
@@ -207,6 +294,7 @@ final class AppCoordinator {
         window.isReleasedWhenClosed = false
         window.makeKeyAndOrderFront(nil)
 
+        recordingIndicatorWindow?.close()
         recordingIndicatorWindow = window
     }
 

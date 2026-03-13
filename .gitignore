@@ -47,3 +47,6 @@ Carthage/Build/
 # Archives
 *.xcarchive
 *.ipa
+
+# Agents
+.agents/
