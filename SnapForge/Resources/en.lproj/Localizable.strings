@@ -1,0 +1,169 @@
+/* SnapForge — English (Base) Localization */
+
+// MARK: - Menu Bar
+"menu.title" = "SnapForge";
+"menu.capture_area" = "Capture Area";
+"menu.capture_window" = "Capture Window";
+"menu.capture_fullscreen" = "Capture Fullscreen";
+"menu.self_timer" = "Self-Timer Capture";
+"menu.record_screen" = "Record Screen";
+"menu.stop_recording" = "Stop Recording";
+"menu.ocr_capture" = "OCR Capture";
+"menu.pin_clipboard" = "Pin from Clipboard";
+"menu.capture_history" = "Capture History";
+"menu.settings" = "Settings";
+"menu.quit" = "Quit";
+
+// MARK: - Quick Access
+"quick_access.copy" = "Copy";
+"quick_access.save" = "Save";
+"quick_access.annotate" = "Annotate";
+"quick_access.mockup" = "Mockup";
+"quick_access.pin" = "Pin";
+"quick_access.ocr" = "OCR";
+"quick_access.close" = "Close";
+
+// MARK: - Recording
+"recording.record" = "Record";
+"recording.gif" = "GIF";
+"recording.pause" = "Pause";
+"recording.resume" = "Resume";
+"recording.stop" = "Stop";
+"recording.cancel" = "Cancel";
+"recording.recording" = "Recording";
+"recording.paused" = "Paused";
+
+// MARK: - Countdown
+"countdown.capturing_in" = "Capturing in %ds...";
+"countdown.press_esc" = "Press Esc to cancel";
+
+// MARK: - History
+"history.title" = "Capture History";
+"history.no_captures" = "No Captures Yet";
+"history.no_results" = "No Results";
+"history.description" = "Your screenshots and recordings will appear here.";
+"history.no_match" = "No captures match \"%@\".";
+"history.search" = "Search captures...";
+"history.refresh" = "Refresh";
+"history.open_finder" = "Open in Finder";
+"history.all" = "All";
+"history.screenshots" = "Screenshots";
+"history.recordings" = "Recordings";
+"history.gifs" = "GIFs";
+"history.items" = "%d items";
+"history.open" = "Open";
+"history.copy" = "Copy";
+"history.show_finder" = "Show in Finder";
+"history.annotate" = "Annotate";
+"history.mockup" = "Mockup";
+"history.ocr_clipboard" = "OCR → Clipboard";
+"history.delete" = "Delete";
+
+// MARK: - Floating Pin
+"pin.opacity" = "Opacity";
+"pin.ocr" = "Extract text (OCR)";
+"pin.close" = "Close";
+
+// MARK: - Background Mockup
+"mockup.title" = "Background & Mockup";
+"mockup.background" = "Background";
+"mockup.padding" = "Padding";
+"mockup.corners" = "Corners";
+"mockup.shadow" = "Shadow";
+"mockup.cancel" = "Cancel";
+"mockup.copy_clipboard" = "Copy to Clipboard";
+"mockup.apply" = "Apply";
+
+// MARK: - OCR
+"ocr.no_text" = "No text found in image";
+"ocr.copied" = "Copied %d characters to clipboard";
+"ocr.failed" = "OCR failed";
+
+// MARK: - Settings — General
+"settings.general" = "General";
+"settings.startup" = "Startup";
+"settings.start_login" = "Start at login";
+"settings.sounds" = "Sounds";
+"settings.play_sounds" = "Play capture sounds";
+"settings.export_location" = "Export Location";
+"settings.choose" = "Choose...";
+"settings.desktop" = "Desktop";
+"settings.hide_icons" = "Hide desktop icons while capturing";
+"settings.after_capture" = "After Capture";
+"settings.after_capture_desc" = "Choose what happens after taking a screenshot or recording.";
+"settings.screenshot" = "Screenshot";
+"settings.action" = "Action";
+"settings.show_quick_access" = "Show Quick Access Overlay";
+"settings.copy_clipboard" = "Copy to clipboard";
+"settings.save_location" = "Save to export location";
+"settings.open_annotate" = "Open Annotate tool";
+"settings.pin_screen" = "Pin to screen";
+
+// MARK: - Settings — Screenshots
+"settings.screenshots" = "Screenshots";
+"settings.default_format" = "Default Format";
+"settings.quality" = "Quality";
+"settings.area_selection" = "Area Selection";
+"settings.show_magnifier" = "Show magnifier";
+"settings.show_crosshair" = "Show crosshair";
+"settings.show_dimensions" = "Show dimensions";
+"settings.freeze_screen" = "Freeze screen during capture";
+"settings.window_capture" = "Window Capture";
+"settings.capture_shadow" = "Capture window shadow";
+"settings.self_timer" = "Self-Timer";
+"settings.countdown_delay" = "Countdown delay";
+
+// MARK: - Settings — Recording
+"settings.recording" = "Recording";
+"settings.general_tab" = "General";
+"settings.video_tab" = "Video";
+"settings.gif_tab" = "GIF";
+"settings.controls" = "Controls";
+"settings.show_controls" = "Show controls while recording";
+"settings.show_timer" = "Display recording time in menu bar";
+"settings.cursor" = "Cursor";
+"settings.show_cursor" = "Show cursor";
+"settings.highlight_clicks" = "Highlight clicks";
+"settings.keyboard" = "Keyboard";
+"settings.show_keystrokes" = "Show keystrokes";
+"settings.recording_area" = "Recording Area";
+"settings.dim_screen" = "Dim screen while recording";
+"settings.show_countdown" = "Show countdown before recording";
+"settings.frame_rate" = "Frame Rate";
+"settings.codec" = "Codec";
+"settings.resolution" = "Resolution";
+"settings.gif_fps" = "GIF FPS: %d";
+"settings.gif_fps_desc" = "Higher FPS = smoother but larger files";
+"settings.max_width" = "Max Width: %dpx";
+"settings.max_width_desc" = "GIF will be scaled down if wider than this";
+"settings.color_quality" = "Color Quality";
+"settings.loop_count" = "Loop Count";
+
+// MARK: - Settings — Quick Access
+"settings.quick_access" = "Quick Access";
+"settings.visibility" = "Visibility";
+"settings.show_overlay" = "Show Quick Access overlay after capture";
+"settings.auto_close" = "Auto-close after delay";
+"settings.interval" = "Interval";
+"settings.drag_drop" = "Drag & Drop";
+"settings.close_after_drag" = "Close after dragging";
+
+// MARK: - Settings — Shortcuts
+"settings.shortcuts" = "Shortcuts";
+"settings.utilities" = "Utilities";
+
+// MARK: - Settings — About
+"settings.about" = "About";
+"settings.version" = "Version %@ (Build %@)";
+"settings.tagline" = "Forge perfect captures.";
+"settings.built_by" = "Built with ❤️ by Tien Nguyen";
+
+// MARK: - Gradient Presets
+"gradient.ocean" = "Ocean";
+"gradient.sunset" = "Sunset";
+"gradient.forest" = "Forest";
+"gradient.pastel" = "Pastel";
+"gradient.warm" = "Warm";
+"gradient.cool" = "Cool";
+"gradient.dark" = "Dark";
+"gradient.neon" = "Neon";

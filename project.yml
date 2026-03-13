@@ -5,6 +5,9 @@ options:
     macOS: "15.0"
   createIntermediateGroups: true
   developmentLanguage: en
+  knownRegions:
+    - en
+    - vi
 
 settings:
   base:
@@ -36,6 +39,8 @@ targets:
         COMBINE_HIDPI_IMAGES: YES
     resources:
       - path: SnapForge/Resources/Assets.xcassets
+      - path: SnapForge/Resources/en.lproj
+      - path: SnapForge/Resources/vi.lproj
 
   SnapForgeTests:
     type: bundle.unit-test

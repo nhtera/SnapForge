@@ -1,0 +1,169 @@
+/* SnapForge — Vietnamese Localization */
+
+// MARK: - Menu Bar
+"menu.title" = "SnapForge";
+"menu.capture_area" = "Chụp vùng chọn";
+"menu.capture_window" = "Chụp cửa sổ";
+"menu.capture_fullscreen" = "Chụp toàn màn hình";
+"menu.self_timer" = "Chụp hẹn giờ";
+"menu.record_screen" = "Quay màn hình";
+"menu.stop_recording" = "Dừng quay";
+"menu.ocr_capture" = "Nhận dạng chữ (OCR)";
+"menu.pin_clipboard" = "Ghim từ Clipboard";
+"menu.capture_history" = "Lịch sử chụp";
+"menu.settings" = "Cài đặt";
+"menu.quit" = "Thoát";
+
+// MARK: - Quick Access
+"quick_access.copy" = "Sao chép";
+"quick_access.save" = "Lưu";
+"quick_access.annotate" = "Chú thích";
+"quick_access.mockup" = "Mẫu nền";
+"quick_access.pin" = "Ghim";
+"quick_access.ocr" = "OCR";
+"quick_access.close" = "Đóng";
+
+// MARK: - Recording
+"recording.record" = "Quay";
+"recording.gif" = "GIF";
+"recording.pause" = "Tạm dừng";
+"recording.resume" = "Tiếp tục";
+"recording.stop" = "Dừng";
+"recording.cancel" = "Huỷ";
+"recording.recording" = "Đang quay";
+"recording.paused" = "Đã tạm dừng";
+
+// MARK: - Countdown
+"countdown.capturing_in" = "Chụp sau %d giây...";
+"countdown.press_esc" = "Nhấn Esc để huỷ";
+
+// MARK: - History
+"history.title" = "Lịch sử chụp";
+"history.no_captures" = "Chưa có ảnh chụp";
+"history.no_results" = "Không có kết quả";
+"history.description" = "Ảnh chụp và bản ghi sẽ xuất hiện ở đây.";
+"history.no_match" = "Không tìm thấy kết quả cho \"%@\".";
+"history.search" = "Tìm kiếm...";
+"history.refresh" = "Làm mới";
+"history.open_finder" = "Mở trong Finder";
+"history.all" = "Tất cả";
+"history.screenshots" = "Ảnh chụp";
+"history.recordings" = "Bản ghi";
+"history.gifs" = "GIF";
+"history.items" = "%d mục";
+"history.open" = "Mở";
+"history.copy" = "Sao chép";
+"history.show_finder" = "Hiện trong Finder";
+"history.annotate" = "Chú thích";
+"history.mockup" = "Mẫu nền";
+"history.ocr_clipboard" = "OCR → Clipboard";
+"history.delete" = "Xoá";
+
+// MARK: - Floating Pin
+"pin.opacity" = "Độ mờ";
+"pin.ocr" = "Trích xuất chữ (OCR)";
+"pin.close" = "Đóng";
+
+// MARK: - Background Mockup
+"mockup.title" = "Nền & Mẫu";
+"mockup.background" = "Nền";
+"mockup.padding" = "Khoảng đệm";
+"mockup.corners" = "Bo góc";
+"mockup.shadow" = "Bóng đổ";
+"mockup.cancel" = "Huỷ";
+"mockup.copy_clipboard" = "Sao chép vào Clipboard";
+"mockup.apply" = "Áp dụng";
+
+// MARK: - OCR
+"ocr.no_text" = "Không tìm thấy chữ trong ảnh";
+"ocr.copied" = "Đã sao chép %d ký tự vào clipboard";
+"ocr.failed" = "Nhận dạng chữ thất bại";
+
+// MARK: - Settings — General
+"settings.general" = "Chung";
+"settings.startup" = "Khởi động";
+"settings.start_login" = "Khởi chạy cùng hệ thống";
+"settings.sounds" = "Âm thanh";
+"settings.play_sounds" = "Phát âm thanh khi chụp";
+"settings.export_location" = "Thư mục lưu";
+"settings.choose" = "Chọn...";
+"settings.desktop" = "Màn hình nền";
+"settings.hide_icons" = "Ẩn biểu tượng màn hình khi chụp";
+"settings.after_capture" = "Sau khi chụp";
+"settings.after_capture_desc" = "Chọn hành động sau khi chụp ảnh hoặc quay màn hình.";
+"settings.screenshot" = "Ảnh chụp";
+"settings.action" = "Hành động";
+"settings.show_quick_access" = "Hiện thanh Truy cập nhanh";
+"settings.copy_clipboard" = "Sao chép vào clipboard";
+"settings.save_location" = "Lưu vào thư mục xuất";
+"settings.open_annotate" = "Mở công cụ Chú thích";
+"settings.pin_screen" = "Ghim lên màn hình";
+
+// MARK: - Settings — Screenshots
+"settings.screenshots" = "Ảnh chụp";
+"settings.default_format" = "Định dạng mặc định";
+"settings.quality" = "Chất lượng";
+"settings.area_selection" = "Chọn vùng";
+"settings.show_magnifier" = "Hiện kính lúp";
+"settings.show_crosshair" = "Hiện dấu chữ thập";
+"settings.show_dimensions" = "Hiện kích thước";
+"settings.freeze_screen" = "Đóng băng màn hình khi chụp";
+"settings.window_capture" = "Chụp cửa sổ";
+"settings.capture_shadow" = "Chụp bóng đổ cửa sổ";
+"settings.self_timer" = "Hẹn giờ";
+"settings.countdown_delay" = "Thời gian đếm ngược";
+
+// MARK: - Settings — Recording
+"settings.recording" = "Quay màn hình";
+"settings.general_tab" = "Chung";
+"settings.video_tab" = "Video";
+"settings.gif_tab" = "GIF";
+"settings.controls" = "Điều khiển";
+"settings.show_controls" = "Hiện điều khiển khi quay";
+"settings.show_timer" = "Hiện thời gian quay trên thanh menu";
+"settings.cursor" = "Con trỏ";
+"settings.show_cursor" = "Hiện con trỏ";
+"settings.highlight_clicks" = "Làm nổi bật cú nhấp chuột";
+"settings.keyboard" = "Bàn phím";
+"settings.show_keystrokes" = "Hiện phím bấm";
+"settings.recording_area" = "Vùng quay";
+"settings.dim_screen" = "Làm mờ màn hình khi quay";
+"settings.show_countdown" = "Đếm ngược trước khi quay";
+"settings.frame_rate" = "Tốc độ khung hình";
+"settings.codec" = "Bộ mã hoá";
+"settings.resolution" = "Độ phân giải";
+"settings.gif_fps" = "GIF FPS: %d";
+"settings.gif_fps_desc" = "FPS cao = mượt hơn nhưng nặng hơn";
+"settings.max_width" = "Chiều rộng tối đa: %dpx";
+"settings.max_width_desc" = "GIF sẽ được thu nhỏ nếu rộng hơn giá trị này";
+"settings.color_quality" = "Chất lượng màu";
+"settings.loop_count" = "Số lần lặp";
+
+// MARK: - Settings — Quick Access
+"settings.quick_access" = "Truy cập nhanh";
+"settings.visibility" = "Hiển thị";
+"settings.show_overlay" = "Hiện thanh truy cập nhanh sau khi chụp";
+"settings.auto_close" = "Tự đóng sau khoảng thời gian";
+"settings.interval" = "Khoảng thời gian";
+"settings.drag_drop" = "Kéo & Thả";
+"settings.close_after_drag" = "Đóng sau khi kéo";
+
+// MARK: - Settings — Shortcuts
+"settings.shortcuts" = "Phím tắt";
+"settings.utilities" = "Tiện ích";
+
+// MARK: - Settings — About
+"settings.about" = "Giới thiệu";
+"settings.version" = "Phiên bản %@ (Bản dựng %@)";
+"settings.tagline" = "Tạo ảnh chụp hoàn hảo.";
+"settings.built_by" = "Phát triển với ❤️ bởi Tien Nguyen";
+
+// MARK: - Gradient Presets
+"gradient.ocean" = "Đại dương";
+"gradient.sunset" = "Hoàng hôn";
+"gradient.forest" = "Rừng xanh";
+"gradient.pastel" = "Pastel";
+"gradient.warm" = "Ấm áp";
+"gradient.cool" = "Mát mẻ";
+"gradient.dark" = "Tối";
+"gradient.neon" = "Neon";
