@@ -204,9 +204,10 @@ struct BlurEffectRenderer {
         context.fill(region)
     }
 
-    // MARK: - NSImage convenience
+    // MARK: - NSImage convenience (for SwiftUI Canvas)
 
-    /// Create a pixelated NSImage from a source image region
+    /// Create a pixelated NSImage from a source image region.
+    /// Samples pixels from `region` in the source image, draws mosaic at (0,0) in a local context.
     static func pixelateRegion(
         sourceImage: NSImage,
         region: CGRect,
@@ -216,20 +217,43 @@ struct BlurEffectRenderer {
         let height = Int(ceil(region.height))
         guard width > 0, height > 0 else { return nil }
 
-        let result = NSImage(size: NSSize(width: width, height: height))
-        result.lockFocus()
+        guard let cgImage = sourceImage.cgImage(forProposedRect: nil, context: nil, hints: nil) else {
+            return nil
+        }
 
+        let imageBounds = CGRect(origin: .zero, size: sourceImage.size)
+        let clampedRegion = region.intersection(imageBounds)
+        guard !clampedRegion.isEmpty else { return nil }
+
+        let imageScale = CGFloat(cgImage.width) / sourceImage.size.width
+
+        // Convert to CGImage pixel coordinates (flip Y for CGImage which is top-down)
+        let pixelRegion = CGRect(
+            x: clampedRegion.origin.x * imageScale,
+            y: (sourceImage.size.height - clampedRegion.origin.y - clampedRegion.height) * imageScale,
+            width: clampedRegion.width * imageScale,
+            height: clampedRegion.height * imageScale
+        )
+
+        let clampedPixelRegion = pixelRegion.intersection(
+            CGRect(x: 0, y: 0, width: cgImage.width, height: cgImage.height)
+        )
+        guard !clampedPixelRegion.isEmpty else { return nil }
+
+        guard let croppedCG = cgImage.cropping(to: clampedPixelRegion) else { return nil }
+
+        // Draw pixelated at (0,0) in a local context of region.size
+        let destRect = CGRect(x: 0, y: 0, width: clampedRegion.width, height: clampedRegion.height)
+
+        let result = NSImage(size: NSSize(width: Int(ceil(clampedRegion.width)),
+                                          height: Int(ceil(clampedRegion.height))))
+        result.lockFocus()
         guard let context = NSGraphicsContext.current?.cgContext else {
             result.unlockFocus()
             return nil
         }
 
-        drawPixelatedRegion(
-            in: context,
-            sourceImage: sourceImage,
-            region: region,
-            pixelSize: pixelSize
-        )
+        drawPixelated(croppedImage: croppedCG, in: context, destRect: destRect, pixelSize: pixelSize)
 
         result.unlockFocus()
         return result
@@ -245,21 +269,53 @@ struct BlurEffectRenderer {
         let height = Int(ceil(region.height))
         guard width > 0, height > 0 else { return nil }
 
-        let result = NSImage(size: NSSize(width: width, height: height))
-        result.lockFocus()
+        guard let cgImage = sourceImage.cgImage(forProposedRect: nil, context: nil, hints: nil) else {
+            return nil
+        }
 
+        let imageBounds = CGRect(origin: .zero, size: sourceImage.size)
+        let clampedRegion = region.intersection(imageBounds)
+        guard !clampedRegion.isEmpty else { return nil }
+
+        let imageScale = CGFloat(cgImage.width) / sourceImage.size.width
+
+        let pixelRegion = CGRect(
+            x: clampedRegion.origin.x * imageScale,
+            y: (sourceImage.size.height - clampedRegion.origin.y - clampedRegion.height) * imageScale,
+            width: clampedRegion.width * imageScale,
+            height: clampedRegion.height * imageScale
+        )
+
+        let clampedPixelRegion = pixelRegion.intersection(
+            CGRect(x: 0, y: 0, width: cgImage.width, height: cgImage.height)
+        )
+        guard !clampedPixelRegion.isEmpty else { return nil }
+
+        guard let croppedCG = cgImage.cropping(to: clampedPixelRegion) else { return nil }
+
+        // Apply CIGaussianBlur
+        let ciImage = CIImage(cgImage: croppedCG)
+        let filter = CIFilter(name: "CIGaussianBlur")
+        filter?.setValue(ciImage, forKey: kCIInputImageKey)
+        filter?.setValue(radius, forKey: kCIInputRadiusKey)
+
+        guard let outputImage = filter?.outputImage else { return nil }
+
+        let croppedOutput = outputImage.cropped(to: ciImage.extent)
+        guard let blurredCGImage = sharedCIContext.createCGImage(croppedOutput, from: ciImage.extent) else {
+            return nil
+        }
+
+        // Draw blurred image at (0,0) in local context
+        let destRect = CGRect(x: 0, y: 0, width: Int(ceil(clampedRegion.width)),
+                              height: Int(ceil(clampedRegion.height)))
+        let result = NSImage(size: destRect.size)
+        result.lockFocus()
         guard let context = NSGraphicsContext.current?.cgContext else {
             result.unlockFocus()
             return nil
         }
-
-        drawGaussianRegion(
-            in: context,
-            sourceImage: sourceImage,
-            region: region,
-            radius: radius
-        )
-
+        context.draw(blurredCGImage, in: destRect)
         result.unlockFocus()
         return result
     }
