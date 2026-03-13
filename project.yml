@@ -36,3 +36,18 @@ targets:
         COMBINE_HIDPI_IMAGES: YES
     resources:
       - path: SnapForge/Resources/Assets.xcassets
+
+  SnapForgeTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - path: SnapForgeTests
+        excludes:
+          - "**/.DS_Store"
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.snapforge.tests
+        PRODUCT_NAME: SnapForgeTests
+        GENERATE_INFOPLIST_FILE: YES
+    dependencies:
+      - target: SnapForge
