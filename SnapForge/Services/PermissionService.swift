@@ -1,9 +1,21 @@
 import Foundation
 import AppKit
-import ScreenCaptureKit
+@preconcurrency import ScreenCaptureKit
 import AVFoundation
 
 /// Manages macOS TCC permissions: Screen Recording, Microphone, Camera, Accessibility.
+
+enum PermissionError: LocalizedError {
+    case screenRecordingDenied
+
+    var errorDescription: String? {
+        switch self {
+        case .screenRecordingDenied:
+            return "Screen recording permission is required. Please grant access in System Settings."
+        }
+    }
+}
+
 @MainActor
 @Observable
 final class PermissionService {
@@ -44,17 +56,54 @@ final class PermissionService {
         }
     }
 
-    func requestScreenRecording() {
-        // CGRequestScreenCaptureAccess shows the system dialog on first call,
-        // opens System Settings on subsequent calls
-        if CGRequestScreenCaptureAccess() {
+    /// Request screen recording permission using a 3-step approach (adapted from Snapzy):
+    /// 1. Fast-path if already granted via CGPreflightScreenCaptureAccess
+    /// 2. Try SCShareableContent.current — auto-adds app on macOS 13-14
+    /// 3. Fallback: CGRequestScreenCaptureAccess → opens System Settings (macOS 15+)
+    func requestScreenRecording() async {
+        // Step 1: Fast path — already granted
+        if CGPreflightScreenCaptureAccess() {
+            screenRecordingStatus = .granted
+            return
+        }
+
+        // Step 2: Try SCShareableContent — triggers native permission dialog
+        // on macOS 13-14 that auto-adds the app to Screen Recording list.
+        do {
+            _ = try await SCShareableContent.current
+            // If we reach here, the system granted access
+            screenRecordingStatus = .granted
+            return
+        } catch {
+            // SCShareableContent threw — permission not yet granted
+        }
+
+        // Step 3: Fallback — CGRequestScreenCaptureAccess
+        // On macOS 15+, this opens System Settings
+        let granted = CGRequestScreenCaptureAccess()
+        if granted {
             screenRecordingStatus = .granted
         } else {
-            // Also open System Settings as a fallback
-            if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture") {
-                NSWorkspace.shared.open(url)
-            }
+            openScreenRecordingPreferences()
+            screenRecordingStatus = .denied
         }
+    }
+
+    /// Open System Settings to the Screen Recording privacy pane
+    func openScreenRecordingPreferences() {
+        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture") {
+            NSWorkspace.shared.open(url)
+        }
+    }
+
+    /// Gate for capture methods — throws if permission is not granted.
+    /// Uses CGPreflightScreenCaptureAccess which is lightweight and never shows UI.
+    func ensureScreenRecordingPermission() throws {
+        guard CGPreflightScreenCaptureAccess() else {
+            screenRecordingStatus = .denied
+            throw PermissionError.screenRecordingDenied
+        }
+        screenRecordingStatus = .granted
     }
 
     // MARK: - Microphone

@@ -132,7 +132,7 @@ struct OnboardingView: View {
         case 1:
             PermissionRow(
                 status: permissionService.screenRecordingStatus,
-                grantAction: { permissionService.requestScreenRecording() },
+                grantAction: { Task { await permissionService.requestScreenRecording() } },
                 refreshAction: { permissionService.checkScreenRecording() }
             )
         case 2:

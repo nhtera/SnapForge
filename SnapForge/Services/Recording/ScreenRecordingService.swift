@@ -141,7 +141,14 @@ final class ScreenRecordingService: NSObject {
         self.showCursor = showCursor
         self.recordingCodec = codec
 
-        // Load shareable content (this will fail if permission is denied)
+        // Gate: check permission without triggering any UI
+        guard CGPreflightScreenCaptureAccess() else {
+            state = .idle
+            self.error = .permissionDenied
+            throw RecordingError.permissionDenied
+        }
+
+        // Load shareable content (permission already verified above)
         let content: SCShareableContent
         do {
             content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
