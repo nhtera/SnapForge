@@ -90,14 +90,6 @@ struct AnnotationView: View {
                 .disabled(viewModel.annotations.isEmpty)
                 .help("Clear All")
 
-                if !cropHistory.isEmpty {
-                    Button(action: { undoCrop() }) {
-                        Image(systemName: "crop")
-                        Image(systemName: "arrow.uturn.backward")
-                    }
-                    .help("Undo Crop")
-                }
-
                 Divider()
 
                 Button("Export") {
