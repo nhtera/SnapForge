@@ -76,7 +76,185 @@ final class ExportService {
         return data as Data
     }
 
-    // MARK: - HEIC Helper
+    // MARK: - Render Annotations onto Image
+
+    func renderAnnotatedImage(
+        baseImage: NSImage,
+        annotations: [any AnnotationItem],
+        canvasSize: CGSize,
+        imageRect: CGRect
+    ) -> NSImage? {
+        let imageSize = baseImage.size
+        let result = NSImage(size: imageSize)
+        result.lockFocus()
+
+        // Draw the base image
+        baseImage.draw(in: NSRect(origin: .zero, size: imageSize))
+
+        guard let context = NSGraphicsContext.current?.cgContext else {
+            result.unlockFocus()
+            return nil
+        }
+
+        // Transform: canvas coordinates → image coordinates
+        let scaleX = imageSize.width / imageRect.width
+        let scaleY = imageSize.height / imageRect.height
+
+        context.saveGState()
+        // Flip coordinate system (NSImage draws bottom-up)
+        context.translateBy(x: 0, y: imageSize.height)
+        context.scaleBy(x: 1, y: -1)
+        // Map from canvas rect to full image
+        context.translateBy(x: -imageRect.origin.x * scaleX, y: -imageRect.origin.y * scaleY)
+        context.scaleBy(x: scaleX, y: scaleY)
+
+        for annotation in annotations {
+            renderAnnotation(annotation, in: context)
+        }
+
+        context.restoreGState()
+        result.unlockFocus()
+
+        return result
+    }
+
+    private func renderAnnotation(_ annotation: any AnnotationItem, in context: CGContext) {
+        if let shape = annotation as? ShapeAnnotation {
+            renderShape(shape, in: context)
+        } else if let arrow = annotation as? ArrowAnnotation {
+            renderArrow(arrow, in: context)
+        } else if let pencil = annotation as? PencilAnnotation {
+            renderPencil(pencil, in: context)
+        } else if let text = annotation as? TextAnnotation {
+            renderText(text, in: context)
+        } else if let counter = annotation as? CounterAnnotation {
+            renderCounter(counter, in: context)
+        }
+    }
+
+    private func renderShape(_ shape: ShapeAnnotation, in context: CGContext) {
+        let color = NSColor(shape.color).cgColor
+        context.setStrokeColor(color)
+        context.setLineWidth(shape.strokeWidth)
+
+        if shape.type == .ellipse {
+            if shape.isFilled {
+                context.setFillColor(color)
+                context.fillEllipse(in: shape.rect)
+            }
+            context.strokeEllipse(in: shape.rect)
+        } else {
+            let path: CGPath
+            if shape.cornerRadius > 0 {
+                path = CGPath(roundedRect: shape.rect, cornerWidth: shape.cornerRadius, cornerHeight: shape.cornerRadius, transform: nil)
+            } else {
+                path = CGPath(rect: shape.rect, transform: nil)
+            }
+            if shape.isFilled {
+                context.setFillColor(color)
+                context.addPath(path)
+                context.fillPath()
+            }
+            context.addPath(path)
+            context.strokePath()
+        }
+    }
+
+    private func renderArrow(_ arrow: ArrowAnnotation, in context: CGContext) {
+        let color = NSColor(arrow.color).cgColor
+        context.setStrokeColor(color)
+        context.setLineWidth(arrow.strokeWidth)
+        context.setLineCap(.round)
+
+        context.move(to: arrow.startPoint)
+        if arrow.isCurved, let cp = arrow.controlPoint {
+            context.addQuadCurve(to: arrow.endPoint, control: cp)
+        } else {
+            context.addLine(to: arrow.endPoint)
+        }
+        context.strokePath()
+
+        // Arrowhead
+        if arrow.type == .arrow {
+            let angle = atan2(arrow.endPoint.y - arrow.startPoint.y,
+                            arrow.endPoint.x - arrow.startPoint.x)
+            let headLength: CGFloat = max(arrow.strokeWidth * 4, 12)
+            let headAngle: CGFloat = .pi / 6
+
+            context.move(to: arrow.endPoint)
+            context.addLine(to: CGPoint(
+                x: arrow.endPoint.x - headLength * cos(angle - headAngle),
+                y: arrow.endPoint.y - headLength * sin(angle - headAngle)
+            ))
+            context.move(to: arrow.endPoint)
+            context.addLine(to: CGPoint(
+                x: arrow.endPoint.x - headLength * cos(angle + headAngle),
+                y: arrow.endPoint.y - headLength * sin(angle + headAngle)
+            ))
+            context.strokePath()
+        }
+    }
+
+    private func renderPencil(_ pencil: PencilAnnotation, in context: CGContext) {
+        guard pencil.points.count >= 2 else { return }
+        let color = NSColor(pencil.color).cgColor
+        context.setStrokeColor(color)
+        context.setLineWidth(pencil.strokeWidth)
+        context.setLineCap(.round)
+        context.setLineJoin(.round)
+
+        context.move(to: pencil.points[0])
+        for point in pencil.points.dropFirst() {
+            context.addLine(to: point)
+        }
+        context.strokePath()
+    }
+
+    private func renderText(_ text: TextAnnotation, in context: CGContext) {
+        let attributes: [NSAttributedString.Key: Any] = [
+            .font: text.font,
+            .foregroundColor: NSColor(text.color)
+        ]
+        let nsString = text.text as NSString
+        // Flip context for text rendering (text draws upside down in flipped context)
+        context.saveGState()
+        context.translateBy(x: text.position.x, y: text.position.y)
+        context.scaleBy(x: 1, y: -1)
+        nsString.draw(at: .zero, withAttributes: attributes)
+        context.restoreGState()
+    }
+
+    private func renderCounter(_ counter: CounterAnnotation, in context: CGContext) {
+        let radius = counter.size / 2
+        let circleRect = CGRect(
+            x: counter.position.x - radius,
+            y: counter.position.y - radius,
+            width: counter.size,
+            height: counter.size
+        )
+
+        // Filled circle
+        let color = NSColor(counter.color).cgColor
+        context.setFillColor(color)
+        context.fillEllipse(in: circleRect)
+
+        // Number text
+        let attributes: [NSAttributedString.Key: Any] = [
+            .font: NSFont.boldSystemFont(ofSize: counter.size * 0.55),
+            .foregroundColor: NSColor.white
+        ]
+        let text = "\(counter.number)" as NSString
+        let textSize = text.size(withAttributes: attributes)
+
+        context.saveGState()
+        context.translateBy(x: counter.position.x - textSize.width / 2,
+                          y: counter.position.y + textSize.height / 2)
+        context.scaleBy(x: 1, y: -1)
+        text.draw(at: .zero, withAttributes: attributes)
+        context.restoreGState()
+    }
+
+    // MARK: - Filename
 
     func generateFilename(prefix: String = "SnapForge", format: ImageExportFormat) -> String {
         let dateFormatter = DateFormatter()

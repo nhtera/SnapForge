@@ -60,7 +60,7 @@ struct ShapeAnnotation: AnnotationItem {
 /// Concrete annotation: Arrow
 struct ArrowAnnotation: AnnotationItem {
     let id = UUID()
-    let type: AnnotationType = .arrow
+    var type: AnnotationType = .arrow
     var startPoint: CGPoint
     var endPoint: CGPoint
     var color: Color
@@ -90,7 +90,7 @@ struct TextAnnotation: AnnotationItem {
 /// Concrete annotation: Pencil drawing (freehand)
 struct PencilAnnotation: AnnotationItem {
     let id = UUID()
-    let type: AnnotationType = .pencil
+    var type: AnnotationType = .pencil
     var points: [CGPoint]
     var color: Color
     var strokeWidth: CGFloat
