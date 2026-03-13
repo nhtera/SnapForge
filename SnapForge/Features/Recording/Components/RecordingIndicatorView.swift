@@ -28,20 +28,24 @@ struct RecordingIndicatorView: View {
     }
 
     var body: some View {
-        ZStack {
-            // Area highlight border (always visible)
-            areaBorder
+        VStack(spacing: 0) {
+            // Area highlight border — fills the top portion (original selection area)
+            ZStack {
+                areaBorder
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-            // Toolbar: positioned at bottom center of the selected area
-            VStack {
+            // Toolbar — fixed height area below the border
+            HStack {
                 Spacer()
-
                 if isPreRecord {
                     preRecordToolbar
                 } else {
                     recordingToolbar
                 }
+                Spacer()
             }
+            .frame(height: 48)
         }
     }
 
