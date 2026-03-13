@@ -1,9 +1,9 @@
 import SwiftUI
 
-/// Recording indicator overlay — red border with REC badge, timer, and stop button.
+/// Recording indicator overlay — red border with REC badge, timer, stop/pause controls.
+/// Positioned at top of screen during recording.
 struct RecordingIndicatorView: View {
-    @State private var elapsedSeconds = 0
-    @State private var timer: Timer?
+    @ObservedObject private var recorder = ScreenRecordingService.shared
     @State private var isBlinking = true
 
     var body: some View {
@@ -11,7 +11,7 @@ struct RecordingIndicatorView: View {
             HStack {
                 Spacer()
                 // REC badge
-                HStack(spacing: 6) {
+                HStack(spacing: 8) {
                     Circle()
                         .fill(.red)
                         .frame(width: 8, height: 8)
@@ -22,22 +22,40 @@ struct RecordingIndicatorView: View {
                         .font(.system(size: 12, weight: .bold, design: .monospaced))
                         .foregroundColor(.white)
 
-                    Text(formattedTime)
+                    Text(recorder.formattedDuration)
                         .font(.system(size: 12, design: .monospaced))
                         .foregroundColor(.white)
+                        .frame(minWidth: 40)
 
-                    Button(action: stopRecording) {
+                    // Pause/Resume button
+                    Button(action: {
+                        recorder.togglePause()
+                    }) {
+                        Image(systemName: recorder.isPaused ? "play.fill" : "pause.fill")
+                            .font(.system(size: 10))
+                            .foregroundColor(.white)
+                            .frame(width: 22, height: 22)
+                            .background(Color.orange, in: RoundedRectangle(cornerRadius: 4))
+                    }
+                    .buttonStyle(.plain)
+
+                    // Stop button
+                    Button(action: {
+                        Task {
+                            await stopRecording()
+                        }
+                    }) {
                         Image(systemName: "stop.fill")
                             .font(.system(size: 10))
                             .foregroundColor(.white)
-                            .frame(width: 20, height: 20)
+                            .frame(width: 22, height: 22)
                             .background(.red, in: RoundedRectangle(cornerRadius: 4))
                     }
                     .buttonStyle(.plain)
                 }
-                .padding(.horizontal, 10)
+                .padding(.horizontal, 12)
                 .padding(.vertical, 6)
-                .background(.black.opacity(0.75), in: Capsule())
+                .background(.black.opacity(0.8), in: Capsule())
                 .padding(.trailing, 8)
                 .padding(.top, 8)
             }
@@ -45,24 +63,14 @@ struct RecordingIndicatorView: View {
         }
         .onAppear {
             isBlinking = true
-            timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { _ in
-                DispatchQueue.main.async {
-                    elapsedSeconds += 1
-                }
-            }
-        }
-        .onDisappear {
-            timer?.invalidate()
         }
     }
 
-    private var formattedTime: String {
-        let minutes = elapsedSeconds / 60
-        let seconds = elapsedSeconds % 60
-        return String(format: "%02d:%02d", minutes, seconds)
-    }
-
-    private func stopRecording() {
+    private func stopRecording() async {
+        if let savedURL = await recorder.stopRecording() {
+            AppEnvironment.shared.isRecording = false
+            print("✅ Recording saved: \(savedURL.path)")
+        }
         AppCoordinator.shared.dismissRecordingIndicator()
     }
 }

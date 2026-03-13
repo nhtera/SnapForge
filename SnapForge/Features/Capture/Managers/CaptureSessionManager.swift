@@ -13,6 +13,7 @@ final class CaptureSessionManager {
     private let scKitService = SCKitService()
 
     private var currentMode: CaptureMode = .area
+    private var recordingAreaCallback: ((CGRect) -> Void)?
 
     // MARK: - Start Capture Session
 
@@ -29,6 +30,45 @@ final class CaptureSessionManager {
         case .timedArea:
             startTimedCapture()
         }
+    }
+
+    /// Show area selection overlay for recording — callback receives the selected rect
+    func startRecordingAreaSelection(completion: @escaping (CGRect) -> Void) {
+        recordingAreaCallback = completion
+
+        guard let screen = NSScreen.main else { return }
+        let screenFrame = screen.frame
+
+        let panel = CaptureOverlayPanel(
+            contentRect: screenFrame,
+            styleMask: [.borderless, .nonactivatingPanel],
+            backing: .buffered,
+            defer: false
+        )
+
+        let view = CaptureOverlayNSView(frame: screenFrame)
+        view.mode = .area
+        view.showCrosshair = true
+        view.showDimensions = true
+
+        view.onSelectionComplete = { [weak self] rect in
+            self?.dismissOverlay()
+            self?.recordingAreaCallback?(rect)
+            self?.recordingAreaCallback = nil
+        }
+        view.onCancel = { [weak self] in
+            self?.dismissOverlay()
+            self?.recordingAreaCallback = nil
+        }
+
+        panel.contentView = view
+        panel.makeKeyAndOrderFront(nil)
+        panel.makeFirstResponder(view)
+
+        self.overlayPanel = panel
+        self.overlayView = view
+
+        NSSound(named: .init("Tink"))?.play()
     }
 
     // MARK: - Overlay Management

@@ -127,7 +127,67 @@ final class AppCoordinator {
         floatingPins.append(panel)
     }
 
-    // MARK: - Recording Indicator
+    // MARK: - Recording
+
+    func startRecording() {
+        // Use capture overlay to select recording area, then start recording
+        let manager = CaptureSessionManager.shared
+        manager.startRecordingAreaSelection { [weak self] rect in
+            guard let self else { return }
+            Task { @MainActor in
+                await self.beginRecording(in: rect)
+            }
+        }
+    }
+
+    func startFullscreenRecording() {
+        guard let screen = NSScreen.main else { return }
+        Task { @MainActor in
+            await beginRecording(in: screen.frame)
+        }
+    }
+
+    private func beginRecording(in rect: CGRect) async {
+        let recorder = ScreenRecordingService.shared
+        let storage = AppEnvironment.shared.storageService
+
+        do {
+            try await recorder.prepareRecording(
+                rect: rect,
+                format: .mov,
+                quality: .high,
+                fps: UserDefaults.standard.integer(forKey: "recordingFPS"),
+                captureSystemAudio: true,
+                captureMicrophone: false,
+                saveDirectory: storage.snapForgeDirectory
+            )
+            try await recorder.startRecording()
+
+            AppEnvironment.shared.isRecording = true
+            showRecordingIndicator(in: rect)
+        } catch {
+            print("❌ Recording failed: \(error)")
+        }
+    }
+
+    func stopRecording() async {
+        let recorder = ScreenRecordingService.shared
+        if let savedURL = await recorder.stopRecording() {
+            print("✅ Recording saved: \(savedURL.path)")
+        }
+        AppEnvironment.shared.isRecording = false
+        dismissRecordingIndicator()
+    }
+
+    func toggleRecording() {
+        if AppEnvironment.shared.isRecording {
+            Task { @MainActor in
+                await stopRecording()
+            }
+        } else {
+            startRecording()
+        }
+    }
 
     func showRecordingIndicator(in rect: NSRect) {
         let indicatorView = RecordingIndicatorView()
@@ -143,7 +203,8 @@ final class AppCoordinator {
         window.level = .statusBar
         window.isOpaque = false
         window.backgroundColor = .clear
-        window.ignoresMouseEvents = true
+        window.ignoresMouseEvents = false
+        window.isReleasedWhenClosed = false
         window.makeKeyAndOrderFront(nil)
 
         recordingIndicatorWindow = window

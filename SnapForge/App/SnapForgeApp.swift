@@ -63,7 +63,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
         hotkeys.register(hotkey: .startRecording) { @Sendable in
-            print("📹 Recording hotkey pressed")
+            Task { @MainActor in
+                AppCoordinator.shared.toggleRecording()
+            }
         }
         hotkeys.register(hotkey: .toggleOCR) { @Sendable in
             print("🔍 OCR hotkey pressed")

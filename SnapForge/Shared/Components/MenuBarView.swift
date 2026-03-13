@@ -68,7 +68,7 @@ struct MenuBarView: View {
                     shortcut: "⌘⇧5",
                     tintColor: env.isRecording ? .red : nil
                 ) {
-                    // Toggle recording
+                    AppCoordinator.shared.toggleRecording()
                 }
             }
             .padding(.horizontal, 8)
