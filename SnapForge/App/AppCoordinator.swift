@@ -112,9 +112,23 @@ final class AppCoordinator {
         let pinView = FloatingPinView(image: image)
         let hostingView = NSHostingView(rootView: pinView)
 
+        // Auto-size to image aspect ratio (max 400px wide)
+        let maxWidth: CGFloat = 400
+        let scale = min(1.0, maxWidth / image.size.width)
+        let pinSize = CGSize(
+            width: image.size.width * scale,
+            height: image.size.height * scale
+        )
+        let pinRect = NSRect(
+            x: frame.origin.x,
+            y: frame.origin.y,
+            width: pinSize.width,
+            height: pinSize.height
+        )
+
         let panel = NSPanel(
-            contentRect: frame,
-            styleMask: [.titled, .closable, .resizable, .nonactivatingPanel, .hudWindow],
+            contentRect: pinRect,
+            styleMask: [.closable, .resizable, .nonactivatingPanel, .hudWindow],
             backing: .buffered,
             defer: false
         )
@@ -123,6 +137,7 @@ final class AppCoordinator {
         panel.isFloatingPanel = true
         panel.hidesOnDeactivate = false
         panel.isReleasedWhenClosed = false
+        panel.isMovableByWindowBackground = true
         panel.makeKeyAndOrderFront(nil)
 
         floatingPins.append(panel)
