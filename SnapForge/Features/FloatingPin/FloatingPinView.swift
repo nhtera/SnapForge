@@ -26,13 +26,19 @@ struct FloatingPinView: View {
 
             // Lock badge
             if isLocked {
-                Image(systemName: "lock.fill")
-                    .font(.system(size: 10))
-                    .foregroundColor(.white)
-                    .padding(5)
-                    .background(.black.opacity(0.6), in: Circle())
-                    .padding(6)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+                HStack {
+                    Spacer()
+                    VStack {
+                        Image(systemName: "lock.fill")
+                            .font(.system(size: 10))
+                            .foregroundColor(.white)
+                            .padding(5)
+                            .background(.black.opacity(0.6), in: Circle())
+                            .padding(6)
+                            .onTapGesture { toggleLock() }
+                        Spacer()
+                    }
+                }
             }
         }
         .opacity(pinOpacity)
@@ -98,10 +104,17 @@ struct FloatingPinView: View {
 
     // MARK: - Actions
 
+    private func findHostWindow() -> NSWindow? {
+        NSApp.windows.first { window in
+            window.contentView?.subviews.contains(where: { view in
+                view is NSHostingView<FloatingPinView>
+            }) ?? false
+        } ?? NSApp.windows.first { $0.contentView?.hitTest(NSEvent.mouseLocation) != nil && $0.level == .floating }
+    }
+
     private func toggleLock() {
         isLocked.toggle()
-        // Set click-through on the window
-        if let window = NSApp.keyWindow {
+        if let window = findHostWindow() {
             window.ignoresMouseEvents = isLocked
         }
     }
@@ -126,6 +139,8 @@ struct FloatingPinView: View {
     }
 
     private func closePin() {
-        NSApp.keyWindow?.close()
+        if let window = findHostWindow() {
+            AppCoordinator.shared.removePin(window)
+        }
     }
 }

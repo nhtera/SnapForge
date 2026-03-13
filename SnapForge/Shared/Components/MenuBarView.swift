@@ -92,8 +92,18 @@ struct MenuBarView: View {
                     shortcut: ""
                 ) {
                     if let image = NSPasteboard.general.readObjects(forClasses: [NSImage.self], options: nil)?.first as? NSImage {
-                        let frame = NSRect(x: 200, y: 200, width: 300, height: 200)
+                        // Center on screen
+                        let screenFrame = NSScreen.main?.visibleFrame ?? NSRect(x: 0, y: 0, width: 800, height: 600)
+                        let frame = NSRect(
+                            x: screenFrame.midX - 150,
+                            y: screenFrame.midY - 100,
+                            width: 300,
+                            height: 200
+                        )
                         AppCoordinator.shared.pinImage(image, at: frame)
+                    } else {
+                        // No image in clipboard — play alert
+                        NSSound.beep()
                     }
                 }
 

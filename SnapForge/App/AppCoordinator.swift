@@ -175,6 +175,11 @@ final class AppCoordinator {
         floatingPins.append(panel)
     }
 
+    func removePin(_ window: NSWindow) {
+        window.close()
+        floatingPins.removeAll { $0 === window }
+    }
+
     // MARK: - Recording
 
     /// Pending recording rect (after area selection, before user clicks Record)
