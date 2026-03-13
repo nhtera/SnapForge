@@ -77,6 +77,7 @@ struct PreRecordToolbarView: View {
             .buttonStyle(.plain)
             .foregroundColor(.white.opacity(0.7))
         }
+        .fixedSize()
         .background(.black.opacity(0.85), in: Capsule())
         .shadow(color: .black.opacity(0.3), radius: 8, y: 4)
     }
@@ -156,6 +157,7 @@ struct RecordingToolbarView: View {
             .padding(.horizontal, 6)
         }
         .padding(.vertical, 4)
+        .fixedSize()
         .background(.black.opacity(0.85), in: Capsule())
         .shadow(color: .black.opacity(0.3), radius: 8, y: 4)
         .onAppear { isBlinking = true }
