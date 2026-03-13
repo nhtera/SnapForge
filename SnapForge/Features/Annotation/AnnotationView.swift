@@ -422,33 +422,58 @@ struct AnnotationView: View {
     private func drawEffect(_ effect: EffectAnnotation, context: inout GraphicsContext) {
         switch effect.type {
         case .blur:
-            // Semi-transparent overlay to indicate blur region
-            context.fill(Path(effect.rect), with: .color(.white.opacity(0.5)))
-            context.addFilter(.blur(radius: 8 * effect.intensity))
-            context.stroke(Path(effect.rect), with: .color(.blue.opacity(0.5)),
+            // Isolate blur in its own layer so it doesn't leak to other annotations
+            context.drawLayer { layerContext in
+                // Draw a frosted-glass overlay to represent the blur region
+                layerContext.clip(to: Path(effect.rect))
+                layerContext.addFilter(.blur(radius: 8 * effect.intensity))
+                layerContext.fill(Path(effect.rect), with: .color(.white.opacity(0.4)))
+            }
+            // Dashed border (outside the layer, so it's crisp)
+            context.stroke(Path(effect.rect), with: .color(.blue.opacity(0.6)),
                           style: StrokeStyle(lineWidth: 2, dash: [6, 4]))
+            // Label
+            let label = context.resolve(
+                Text("BLUR").font(.system(size: 10, weight: .bold)).foregroundColor(.blue.opacity(0.7))
+            )
+            context.draw(label, at: CGPoint(x: effect.rect.midX, y: effect.rect.minY - 10), anchor: .center)
 
         case .pixelate:
-            // Mosaic grid pattern to indicate pixelation
-            let gridSize: CGFloat = max(4, 16 * effect.intensity)
-            for x in stride(from: effect.rect.minX, to: effect.rect.maxX, by: gridSize) {
-                for y in stride(from: effect.rect.minY, to: effect.rect.maxY, by: gridSize) {
-                    let cellRect = CGRect(x: x, y: y, width: gridSize, height: gridSize)
-                    let grayValue = Double.random(in: 0.3...0.7)
-                    context.fill(Path(cellRect), with: .color(.gray.opacity(grayValue)))
+            // Isolate pixelate in its own layer
+            context.drawLayer { layerContext in
+                layerContext.clip(to: Path(effect.rect))
+                // Mosaic grid pattern
+                let gridSize: CGFloat = max(6, 14 * effect.intensity)
+                for x in stride(from: effect.rect.minX, to: effect.rect.maxX, by: gridSize) {
+                    for y in stride(from: effect.rect.minY, to: effect.rect.maxY, by: gridSize) {
+                        let cellRect = CGRect(x: x, y: y, width: gridSize, height: gridSize)
+                        let grayValue = Double.random(in: 0.3...0.7)
+                        layerContext.fill(Path(cellRect), with: .color(.gray.opacity(grayValue)))
+                    }
                 }
             }
-            context.stroke(Path(effect.rect), with: .color(.purple.opacity(0.5)),
+            // Dashed border
+            context.stroke(Path(effect.rect), with: .color(.purple.opacity(0.6)),
                           style: StrokeStyle(lineWidth: 2, dash: [6, 4]))
+            let label = context.resolve(
+                Text("PIXELATE").font(.system(size: 10, weight: .bold)).foregroundColor(.purple.opacity(0.7))
+            )
+            context.draw(label, at: CGPoint(x: effect.rect.midX, y: effect.rect.minY - 10), anchor: .center)
 
         case .spotlight:
-            // Dim everything except the spotlight area
-            // Draw dimmed overlay around the rect
-            let fullPath = Path(CGRect(origin: .zero, size: canvasSize))
-            context.fill(fullPath, with: .color(.black.opacity(0.6)))
-            context.blendMode = .destinationOut
-            context.fill(Path(roundedRect: effect.rect, cornerRadius: 8), with: .color(.white))
-            context.blendMode = .normal
+            // Isolate spotlight dimming in its own layer
+            context.drawLayer { layerContext in
+                // Draw dark overlay covering everything
+                layerContext.fill(Path(CGRect(origin: .zero, size: canvasSize)),
+                                with: .color(.black.opacity(0.5)))
+                // Cut out the spotlight area
+                layerContext.blendMode = .destinationOut
+                layerContext.fill(Path(roundedRect: effect.rect, cornerRadius: 8),
+                                with: .color(.white))
+            }
+            // Bright border around spotlight area
+            context.stroke(Path(roundedRect: effect.rect, cornerRadius: 8),
+                          with: .color(.yellow.opacity(0.6)), lineWidth: 2)
 
         default:
             break

@@ -11,8 +11,7 @@ settings:
     SWIFT_VERSION: "6.0"
     MACOSX_DEPLOYMENT_TARGET: "15.0"
     ENABLE_HARDENED_RUNTIME: YES
-    CODE_SIGN_IDENTITY: "Apple Development"
-    CODE_SIGN_STYLE: Automatic
+    CODE_SIGN_IDENTITY: "-"
 
 targets:
   SnapForge:
