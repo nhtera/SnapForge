@@ -112,9 +112,7 @@ struct MenuBarView: View {
 
             // Footer
             HStack(spacing: 12) {
-                Button(action: {
-                    NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
-                }) {
+                SettingsLink {
                     Label("Settings", systemImage: "gearshape")
                         .font(.subheadline)
                 }
