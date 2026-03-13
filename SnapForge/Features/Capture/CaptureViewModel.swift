@@ -2,6 +2,7 @@ import SwiftUI
 import ScreenCaptureKit
 
 /// ViewModel for capture operations — manages selection state and SCK interactions.
+@MainActor
 @Observable
 final class CaptureViewModel {
     var cursorPosition: CGPoint = .zero
@@ -88,10 +89,8 @@ final class CaptureViewModel {
                     configuration: config
                 )
 
-                await MainActor.run {
-                    let nsImage = NSImage(cgImage: image, size: NSSize(width: display.width, height: display.height))
+                let nsImage = NSImage(cgImage: image, size: NSSize(width: display.width, height: display.height))
                     handleCapturedImage(nsImage)
-                }
             } catch {
                 print("❌ Fullscreen capture failed: \(error)")
             }
@@ -118,10 +117,8 @@ final class CaptureViewModel {
                     configuration: config
                 )
 
-                await MainActor.run {
-                    let nsImage = NSImage(cgImage: image, size: NSSize(width: rect.width, height: rect.height))
+                let nsImage = NSImage(cgImage: image, size: NSSize(width: rect.width, height: rect.height))
                     handleCapturedImage(nsImage)
-                }
             } catch {
                 print("❌ Area capture failed: \(error)")
             }

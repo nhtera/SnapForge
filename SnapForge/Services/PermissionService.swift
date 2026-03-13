@@ -4,10 +4,11 @@ import ScreenCaptureKit
 import AVFoundation
 
 /// Manages macOS TCC permissions: Screen Recording, Microphone, Camera, Accessibility.
+@MainActor
 @Observable
 final class PermissionService {
 
-    enum PermissionStatus: String {
+    enum PermissionStatus: String, Sendable {
         case granted = "Granted"
         case denied = "Denied"
         case notDetermined = "Not Determined"
@@ -34,19 +35,12 @@ final class PermissionService {
     // MARK: - Screen Recording
 
     func checkScreenRecording() {
-        // ScreenCaptureKit availability check
-        if #available(macOS 12.3, *) {
-            Task {
-                do {
-                    _ = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
-                    await MainActor.run {
-                        self.screenRecordingStatus = .granted
-                    }
-                } catch {
-                    await MainActor.run {
-                        self.screenRecordingStatus = .denied
-                    }
-                }
+        Task {
+            do {
+                _ = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
+                self.screenRecordingStatus = .granted
+            } catch {
+                self.screenRecordingStatus = .denied
             }
         }
     }
@@ -75,9 +69,7 @@ final class PermissionService {
 
     func requestMicrophone() async {
         let granted = await AVCaptureDevice.requestAccess(for: .audio)
-        await MainActor.run {
-            microphoneStatus = granted ? .granted : .denied
-        }
+        microphoneStatus = granted ? .granted : .denied
     }
 
     // MARK: - Camera
@@ -97,9 +89,7 @@ final class PermissionService {
 
     func requestCamera() async {
         let granted = await AVCaptureDevice.requestAccess(for: .video)
-        await MainActor.run {
-            cameraStatus = granted ? .granted : .denied
-        }
+        cameraStatus = granted ? .granted : .denied
     }
 
     // MARK: - Accessibility
@@ -110,7 +100,8 @@ final class PermissionService {
     }
 
     func requestAccessibility() {
-        let options = [kAXTrustedCheckOptionPrompt.takeRetainedValue(): true] as CFDictionary
+        // Use the raw key string to avoid Swift 6 concurrency issue with kAXTrustedCheckOptionPrompt global var
+        let options = ["AXTrustedCheckOptionPrompt": true] as CFDictionary
         AXIsProcessTrustedWithOptions(options)
     }
 
@@ -127,3 +118,4 @@ final class PermissionService {
         accessibilityStatus == .granted
     }
 }
+

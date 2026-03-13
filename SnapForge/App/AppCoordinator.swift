@@ -3,6 +3,7 @@ import AppKit
 
 /// Central coordinator for window management, z-ordering, and navigation.
 /// Follows Snapzy's Coordinator Pattern — single source of truth for all window operations.
+@MainActor
 @Observable
 final class AppCoordinator {
     static let shared = AppCoordinator()

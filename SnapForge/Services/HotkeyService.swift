@@ -9,8 +9,19 @@ final class HotkeyService {
     struct Hotkey: Identifiable, Codable, Hashable {
         let id: String
         var keyCode: UInt16
-        var modifiers: CGEventFlags
+        var modifiersRawValue: UInt64
         var label: String
+
+        var modifiers: CGEventFlags {
+            CGEventFlags(rawValue: modifiersRawValue)
+        }
+
+        init(id: String, keyCode: UInt16, modifiers: CGEventFlags, label: String) {
+            self.id = id
+            self.keyCode = keyCode
+            self.modifiersRawValue = modifiers.rawValue
+            self.label = label
+        }
 
         static let captureArea = Hotkey(
             id: "captureArea",
@@ -50,7 +61,7 @@ final class HotkeyService {
 
     private var eventTap: CFMachPort?
     private var runLoopSource: CFRunLoopSource?
-    private var hotkeyActions: [String: () -> Void] = [:]
+    private var hotkeyActions: [String: @Sendable () -> Void] = [:]
 
     var registeredHotkeys: [Hotkey] = [
         .captureArea,
@@ -64,7 +75,7 @@ final class HotkeyService {
 
     // MARK: - Registration
 
-    func register(hotkey: Hotkey, action: @escaping () -> Void) {
+    func register(hotkey: Hotkey, action: @escaping @Sendable () -> Void) {
         hotkeyActions[hotkey.id] = action
     }
 
@@ -121,7 +132,7 @@ final class HotkeyService {
         for hotkey in registeredHotkeys {
             if keyCode == hotkey.keyCode && flags.contains(hotkey.modifiers) {
                 if let action = hotkeyActions[hotkey.id] {
-                    DispatchQueue.main.async {
+                    DispatchQueue.main.async { @Sendable in
                         action()
                     }
                     return nil // Consume the event

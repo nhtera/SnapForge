@@ -2,6 +2,7 @@ import SwiftUI
 
 /// Dependency injection container using @Observable (macOS 14+).
 /// Provides shared access to all global services.
+@MainActor
 @Observable
 final class AppEnvironment {
     // MARK: - Services

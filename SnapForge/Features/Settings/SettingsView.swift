@@ -186,7 +186,7 @@ struct AboutSettingsTab: View {
 
             Image(systemName: "hammer.fill")
                 .font(.system(size: 64))
-                .foregroundStyle(.accent)
+                .foregroundColor(.accentColor)
 
             Text("SnapForge")
                 .font(.title)

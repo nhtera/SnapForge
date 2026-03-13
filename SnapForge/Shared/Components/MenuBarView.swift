@@ -10,7 +10,7 @@ struct MenuBarView: View {
             HStack {
                 Image(systemName: "hammer.fill")
                     .font(.title2)
-                    .foregroundStyle(.accent)
+                    .foregroundColor(.accentColor)
                 Text("SnapForge")
                     .font(.headline)
                 Spacer()

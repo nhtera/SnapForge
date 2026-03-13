@@ -89,7 +89,7 @@ struct QuickActionButton: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .foregroundStyle(isHovered ? .accent : .primary)
+        .foregroundColor(isHovered ? Color.accentColor : Color.primary)
         .background(isHovered ? Color.accentColor.opacity(0.1) : .clear)
         .onHover { hovering in
             isHovered = hovering

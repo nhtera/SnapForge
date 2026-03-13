@@ -66,7 +66,7 @@ struct OnboardingView: View {
             VStack(spacing: 16) {
                 Image(systemName: step.icon)
                     .font(.system(size: 56))
-                    .foregroundStyle(.accent)
+                    .foregroundColor(.accentColor)
                     .symbolEffect(.bounce, value: currentStep)
 
                 Text(step.title)

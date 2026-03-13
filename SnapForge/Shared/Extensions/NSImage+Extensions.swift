@@ -2,9 +2,9 @@ import SwiftUI
 
 /// NSImage extensions for common operations.
 extension NSImage {
-    /// Create NSImage from CGImage with proper scaling.
-    convenience init(cgImage: CGImage, size: NSSize) {
-        self.init(cgImage: cgImage, size: size)
+    /// Create NSImage from CGImage with proper scaling (static factory to avoid infinite recursion).
+    static func from(cgImage: CGImage, size: NSSize) -> NSImage {
+        return NSImage(cgImage: cgImage, size: size)
     }
 
     /// Get the pixel dimensions (accounting for Retina).

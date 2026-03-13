@@ -46,7 +46,9 @@ struct RecordingIndicatorView: View {
         .onAppear {
             isBlinking = true
             timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { _ in
-                elapsedSeconds += 1
+                DispatchQueue.main.async {
+                    elapsedSeconds += 1
+                }
             }
         }
         .onDisappear {
