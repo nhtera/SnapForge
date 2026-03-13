@@ -106,6 +106,37 @@ final class AppCoordinator {
         annotationWindow = window
     }
 
+    func showBackgroundMockup(for image: NSImage) {
+        let mockupView = BackgroundMockupView(
+            sourceImage: image,
+            onApply: { [weak self] compositeImage in
+                self?.annotationWindow?.close()
+                self?.showAnnotationEditor(for: compositeImage)
+            },
+            onCancel: { [weak self] in
+                self?.annotationWindow?.close()
+            }
+        )
+        let hostingView = NSHostingView(rootView: mockupView)
+
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 600, height: 550),
+            styleMask: [.titled, .closable],
+            backing: .buffered,
+            defer: false
+        )
+        window.contentView = hostingView
+        window.title = "Background & Mockup"
+        window.center()
+        window.isReleasedWhenClosed = false
+        window.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+
+        // Reuse annotationWindow reference for cleanup
+        annotationWindow?.close()
+        annotationWindow = window
+    }
+
     // MARK: - Floating Pin
 
     func pinImage(_ image: NSImage, at frame: NSRect) {

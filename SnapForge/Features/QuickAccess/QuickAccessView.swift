@@ -54,6 +54,13 @@ struct QuickAccessView: View {
 
                 Divider().frame(height: 30)
 
+                QuickActionButton(icon: "rectangle.on.rectangle.angled", label: "Mockup") {
+                    AppCoordinator.shared.dismissQuickAccess()
+                    AppCoordinator.shared.showBackgroundMockup(for: capturedImage)
+                }
+
+                Divider().frame(height: 30)
+
                 QuickActionButton(icon: "pin.fill", label: "Pin") {
                     AppCoordinator.shared.dismissQuickAccess()
                     let frame = NSRect(x: 100, y: 100, width: 300, height: 200)
