@@ -118,9 +118,10 @@ struct RecordingToolbarView: View {
             // Pause/Resume
             Button(action: { recorder.togglePause() }) {
                 Image(systemName: recorder.isPaused ? "play.fill" : "pause.fill")
-                    .font(.system(size: 11))
+                    .font(.system(size: 14))
                     .foregroundColor(.white)
-                    .frame(width: 28, height: 28)
+                    .frame(width: 36, height: 36)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
 
@@ -133,9 +134,10 @@ struct RecordingToolbarView: View {
                 }
             }) {
                 Image(systemName: "trash")
-                    .font(.system(size: 11))
+                    .font(.system(size: 13))
                     .foregroundColor(.white.opacity(0.7))
-                    .frame(width: 28, height: 28)
+                    .frame(width: 36, height: 36)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
 
@@ -148,10 +150,11 @@ struct RecordingToolbarView: View {
                 }
             }) {
                 Image(systemName: "stop.fill")
-                    .font(.system(size: 10))
+                    .font(.system(size: 12))
                     .foregroundColor(.white)
-                    .frame(width: 28, height: 28)
-                    .background(.red, in: RoundedRectangle(cornerRadius: 4))
+                    .frame(width: 36, height: 36)
+                    .contentShape(Rectangle())
+                    .background(.red, in: RoundedRectangle(cornerRadius: 6))
             }
             .buttonStyle(.plain)
             .padding(.horizontal, 6)
