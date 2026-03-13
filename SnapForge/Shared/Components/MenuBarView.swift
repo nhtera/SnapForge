@@ -86,7 +86,7 @@ struct MenuBarView: View {
                     label: String(localized: "menu.ocr_capture"),
                     shortcut: "⌘⇧O"
                 ) {
-                    AppCoordinator.shared.showCaptureOverlay(for: .area)
+                    AppCoordinator.shared.showCaptureOverlay(for: .ocrCapture)
                 }
 
                 MenuBarActionRow(
