@@ -83,7 +83,7 @@ struct MenuBarView: View {
                     label: "OCR Capture",
                     shortcut: "⌘⇧O"
                 ) {
-                    // OCR capture
+                    AppCoordinator.shared.showCaptureOverlay(for: .area)
                 }
 
                 MenuBarActionRow(
@@ -91,7 +91,10 @@ struct MenuBarView: View {
                     label: "Pin from Clipboard",
                     shortcut: ""
                 ) {
-                    // Pin clipboard image
+                    if let image = NSPasteboard.general.readObjects(forClasses: [NSImage.self], options: nil)?.first as? NSImage {
+                        let frame = NSRect(x: 200, y: 200, width: 300, height: 200)
+                        AppCoordinator.shared.pinImage(image, at: frame)
+                    }
                 }
 
                 MenuBarActionRow(
@@ -99,7 +102,7 @@ struct MenuBarView: View {
                     label: "Capture History",
                     shortcut: ""
                 ) {
-                    // Show history
+                    AppCoordinator.shared.showHistory()
                 }
             }
             .padding(.horizontal, 8)

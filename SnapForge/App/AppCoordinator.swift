@@ -13,6 +13,7 @@ final class AppCoordinator {
     private var quickAccessPanel: NSPanel?
     private var annotationWindow: NSWindow?
     private var onboardingWindow: NSWindow?
+    private var historyWindow: NSWindow?
     private var floatingPins: [NSWindow] = []
     private var recordingBorderWindow: NSWindow?   // Click-through: just the border
     private var recordingToolbarPanel: NSPanel?     // Interactive: buttons
@@ -397,6 +398,35 @@ final class AppCoordinator {
         )
     }
 
+    // MARK: - History
+
+    func showHistory() {
+        // Re-show if already open
+        if let existing = historyWindow, existing.isVisible {
+            existing.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+            return
+        }
+
+        let historyView = NavigationStack { HistoryView() }
+        let hostingView = NSHostingView(rootView: historyView)
+
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 700, height: 500),
+            styleMask: [.titled, .closable, .resizable, .miniaturizable],
+            backing: .buffered,
+            defer: false
+        )
+        window.contentView = hostingView
+        window.title = "Capture History"
+        window.center()
+        window.isReleasedWhenClosed = false
+        window.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+
+        historyWindow = window
+    }
+
     // MARK: - Cleanup
 
     func cleanup() {
@@ -404,6 +434,7 @@ final class AppCoordinator {
         quickAccessPanel?.close()
         annotationWindow?.close()
         onboardingWindow?.close()
+        historyWindow?.close()
         recordingBorderWindow?.close()
         recordingToolbarPanel?.close()
         floatingPins.forEach { $0.close() }
