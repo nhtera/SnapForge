@@ -70,10 +70,10 @@ struct AnnotationView: View {
         }
         .toolbar {
             ToolbarItemGroup(placement: .primaryAction) {
-                Button(action: { viewModel.undo() }) {
+                Button(action: { performUndo() }) {
                     Image(systemName: "arrow.uturn.backward")
                 }
-                .disabled(!viewModel.canUndo)
+                .disabled(!viewModel.canUndo && cropHistory.isEmpty)
                 .help("Undo (⌘Z)")
                 .keyboardShortcut("z", modifiers: .command)
 
@@ -782,44 +782,49 @@ struct AnnotationView: View {
     private func applyCrop() {
         guard let cropRect = viewModel.cropRect else { return }
 
-        // Map canvas cropRect → image pixel coordinates
-        let scaleX = image.size.width / imageRect.width
-        let scaleY = image.size.height / imageRect.height
-
-        let imageCropX = (cropRect.minX - imageRect.minX) * scaleX
-        let imageCropY = (cropRect.minY - imageRect.minY) * scaleY
-        let imageCropW = cropRect.width * scaleX
-        let imageCropH = cropRect.height * scaleY
-
-        let pixelRect = CGRect(
-            x: max(0, imageCropX),
-            y: max(0, imageCropY),
-            width: min(imageCropW, image.size.width - max(0, imageCropX)),
-            height: min(imageCropH, image.size.height - max(0, imageCropY))
-        )
-
-        guard pixelRect.width > 1, pixelRect.height > 1 else {
-            viewModel.cropRect = nil
-            return
-        }
-
-        // Crop the image
         guard let cgImage = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else {
             viewModel.cropRect = nil
             return
         }
 
-        // NSImage coordinates are bottom-up, CGImage is top-down
-        let flippedY = image.size.height - pixelRect.origin.y - pixelRect.height
-        let cgCropRect = CGRect(x: pixelRect.origin.x, y: flippedY,
-                                width: pixelRect.width, height: pixelRect.height)
+        // Use actual CGImage pixel dimensions (not NSImage logical size)
+        // This correctly handles Retina/HiDPI images
+        let pixelWidth = CGFloat(cgImage.width)
+        let pixelHeight = CGFloat(cgImage.height)
+
+        // Map canvas cropRect → pixel coordinates
+        let scaleX = pixelWidth / imageRect.width
+        let scaleY = pixelHeight / imageRect.height
+
+        let pixelCropX = (cropRect.minX - imageRect.minX) * scaleX
+        let pixelCropY = (cropRect.minY - imageRect.minY) * scaleY
+        let pixelCropW = cropRect.width * scaleX
+        let pixelCropH = cropRect.height * scaleY
+
+        // Clamp to image bounds
+        let clampedX = max(0, pixelCropX)
+        let clampedY = max(0, pixelCropY)
+        let clampedW = min(pixelCropW, pixelWidth - clampedX)
+        let clampedH = min(pixelCropH, pixelHeight - clampedY)
+
+        guard clampedW > 1, clampedH > 1 else {
+            viewModel.cropRect = nil
+            return
+        }
+
+        // CGImage uses top-left origin (no flip needed since canvas Y is also top-down in SwiftUI)
+        let cgCropRect = CGRect(x: clampedX, y: clampedY, width: clampedW, height: clampedH)
 
         guard let croppedCG = cgImage.cropping(to: cgCropRect) else {
             viewModel.cropRect = nil
             return
         }
 
-        let croppedImage = NSImage(cgImage: croppedCG, size: NSSize(width: croppedCG.width, height: croppedCG.height))
+        // Use logical size (divide by scale factor) so the image displays at correct size
+        let backingScale = NSScreen.main?.backingScaleFactor ?? 2.0
+        let logicalW = CGFloat(croppedCG.width) / backingScale
+        let logicalH = CGFloat(croppedCG.height) / backingScale
+        let croppedImage = NSImage(cgImage: croppedCG, size: NSSize(width: logicalW, height: logicalH))
 
         // Save current state for undo before replacing
         cropHistory.append((image: image, annotations: viewModel.annotations))
@@ -828,10 +833,18 @@ struct AnnotationView: View {
         image = croppedImage
         viewModel.cropRect = nil
         viewModel.clearAll()
-        // Recalculate image rect
         imageRect = calcImageRect(canvasSize: canvasSize, imageSize: croppedImage.size)
 
-        print("✅ Crop applied: \(Int(pixelRect.width))×\(Int(pixelRect.height))")
+        print("✅ Crop applied: \(Int(clampedW))×\(Int(clampedH)) px")
+    }
+
+    /// Unified undo — handles both annotation undo (⌘Z) and crop undo
+    private func performUndo() {
+        if viewModel.canUndo {
+            viewModel.undo()
+        } else if !cropHistory.isEmpty {
+            undoCrop()
+        }
     }
 
     private func undoCrop() {
