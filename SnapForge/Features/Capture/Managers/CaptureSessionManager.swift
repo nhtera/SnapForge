@@ -16,6 +16,7 @@ final class CaptureSessionManager {
     private var currentMode: CaptureMode = .area
     private var recordingAreaCallback: ((CGRect) -> Void)?
     private var pendingTimedRect: CGRect?
+    private var escKeyMonitor: Any?
 
     // MARK: - Start Capture Session
 
@@ -29,7 +30,7 @@ final class CaptureSessionManager {
             showWindowOverlayWithBlur()
         case .area:
             // Check "Freeze screen during capture" setting
-            if UserDefaults.standard.bool(forKey: "freezeScreen") {
+            if UserDefaults.standard.bool(forKey: SettingsKey.freezeScreen) {
                 Task { await showFreezeScreen() }
             } else {
                 showOverlay(mode: .area)
@@ -80,9 +81,7 @@ final class CaptureSessionManager {
         self.overlayPanel = panel
         self.overlayView = view
 
-        if UserDefaults.standard.bool(forKey: "playSounds") {
-            NSSound(named: .init("Tink"))?.play()
-        }
+        SoundService.playTink()
     }
 
     // MARK: - Overlay Management
@@ -106,9 +105,9 @@ final class CaptureSessionManager {
         // Create the view
         let view = CaptureOverlayNSView(frame: screenFrame)
         view.mode = mode
-        view.showCrosshair = UserDefaults.standard.bool(forKey: "showCrosshair")
-        view.showMagnifier = UserDefaults.standard.bool(forKey: "showMagnifier")
-        view.showDimensions = UserDefaults.standard.bool(forKey: "showDimensions")
+        view.showCrosshair = UserDefaults.standard.bool(forKey: SettingsKey.showCrosshair)
+        view.showMagnifier = UserDefaults.standard.bool(forKey: SettingsKey.showMagnifier)
+        view.showDimensions = UserDefaults.standard.bool(forKey: SettingsKey.showDimensions)
 
         // Wire up callbacks
         view.onSelectionComplete = { [weak self] rect in
@@ -147,9 +146,7 @@ final class CaptureSessionManager {
         self.overlayView = view
 
         // Play subtle sound (respect setting)
-        if UserDefaults.standard.bool(forKey: "playSounds") {
-            NSSound(named: .init("Tink"))?.play()
-        }
+        SoundService.playTink()
     }
 
     /// Window capture with clear background + window highlight (CleanShot X style)
@@ -181,7 +178,7 @@ final class CaptureSessionManager {
         self.overlayPanel = panel
         self.overlayView = view
 
-        NSSound(named: .init("Tink"))?.play()
+        SoundService.playTink()
     }
 
     func dismissOverlay() {
@@ -229,7 +226,7 @@ final class CaptureSessionManager {
                     // No text found
                     print("⚠️ OCR: No text found in selection")
                     env.menuBarIconName = "hammer.fill"
-                    NSSound(named: .init("Basso"))?.play()
+                    SoundService.playError()
                 } else {
                     // Step 4: Copy to clipboard
                     NSPasteboard.general.clearContents()
@@ -238,7 +235,7 @@ final class CaptureSessionManager {
 
                     // Step 5: Success — restore icon + sound
                     env.menuBarIconName = "checkmark.circle.fill"
-                    NSSound(named: .init("Glass"))?.play()
+                    SoundService.playCapture()
 
                     // Brief green checkmark, then restore normal icon
                     try? await Task.sleep(for: .seconds(1.5))
@@ -247,7 +244,7 @@ final class CaptureSessionManager {
             } catch {
                 print("❌ OCR capture failed: \(error)")
                 env.menuBarIconName = "hammer.fill"
-                NSSound(named: .init("Basso"))?.play()
+                SoundService.playError()
             }
         }
     }
@@ -329,7 +326,7 @@ final class CaptureSessionManager {
                     return
                 }
 
-                let includeShadow = UserDefaults.standard.bool(forKey: "captureWindowShadow")
+                let includeShadow = UserDefaults.standard.bool(forKey: SettingsKey.captureWindowShadow)
                 let image = try await scKitService.captureWindow(scWindow.scWindow, includeShadow: includeShadow)
                 handleCapturedImage(image)
             } catch {
@@ -397,7 +394,7 @@ final class CaptureSessionManager {
 
     /// Shows countdown overlay, then captures the stored rect on completion
     private func startCountdown(for rect: CGRect) {
-        let delay = UserDefaults.standard.integer(forKey: "timerDelay")
+        let delay = UserDefaults.standard.integer(forKey: SettingsKey.timerDelay)
         let seconds = delay > 0 ? delay : 5
 
         guard let screen = NSScreen.main else { return }
@@ -439,8 +436,8 @@ final class CaptureSessionManager {
         window.isReleasedWhenClosed = false
         window.collectionBehavior = [.canJoinAllSpaces, .stationary]
 
-        // Handle Esc key via local monitor
-        NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+        // Handle Esc key via local monitor — store reference so we can remove it later
+        escKeyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
             if event.keyCode == 53 { // Esc
                 self?.dismissCountdown()
                 return nil
@@ -451,12 +448,14 @@ final class CaptureSessionManager {
         window.makeKeyAndOrderFront(nil)
         countdownWindow = window
 
-        if UserDefaults.standard.bool(forKey: "playSounds") {
-            NSSound(named: .init("Tink"))?.play()
-        }
+        SoundService.playTink()
     }
 
     private func dismissCountdown() {
+        if let monitor = escKeyMonitor {
+            NSEvent.removeMonitor(monitor)
+            escKeyMonitor = nil
+        }
         countdownWindow?.close()
         countdownWindow = nil
     }
@@ -511,15 +510,15 @@ final class CaptureSessionManager {
         env.lastCapture = image
 
         // Auto-copy to clipboard
-        if defaults.bool(forKey: "autoCopyToClipboard") {
-            ClipboardService().copyImage(image)
+        if defaults.bool(forKey: SettingsKey.autoCopyToClipboard) {
+            env.clipboardService.copyImage(image)
         }
 
         // Auto-save (respect the toggle)
-        if defaults.bool(forKey: "autoSave") {
-            let storage = StorageService()
-            let format = defaults.string(forKey: "imageFormat") ?? "png"
-            let quality = defaults.double(forKey: "jpegQuality")
+        if defaults.bool(forKey: SettingsKey.autoSave) {
+            let storage = env.storageService
+            let format = defaults.string(forKey: SettingsKey.imageFormat) ?? "png"
+            let quality = defaults.double(forKey: SettingsKey.jpegQuality)
             let filename = storage.generateImageFilename(format: format)
             if let saved = try? storage.saveImage(image, filename: filename, format: format, quality: quality) {
                 print("✅ Saved capture to: \(saved.path)")
@@ -527,18 +526,18 @@ final class CaptureSessionManager {
         }
 
         // Show Quick Access overlay
-        if defaults.bool(forKey: "showQuickAccess") {
+        if defaults.bool(forKey: SettingsKey.showQuickAccess) {
             let mouseLocation = NSEvent.mouseLocation
             AppCoordinator.shared.showQuickAccess(image: image, at: mouseLocation)
         }
 
         // Open Annotate tool after capture
-        if defaults.bool(forKey: "openAnnotateAfterCapture") {
+        if defaults.bool(forKey: SettingsKey.openAnnotateAfterCapture) {
             AppCoordinator.shared.showAnnotationEditor(for: image)
         }
 
         // Pin to screen after capture
-        if defaults.bool(forKey: "pinAfterCapture") {
+        if defaults.bool(forKey: SettingsKey.pinAfterCapture) {
             let screenFrame = NSScreen.main?.visibleFrame ?? NSRect(x: 0, y: 0, width: 800, height: 600)
             let pinFrame = NSRect(
                 x: screenFrame.midX - 150,
@@ -550,8 +549,6 @@ final class CaptureSessionManager {
         }
 
         // Play capture sound (respect the toggle)
-        if defaults.bool(forKey: "playSounds") {
-            NSSound(named: .init("Glass"))?.play()
-        }
+        SoundService.playCapture()
     }
 }

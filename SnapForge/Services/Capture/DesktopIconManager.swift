@@ -20,7 +20,7 @@ final class DesktopIconManager {
 
     /// Whether the user has enabled desktop icon hiding
     var isIconHidingEnabled: Bool {
-        UserDefaults.standard.bool(forKey: "hideDesktopIcons")
+        UserDefaults.standard.bool(forKey: SettingsKey.hideDesktopIcons)
     }
 
     // MARK: - Finder Desktop Icons

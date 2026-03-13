@@ -17,11 +17,12 @@ struct QuickAccessView: View {
                 .shadow(color: .black.opacity(0.15), radius: 4, y: 2)
                 .onDrag {
                     let provider = NSItemProvider(object: capturedImage)
-                    provider.suggestedName = StorageService().generateImageFilename()
+                    provider.suggestedName = AppEnvironment.shared.storageService.generateImageFilename()
 
                     // Close after drag unless ⌥ (Option) is held
-                    if UserDefaults.standard.bool(forKey: "quickAccessCloseAfterDrag") {
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    if UserDefaults.standard.bool(forKey: SettingsKey.quickAccessCloseAfterDrag) {
+                        Task { @MainActor in
+                            try? await Task.sleep(for: .milliseconds(500))
                             if !NSEvent.modifierFlags.contains(.option) {
                                 AppCoordinator.shared.dismissQuickAccess()
                             }
@@ -46,7 +47,7 @@ struct QuickAccessView: View {
             // Action buttons
             HStack(spacing: 0) {
                 QuickActionButton(icon: "doc.on.clipboard", label: "Copy") {
-                    ClipboardService().copyImage(capturedImage)
+                    AppEnvironment.shared.clipboardService.copyImage(capturedImage)
                     AppCoordinator.shared.dismissQuickAccess()
                 }
 
@@ -128,7 +129,7 @@ struct QuickAccessView: View {
     }
 
     private func saveImage() {
-        let storage = StorageService()
+        let storage = AppEnvironment.shared.storageService
         let filename = storage.generateImageFilename()
         if let _ = try? storage.saveImage(capturedImage, filename: filename) {
             AppCoordinator.shared.dismissQuickAccess()
@@ -137,8 +138,8 @@ struct QuickAccessView: View {
 
     private func startAutoCloseTimerIfNeeded() {
         let defaults = UserDefaults.standard
-        guard defaults.bool(forKey: "quickAccessAutoClose") else { return }
-        let timeout = defaults.double(forKey: "quickAccessTimeout")
+        guard defaults.bool(forKey: SettingsKey.quickAccessAutoClose) else { return }
+        let timeout = defaults.double(forKey: SettingsKey.quickAccessTimeout)
         let delay = timeout > 0 ? timeout : 5.0
 
         autoCloseTask?.cancel()

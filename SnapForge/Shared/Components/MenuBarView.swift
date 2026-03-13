@@ -125,9 +125,14 @@ struct MenuBarView: View {
             HStack(spacing: 12) {
                 Button(action: {
                     // Activate the app first — required for .accessory policy apps
-                    // so the Settings window reliably comes to front
+                    // so the Settings window reliably comes to front.
+                    // Async delay is needed: the MenuBarExtra popover dismissal
+                    // races with activation, causing openSettings() to silently fail.
                     NSApp.activate(ignoringOtherApps: true)
-                    openSettings()
+                    Task { @MainActor in
+                        try? await Task.sleep(for: .milliseconds(100))
+                        openSettings()
+                    }
                 }) {
                     Label(String(localized: "menu.settings"), systemImage: "gearshape")
                         .font(.subheadline)

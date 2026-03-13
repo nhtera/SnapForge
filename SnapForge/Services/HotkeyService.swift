@@ -3,6 +3,7 @@ import AppKit
 import Carbon.HIToolbox
 
 /// Manages global keyboard shortcuts using NSEvent monitors (sandbox-compatible).
+@MainActor
 @Observable
 final class HotkeyService {
 
@@ -144,8 +145,4 @@ final class HotkeyService {
         return false
     }
 
-    deinit {
-        stopListening()
-    }
 }
-

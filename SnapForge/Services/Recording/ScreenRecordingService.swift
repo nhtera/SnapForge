@@ -132,14 +132,14 @@ final class ScreenRecordingService: NSObject {
         error = nil
         session.sessionStarted = false
 
-        self.recordingRect = rect
-        self.videoFormat = format
-        self.videoQuality = quality
+        recordingRect = rect
+        videoFormat = format
+        videoQuality = quality
         self.fps = fps
         self.captureSystemAudio = captureSystemAudio
         self.captureMicrophone = captureMicrophone
         self.showCursor = showCursor
-        self.recordingCodec = codec
+        recordingCodec = codec
 
         // Load shareable content (will throw if permission not granted)
         let content: SCShareableContent

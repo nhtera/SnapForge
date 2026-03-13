@@ -18,8 +18,8 @@ final class CaptureViewModel {
 
     func startCapture(mode: CaptureMode) {
         self.captureMode = mode
-        showCrosshair = UserDefaults.standard.bool(forKey: "showCrosshair")
-        showMagnifier = UserDefaults.standard.bool(forKey: "showMagnifier")
+        showCrosshair = UserDefaults.standard.bool(forKey: SettingsKey.showCrosshair)
+        showMagnifier = UserDefaults.standard.bool(forKey: SettingsKey.showMagnifier)
 
         switch mode {
         case .fullscreen:
@@ -131,12 +131,12 @@ final class CaptureViewModel {
         AppCoordinator.shared.dismissCaptureOverlay()
 
         // Auto-copy to clipboard
-        if UserDefaults.standard.bool(forKey: "autoCopyToClipboard") {
-            ClipboardService().copyImage(image)
+        if UserDefaults.standard.bool(forKey: SettingsKey.autoCopyToClipboard) {
+            AppEnvironment.shared.clipboardService.copyImage(image)
         }
 
         // Show Quick Access
-        if UserDefaults.standard.bool(forKey: "showQuickAccess") {
+        if UserDefaults.standard.bool(forKey: SettingsKey.showQuickAccess) {
             let point = NSEvent.mouseLocation
             AppCoordinator.shared.showQuickAccess(image: image, at: point)
         }

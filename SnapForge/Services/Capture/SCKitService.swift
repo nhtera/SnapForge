@@ -34,9 +34,9 @@ final class SCKitService {
 
     // MARK: - State
 
-    var availableDisplays: [CaptureableDisplay] = []
-    var availableWindows: [CaptureableWindow] = []
-    var isLoading = false
+    private(set) var availableDisplays: [CaptureableDisplay] = []
+    private(set) var availableWindows: [CaptureableWindow] = []
+    private(set) var isLoading = false
 
     /// Excluded bundle IDs (don't show our own app in the window list)
     private let excludedBundleIDs: Set<String> = [
@@ -92,7 +92,9 @@ final class SCKitService {
     /// Capture a specific area of the screen.
     func captureArea(_ rect: CGRect, display: SCDisplay? = nil) async throws -> NSImage {
         let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
-        let targetDisplay = display ?? content.displays.first!
+        guard let targetDisplay = display ?? content.displays.first else {
+            throw CaptureError.noDisplayFound
+        }
 
         let filter = makeContentFilter(display: targetDisplay, content: content)
         let config = SCStreamConfiguration()
@@ -115,7 +117,9 @@ final class SCKitService {
     /// Capture the entire screen (fullscreen).
     func captureFullscreen(display: SCDisplay? = nil) async throws -> NSImage {
         let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
-        let targetDisplay = display ?? content.displays.first!
+        guard let targetDisplay = display ?? content.displays.first else {
+            throw CaptureError.noDisplayFound
+        }
 
         let filter = makeContentFilter(display: targetDisplay, content: content)
         let config = SCStreamConfiguration()

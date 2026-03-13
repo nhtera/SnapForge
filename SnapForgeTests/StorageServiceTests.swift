@@ -4,6 +4,7 @@ import AppKit
 @testable import SnapForge
 
 /// Tests for StorageService — file naming, saving, directory management
+@MainActor
 struct StorageServiceTests {
 
     let sut = StorageService()

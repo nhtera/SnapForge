@@ -58,7 +58,7 @@ final class AppCoordinator {
     func dismissOnboarding() {
         onboardingWindow?.close()
         onboardingWindow = nil
-        UserDefaults.standard.set(true, forKey: "hasCompletedOnboarding")
+        UserDefaults.standard.set(true, forKey: SettingsKey.hasCompletedOnboarding)
     }
 
     // MARK: - Capture Overlay
@@ -275,7 +275,7 @@ final class AppCoordinator {
         let defaults = UserDefaults.standard
 
         // Show countdown before recording if enabled
-        if defaults.bool(forKey: "showRecordingCountdown") {
+        if defaults.bool(forKey: SettingsKey.showRecordingCountdown) {
             dismissRecordingIndicator()
             await withCheckedContinuation { continuation in
                 showRecordingCountdown(seconds: 3) {
@@ -288,11 +288,11 @@ final class AppCoordinator {
         let storage = AppEnvironment.shared.storageService
 
         // Resolve codec from settings
-        let codecString = defaults.string(forKey: "recordingCodec") ?? "h264"
+        let codecString = defaults.string(forKey: SettingsKey.recordingCodec) ?? "h264"
         let codec: AVVideoCodecType = (codecString == "hevc") ? .hevc : .h264
 
         // Resolve resolution scale
-        let resolutionSetting = defaults.string(forKey: "recordingResolution") ?? "retina"
+        let resolutionSetting = defaults.string(forKey: SettingsKey.recordingResolution) ?? "retina"
         let useRetinaScale = (resolutionSetting == "retina")
 
         do {
@@ -300,10 +300,10 @@ final class AppCoordinator {
                 rect: rect,
                 format: .mov,
                 quality: .high,
-                fps: defaults.integer(forKey: "recordingFPS"),
+                fps: defaults.integer(forKey: SettingsKey.recordingFPS),
                 captureSystemAudio: true,
                 captureMicrophone: false,
-                showCursor: defaults.bool(forKey: "showCursorInRecording"),
+                showCursor: defaults.bool(forKey: SettingsKey.showCursorInRecording),
                 codec: codec,
                 useRetinaScale: useRetinaScale,
                 saveDirectory: storage.snapForgeDirectory
@@ -314,12 +314,12 @@ final class AppCoordinator {
             pendingRecordingRect = nil
 
             // Start click visualizer if highlight-clicks is enabled
-            if defaults.bool(forKey: "highlightClicks") {
+            if defaults.bool(forKey: SettingsKey.highlightClicks) {
                 ClickVisualizer.shared.start()
             }
 
             // Start keystroke visualizer if show-keystrokes is enabled
-            if defaults.bool(forKey: "showKeystrokes") {
+            if defaults.bool(forKey: SettingsKey.showKeystrokes) {
                 KeystrokeVisualizer.shared.start()
             }
 
@@ -354,10 +354,10 @@ final class AppCoordinator {
         let gifURL = videoURL.deletingPathExtension().appendingPathExtension("gif")
         let defaults = UserDefaults.standard
         let config = GIFEncoder.Configuration(
-            fps: defaults.integer(forKey: "gifFPS"),
-            maxWidth: defaults.integer(forKey: "gifMaxWidth"),
-            loopCount: defaults.integer(forKey: "gifLoopCount"),
-            quality: Float(defaults.double(forKey: "gifQuality"))
+            fps: defaults.integer(forKey: SettingsKey.gifFPS),
+            maxWidth: defaults.integer(forKey: SettingsKey.gifMaxWidth),
+            loopCount: defaults.integer(forKey: SettingsKey.gifLoopCount),
+            quality: Float(defaults.double(forKey: SettingsKey.gifQuality))
         )
         do {
             try await encoder.encode(
@@ -399,7 +399,7 @@ final class AppCoordinator {
         showBorderWindow(cocoaRect: cocoaRect, isPreRecord: false)
 
         // 2. Toolbar panel — only if showRecordingControls is enabled
-        if UserDefaults.standard.bool(forKey: "showRecordingControls") {
+        if UserDefaults.standard.bool(forKey: SettingsKey.showRecordingControls) {
             let toolbarView = RecordingToolbarView(isGIFMode: isGIFMode)
             showToolbarPanel(toolbarView: toolbarView, cocoaRect: cocoaRect)
         }

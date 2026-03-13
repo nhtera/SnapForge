@@ -2,11 +2,12 @@ import Foundation
 import AppKit
 
 /// Manages file storage, save locations, and Security-Scoped Bookmarks.
+@MainActor
 @Observable
 final class StorageService {
 
     var defaultSaveURL: URL {
-        let path = UserDefaults.standard.string(forKey: "saveLocation")
+        let path = UserDefaults.standard.string(forKey: SettingsKey.saveLocation)
             ?? NSSearchPathForDirectoriesInDomains(.picturesDirectory, .userDomainMask, true).first
             ?? "~/Pictures"
         return URL(fileURLWithPath: (path as NSString).expandingTildeInPath)
@@ -97,11 +98,11 @@ final class StorageService {
             includingResourceValuesForKeys: nil,
             relativeTo: nil
         )
-        UserDefaults.standard.set(bookmarkData, forKey: "saveLocationBookmark")
+        UserDefaults.standard.set(bookmarkData, forKey: SettingsKey.saveLocationBookmark)
     }
 
     func resolveBookmark() -> URL? {
-        guard let bookmarkData = UserDefaults.standard.data(forKey: "saveLocationBookmark") else { return nil }
+        guard let bookmarkData = UserDefaults.standard.data(forKey: SettingsKey.saveLocationBookmark) else { return nil }
         var isStale = false
         let url = try? URL(
             resolvingBookmarkData: bookmarkData,

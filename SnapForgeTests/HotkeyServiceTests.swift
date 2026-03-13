@@ -3,6 +3,7 @@ import Foundation
 @testable import SnapForge
 
 /// Tests for HotkeyService — registration and key matching
+@MainActor
 struct HotkeyServiceTests {
 
     @Test func hotkeyDefaultsHaveCorrectKeyCodes() {

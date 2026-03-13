@@ -10,10 +10,10 @@ final class ClickVisualizer {
     private var clickMonitor: Any?
     private var rippleWindows: [NSWindow] = []
 
-    var isActive = false
-    var rippleColor: NSColor = .systemYellow
-    var rippleSize: CGFloat = 40
-    var fadeDuration: TimeInterval = 0.4
+    private(set) var isActive = false
+    private var rippleColor: NSColor = .systemYellow
+    private var rippleSize: CGFloat = 40
+    private var fadeDuration: TimeInterval = 0.4
 
     // MARK: - Start/Stop
 

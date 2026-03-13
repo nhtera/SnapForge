@@ -123,7 +123,7 @@ struct RecordingToolbarView: View {
                 }
 
                 // Show elapsed time only if showRecordingTimer is enabled
-                if UserDefaults.standard.bool(forKey: "showRecordingTimer") {
+                if UserDefaults.standard.bool(forKey: SettingsKey.showRecordingTimer) {
                     Text(recorder.formattedDuration)
                         .font(.system(size: 12, weight: .medium, design: .monospaced))
                         .foregroundStyle(.white)

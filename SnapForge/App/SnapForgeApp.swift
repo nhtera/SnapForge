@@ -36,7 +36,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.setActivationPolicy(.accessory)
 
         // Check if first launch
-        if !UserDefaults.standard.bool(forKey: "hasCompletedOnboarding") {
+        if !UserDefaults.standard.bool(forKey: SettingsKey.hasCompletedOnboarding) {
             coordinator?.showOnboarding()
         }
 
