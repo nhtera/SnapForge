@@ -117,30 +117,15 @@ struct HistoryItemView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Thumbnail — fixed height, clipped properly
-            ZStack(alignment: .topTrailing) {
-                if let image = NSImage(contentsOfFile: capture.filePath) {
-                    Image(nsImage: image)
-                        .resizable()
-                        .aspectRatio(contentMode: .fill)
-                        .frame(height: 130)
-                        .frame(maxWidth: .infinity)
-                        .clipped()
-                } else {
-                    Rectangle()
-                        .fill(Color(white: 0.15))
-                        .frame(height: 130)
-                        .overlay {
-                            Image(systemName: capture.type.icon)
-                                .font(.title2)
-                                .foregroundStyle(.secondary)
-                        }
+            // Thumbnail — fixed height, properly contained
+            thumbnailView
+                .frame(height: 130)
+                .frame(maxWidth: .infinity)
+                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .overlay(alignment: .topTrailing) {
+                    typeBadge
+                        .padding(6)
                 }
-
-                // Type badge
-                typeBadge
-                    .padding(6)
-            }
 
             // Info section
             VStack(alignment: .leading, spacing: 4) {
@@ -162,19 +147,36 @@ struct HistoryItemView: View {
             .padding(.horizontal, 10)
             .padding(.vertical, 8)
         }
-        .background(Color(white: 0.12), in: RoundedRectangle(cornerRadius: 10))
-        .overlay(
-            RoundedRectangle(cornerRadius: 10)
+        .background(Color(white: 0.12))
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
                 .stroke(
                     isHovered ? Color.accentColor.opacity(0.5) : Color.white.opacity(0.06),
                     lineWidth: 1
                 )
-        )
-        .clipShape(RoundedRectangle(cornerRadius: 10))
+        }
         .shadow(color: .black.opacity(isHovered ? 0.25 : 0.1), radius: isHovered ? 8 : 4, y: 2)
         .scaleEffect(isHovered ? 1.02 : 1.0)
         .animation(.easeOut(duration: 0.15), value: isHovered)
         .onHover { hovering in isHovered = hovering }
+    }
+
+    @ViewBuilder
+    private var thumbnailView: some View {
+        if let image = NSImage(contentsOfFile: capture.filePath) {
+            Image(nsImage: image)
+                .resizable()
+                .aspectRatio(contentMode: .fill)
+        } else {
+            Rectangle()
+                .fill(Color(white: 0.15))
+                .overlay {
+                    Image(systemName: capture.type.icon)
+                        .font(.title2)
+                        .foregroundStyle(.secondary)
+                }
+        }
     }
 
     private var typeBadge: some View {
