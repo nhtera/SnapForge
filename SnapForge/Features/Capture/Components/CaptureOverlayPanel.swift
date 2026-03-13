@@ -49,6 +49,7 @@ class CaptureOverlayNSView: NSView {
     // Window mode state
     var detectedWindowRect: CGRect?  // In view coordinates (bottom-up)
     var detectedWindowTitle: String?
+    var backgroundImage: NSImage?  // Frosted/blurred freeze-frame for window mode
 
     // Callbacks
     var onSelectionComplete: ((CGRect) -> Void)?
@@ -95,9 +96,16 @@ class CaptureOverlayNSView: NSView {
     // MARK: - Window Mode Drawing (CleanShot X style)
 
     private func drawWindowMode(context: CGContext) {
-        // Dim the entire screen
-        context.setFillColor(NSColor.black.withAlphaComponent(0.25).cgColor)
-        context.fill(bounds)
+        // Draw frosted background (blurred freeze-frame) or dim overlay
+        if let bgImage = backgroundImage {
+            bgImage.draw(in: bounds, from: .zero, operation: .sourceOver, fraction: 1.0)
+            // Add slight additional dim on top for contrast
+            context.setFillColor(NSColor.black.withAlphaComponent(0.15).cgColor)
+            context.fill(bounds)
+        } else {
+            context.setFillColor(NSColor.black.withAlphaComponent(0.25).cgColor)
+            context.fill(bounds)
+        }
 
         if let windowRect = detectedWindowRect {
             // Clear the window area (bright hole — window shows through)
