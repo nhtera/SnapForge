@@ -12,6 +12,8 @@ struct AnnotationView: View {
     @State private var editingText: String = ""
     @State private var canvasSize: CGSize = .zero
     @State private var imageRect: CGRect = .zero
+    // Crop undo history — stores (image, annotations) snapshots before each crop
+    @State private var cropHistory: [(image: NSImage, annotations: [any AnnotationItem])] = []
 
     var body: some View {
         HSplitView {
@@ -87,6 +89,14 @@ struct AnnotationView: View {
                 }
                 .disabled(viewModel.annotations.isEmpty)
                 .help("Clear All")
+
+                if !cropHistory.isEmpty {
+                    Button(action: { undoCrop() }) {
+                        Image(systemName: "crop")
+                        Image(systemName: "arrow.uturn.backward")
+                    }
+                    .help("Undo Crop")
+                }
 
                 Divider()
 
@@ -772,6 +782,9 @@ struct AnnotationView: View {
 
         let croppedImage = NSImage(cgImage: croppedCG, size: NSSize(width: croppedCG.width, height: croppedCG.height))
 
+        // Save current state for undo before replacing
+        cropHistory.append((image: image, annotations: viewModel.annotations))
+
         // Replace image and clear state
         image = croppedImage
         viewModel.cropRect = nil
@@ -780,6 +793,18 @@ struct AnnotationView: View {
         imageRect = calcImageRect(canvasSize: canvasSize, imageSize: croppedImage.size)
 
         print("✅ Crop applied: \(Int(pixelRect.width))×\(Int(pixelRect.height))")
+    }
+
+    private func undoCrop() {
+        guard let previous = cropHistory.popLast() else { return }
+        image = previous.image
+        viewModel.clearAll()
+        // Restore annotations from before the crop
+        for annotation in previous.annotations {
+            viewModel.addAnnotation(annotation)
+        }
+        imageRect = calcImageRect(canvasSize: canvasSize, imageSize: image.size)
+        print("↩️ Crop undone")
     }
 
     // MARK: - Export
