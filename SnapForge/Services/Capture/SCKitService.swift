@@ -49,9 +49,6 @@ final class SCKitService {
 
     /// Refresh the list of available displays and windows.
     func refreshContent() async throws {
-        guard CGPreflightScreenCaptureAccess() else {
-            throw CaptureError.permissionDenied
-        }
         isLoading = true
         defer { isLoading = false }
 
@@ -94,9 +91,6 @@ final class SCKitService {
 
     /// Capture a specific area of the screen.
     func captureArea(_ rect: CGRect, display: SCDisplay? = nil) async throws -> NSImage {
-        guard CGPreflightScreenCaptureAccess() else {
-            throw CaptureError.permissionDenied
-        }
         let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
         let targetDisplay = display ?? content.displays.first!
 
@@ -120,9 +114,6 @@ final class SCKitService {
 
     /// Capture the entire screen (fullscreen).
     func captureFullscreen(display: SCDisplay? = nil) async throws -> NSImage {
-        guard CGPreflightScreenCaptureAccess() else {
-            throw CaptureError.permissionDenied
-        }
         let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
         let targetDisplay = display ?? content.displays.first!
 
@@ -148,9 +139,6 @@ final class SCKitService {
 
     /// Capture a specific window.
     func captureWindow(_ window: SCWindow, includeShadow: Bool = true) async throws -> NSImage {
-        guard CGPreflightScreenCaptureAccess() else {
-            throw CaptureError.permissionDenied
-        }
         let filter = SCContentFilter(desktopIndependentWindow: window)
         let config = SCStreamConfiguration()
 
