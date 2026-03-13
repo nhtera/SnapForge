@@ -1,11 +1,11 @@
 import Foundation
 
-/// Defines the type of screen capture to perform.
 enum CaptureMode: String, CaseIterable, Identifiable {
     case area = "Area"
     case window = "Window"
     case fullscreen = "Fullscreen"
     case timedArea = "Self-Timer"
+    case ocrCapture = "OCR Capture"
 
     var id: String { rawValue }
 
@@ -15,6 +15,7 @@ enum CaptureMode: String, CaseIterable, Identifiable {
         case .window: return "macwindow"
         case .fullscreen: return "rectangle.inset.filled"
         case .timedArea: return "timer"
+        case .ocrCapture: return "doc.text.viewfinder"
         }
     }
 
@@ -24,6 +25,7 @@ enum CaptureMode: String, CaseIterable, Identifiable {
         case .window: return "⌘⇧W"
         case .fullscreen: return "⌘⇧3"
         case .timedArea: return "⌘⇧5"
+        case .ocrCapture: return "⌘⇧O"
         }
     }
 }

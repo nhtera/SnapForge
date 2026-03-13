@@ -18,6 +18,9 @@ final class AppEnvironment {
     var lastCapture: NSImage?
     var captureCount: Int = 0
 
+    /// Menu bar icon name — changes during OCR processing for visual feedback
+    var menuBarIconName: String = "hammer.fill"
+
     init() {
         // Register default settings
         UserDefaults.standard.register(defaults: [

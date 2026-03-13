@@ -36,6 +36,8 @@ final class CaptureSessionManager {
             }
         case .timedArea:
             startTimedCapture()
+        case .ocrCapture:
+            showOverlay(mode: .ocrCapture)
         }
     }
 
@@ -115,6 +117,10 @@ final class CaptureSessionManager {
                 // Self-timer: area selected → now start countdown
                 self.dismissOverlay()
                 self.startCountdown(for: rect)
+            } else if self.currentMode == .ocrCapture {
+                // OCR: capture area → run OCR → copy text
+                self.dismissOverlay()
+                self.handleOCRAreaSelected(rect)
             } else {
                 self.handleAreaSelected(rect)
             }
@@ -197,6 +203,51 @@ final class CaptureSessionManager {
                 handleCapturedImage(image)
             } catch {
                 print("❌ Area capture failed: \(error)")
+            }
+        }
+    }
+
+    // MARK: - OCR Capture
+
+    /// Dedicated OCR flow: capture area → OCR → clipboard. No Quick Access, no save.
+    /// Shows a loading indicator in the menu bar icon during processing.
+    private func handleOCRAreaSelected(_ screenRect: CGRect) {
+        let env = AppEnvironment.shared
+
+        Task {
+            // Step 1: Show loading in menu bar
+            env.menuBarIconName = "arrow.trianglehead.2.clockwise"
+
+            do {
+                // Step 2: Capture the area
+                let image = try await scKitService.captureArea(screenRect)
+
+                // Step 3: Run OCR
+                let text = try await OCRService.shared.extractFullText(from: image)
+
+                if text.isEmpty {
+                    // No text found
+                    print("⚠️ OCR: No text found in selection")
+                    env.menuBarIconName = "hammer.fill"
+                    NSSound(named: .init("Basso"))?.play()
+                } else {
+                    // Step 4: Copy to clipboard
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(text, forType: .string)
+                    print("✅ OCR: copied \(text.count) chars to clipboard")
+
+                    // Step 5: Success — restore icon + sound
+                    env.menuBarIconName = "checkmark.circle.fill"
+                    NSSound(named: .init("Glass"))?.play()
+
+                    // Brief green checkmark, then restore normal icon
+                    try? await Task.sleep(for: .seconds(1.5))
+                    env.menuBarIconName = "hammer.fill"
+                }
+            } catch {
+                print("❌ OCR capture failed: \(error)")
+                env.menuBarIconName = "hammer.fill"
+                NSSound(named: .init("Basso"))?.play()
             }
         }
     }

@@ -11,7 +11,7 @@ struct SnapForgeApp: App {
             MenuBarView()
                 .environment(appEnvironment)
         } label: {
-            Image(systemName: "hammer.fill")
+            Image(systemName: appEnvironment.menuBarIconName)
                 .symbolRenderingMode(.hierarchical)
         }
         .menuBarExtraStyle(.window)
@@ -68,7 +68,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
         hotkeys.register(hotkey: .toggleOCR) { @Sendable in
-            print("🔍 OCR hotkey pressed")
+            Task { @MainActor in
+                CaptureSessionManager.shared.startCapture(mode: .ocrCapture)
+            }
         }
 
         hotkeys.startListening()
