@@ -62,6 +62,26 @@ struct QuickAccessView: View {
 
                 Divider().frame(height: 30)
 
+                QuickActionButton(icon: "doc.text.viewfinder", label: "OCR") {
+                    Task {
+                        do {
+                            let text = try await OCRService.shared.extractFullText(from: capturedImage)
+                            if text.isEmpty {
+                                print("⚠️ No text found in image")
+                            } else {
+                                NSPasteboard.general.clearContents()
+                                NSPasteboard.general.setString(text, forType: .string)
+                                print("✅ OCR: copied \(text.count) chars to clipboard")
+                            }
+                        } catch {
+                            print("❌ OCR failed: \(error)")
+                        }
+                        AppCoordinator.shared.dismissQuickAccess()
+                    }
+                }
+
+                Divider().frame(height: 30)
+
                 QuickActionButton(icon: "xmark", label: "Close") {
                     AppCoordinator.shared.dismissQuickAccess()
                 }
