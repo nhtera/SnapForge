@@ -266,23 +266,25 @@ class CaptureOverlayNSView: NSView {
             if let ownerPID = info[kCGWindowOwnerPID as String] as? Int32, ownerPID == ownPID { continue }
             if let ownerName = info[kCGWindowOwnerName as String] as? String, excludedOwners.contains(ownerName) { continue }
 
-            guard let boundsDict = info[kCGWindowBounds as String] as? [String: CGFloat],
-                  let x = boundsDict["X"],
-                  let y = boundsDict["Y"],
-                  let w = boundsDict["Width"],
-                  let h = boundsDict["Height"] else { continue }
+            // Parse window bounds using CGRect(dictionaryRepresentation:)
+            guard let boundsAny = info[kCGWindowBounds as String],
+                  let cgWindowRect = CGRect(dictionaryRepresentation: boundsAny as! CFDictionary) else { continue }
 
-            guard w > 50 && h > 50 else { continue }
-
-            let cgWindowRect = CGRect(x: x, y: y, width: w, height: h)
+            guard cgWindowRect.width > 50 && cgWindowRect.height > 50 else { continue }
 
             if cgWindowRect.contains(cgMousePoint) {
                 // Convert CG coordinates (top-down) to view coordinates (bottom-up)
-                foundRect = CGRect(x: x, y: screenHeight - y - h, width: w, height: h)
+                foundRect = CGRect(
+                    x: cgWindowRect.origin.x,
+                    y: screenHeight - cgWindowRect.origin.y - cgWindowRect.height,
+                    width: cgWindowRect.width,
+                    height: cgWindowRect.height
+                )
                 foundTitle = (info[kCGWindowName as String] as? String)
                     ?? (info[kCGWindowOwnerName as String] as? String)
                 break
             }
+
         }
 
         let changed = foundRect != detectedWindowRect
