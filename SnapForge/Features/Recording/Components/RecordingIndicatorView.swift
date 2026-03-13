@@ -1,77 +1,38 @@
 import SwiftUI
 
-/// Recording indicator overlay — shows area border, pre-record toolbar, and during-recording controls.
-/// CleanShot X style: select area → see highlighted border + toolbar → click Record → recording starts.
-struct RecordingIndicatorView: View {
-    @ObservedObject private var recorder = ScreenRecordingService.shared
+// MARK: - Recording Area Border View (click-through overlay)
+
+/// Just the area highlight border — rendered in a click-through window.
+struct RecordingBorderView: View {
+    let isPreRecord: Bool
+
     @State private var isBlinking = true
 
-    /// Pre-record mode: area is selected but recording hasn't started yet
-    let isPreRecord: Bool
-    let selectedRect: CGRect
+    var body: some View {
+        RoundedRectangle(cornerRadius: 4)
+            .strokeBorder(
+                isPreRecord
+                    ? Color.accentColor
+                    : Color.red.opacity(isBlinking ? 0.9 : 0.5),
+                style: isPreRecord
+                    ? StrokeStyle(lineWidth: 2, dash: [8, 4])
+                    : StrokeStyle(lineWidth: 2),
+                antialiased: true
+            )
+            .animation(.easeInOut(duration: 0.8).repeatForever(), value: isBlinking)
+            .onAppear { isBlinking = true }
+    }
+}
+
+// MARK: - Pre-Record Toolbar (before recording starts)
+
+/// Floating toolbar below selected area: Record / GIF / Cancel
+struct PreRecordToolbarView: View {
     let onStartVideo: () -> Void
     let onStartGIF: () -> Void
     let onCancel: () -> Void
 
-    init(
-        isPreRecord: Bool = false,
-        selectedRect: CGRect = .zero,
-        onStartVideo: @escaping () -> Void = {},
-        onStartGIF: @escaping () -> Void = {},
-        onCancel: @escaping () -> Void = {}
-    ) {
-        self.isPreRecord = isPreRecord
-        self.selectedRect = selectedRect
-        self.onStartVideo = onStartVideo
-        self.onStartGIF = onStartGIF
-        self.onCancel = onCancel
-    }
-
     var body: some View {
-        VStack(spacing: 0) {
-            // Area highlight border — fills the top portion (original selection area)
-            ZStack {
-                areaBorder
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-
-            // Toolbar — fixed height area below the border
-            HStack {
-                Spacer()
-                if isPreRecord {
-                    preRecordToolbar
-                } else {
-                    recordingToolbar
-                }
-                Spacer()
-            }
-            .frame(height: 48)
-        }
-    }
-
-    // MARK: - Area Border
-
-    private var areaBorder: some View {
-        GeometryReader { geo in
-            RoundedRectangle(cornerRadius: 4)
-                .strokeBorder(
-                    isPreRecord
-                        ? Color.accentColor
-                        : Color.red.opacity(isBlinking ? 0.9 : 0.5),
-                    style: isPreRecord
-                        ? StrokeStyle(lineWidth: 2, dash: [8, 4])
-                        : StrokeStyle(lineWidth: 2),
-                    antialiased: true
-                )
-                .animation(.easeInOut(duration: 0.8).repeatForever(), value: isBlinking)
-                .frame(width: geo.size.width, height: geo.size.height)
-                .allowsHitTesting(false)
-        }
-    }
-
-    // MARK: - Pre-Record Toolbar (before recording starts)
-
-    private var preRecordToolbar: some View {
         HStack(spacing: 0) {
             // Record Video button
             Button(action: onStartVideo) {
@@ -118,12 +79,23 @@ struct RecordingIndicatorView: View {
         }
         .background(.black.opacity(0.85), in: Capsule())
         .shadow(color: .black.opacity(0.3), radius: 8, y: 4)
-        .padding(.bottom, 8)
     }
 
-    // MARK: - Recording Toolbar (during active recording)
+    private var divider: some View {
+        Rectangle()
+            .fill(.white.opacity(0.2))
+            .frame(width: 1, height: 20)
+    }
+}
 
-    private var recordingToolbar: some View {
+// MARK: - Recording Toolbar (during active recording)
+
+/// Floating toolbar: REC badge + timer + pause/stop/delete
+struct RecordingToolbarView: View {
+    @ObservedObject private var recorder = ScreenRecordingService.shared
+    @State private var isBlinking = true
+
+    var body: some View {
         HStack(spacing: 0) {
             // REC indicator
             HStack(spacing: 6) {
@@ -147,19 +119,6 @@ struct RecordingIndicatorView: View {
                 Image(systemName: recorder.isPaused ? "play.fill" : "pause.fill")
                     .font(.system(size: 11))
                     .foregroundColor(.white)
-                    .frame(width: 28, height: 28)
-            }
-            .buttonStyle(.plain)
-
-            divider
-
-            // Undo (restart) — not implemented yet, placeholder
-            Button(action: {
-                // Future: undo last segment
-            }) {
-                Image(systemName: "arrow.uturn.backward")
-                    .font(.system(size: 11))
-                    .foregroundColor(.white.opacity(0.7))
                     .frame(width: 28, height: 28)
             }
             .buttonStyle(.plain)
@@ -199,11 +158,8 @@ struct RecordingIndicatorView: View {
         .padding(.vertical, 4)
         .background(.black.opacity(0.85), in: Capsule())
         .shadow(color: .black.opacity(0.3), radius: 8, y: 4)
-        .padding(.bottom, 8)
         .onAppear { isBlinking = true }
     }
-
-    // MARK: - Helpers
 
     private var divider: some View {
         Rectangle()
@@ -224,4 +180,11 @@ struct RecordingIndicatorView: View {
         AppEnvironment.shared.isRecording = false
         AppCoordinator.shared.dismissRecordingIndicator()
     }
+}
+
+// MARK: - First-Mouse Hosting View
+
+/// Custom NSHostingView that accepts the first mouse click without requiring window activation.
+final class FirstMouseHostingView<Content: View>: NSHostingView<Content> {
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 }

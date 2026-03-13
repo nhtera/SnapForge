@@ -14,7 +14,8 @@ final class AppCoordinator {
     private var annotationWindow: NSWindow?
     private var onboardingWindow: NSWindow?
     private var floatingPins: [NSWindow] = []
-    private var recordingIndicatorWindow: NSWindow?
+    private var recordingBorderWindow: NSWindow?   // Click-through: just the border
+    private var recordingToolbarPanel: NSPanel?     // Interactive: buttons
 
     private init() {}
 
@@ -134,7 +135,6 @@ final class AppCoordinator {
     private var isGIFMode = false
 
     func startRecording() {
-        // Use capture overlay to select recording area
         let manager = CaptureSessionManager.shared
         manager.startRecordingAreaSelection { [weak self] rect in
             guard let self else { return }
@@ -149,13 +149,16 @@ final class AppCoordinator {
         showPreRecordIndicator(for: screen.frame)
     }
 
-    /// Show pre-record toolbar with highlighted area border
+    /// Show pre-record toolbar with highlighted area border (two separate windows)
     private func showPreRecordIndicator(for rect: CGRect) {
         pendingRecordingRect = rect
+        let cocoaRect = cgToCocoaRect(rect)
 
-        let indicatorView = RecordingIndicatorView(
-            isPreRecord: true,
-            selectedRect: rect,
+        // 1. Border overlay — click-through
+        showBorderWindow(cocoaRect: cocoaRect, isPreRecord: true)
+
+        // 2. Toolbar panel — non-activating, accepts first mouse
+        let toolbarView = PreRecordToolbarView(
             onStartVideo: { [weak self] in
                 guard let self, let rect = self.pendingRecordingRect else { return }
                 self.isGIFMode = false
@@ -175,34 +178,7 @@ final class AppCoordinator {
                 self?.pendingRecordingRect = nil
             }
         )
-
-        let hostingView = NSHostingView(rootView: indicatorView)
-
-        // Convert CG coordinates (y=0 at top) → Cocoa coordinates (y=0 at bottom)
-        let toolbarHeight: CGFloat = 48
-        let cocoaRect = cgToCocoaRect(rect)
-        let expandedRect = CGRect(
-            x: cocoaRect.origin.x,
-            y: cocoaRect.origin.y - toolbarHeight,
-            width: cocoaRect.width,
-            height: cocoaRect.height + toolbarHeight
-        )
-
-        let window = NSWindow(
-            contentRect: expandedRect,
-            styleMask: .borderless,
-            backing: .buffered,
-            defer: false
-        )
-        window.contentView = hostingView
-        window.level = .statusBar
-        window.isOpaque = false
-        window.backgroundColor = .clear
-        window.ignoresMouseEvents = false
-        window.isReleasedWhenClosed = false
-        window.makeKeyAndOrderFront(nil)
-
-        recordingIndicatorWindow = window
+        showToolbarPanel(toolbarView: toolbarView, cocoaRect: cocoaRect)
     }
 
     private func beginRecording(in rect: CGRect) async {
@@ -224,7 +200,7 @@ final class AppCoordinator {
             AppEnvironment.shared.isRecording = true
             pendingRecordingRect = nil
 
-            // Switch indicator from pre-record to recording mode
+            // Switch from pre-record to recording mode
             showRecordingIndicator(in: rect)
         } catch {
             print("❌ Recording failed: \(error)")
@@ -236,7 +212,6 @@ final class AppCoordinator {
         if let savedURL = await recorder.stopRecording() {
             print("✅ Recording saved: \(savedURL.path)")
 
-            // Convert to GIF if GIF mode was selected
             if isGIFMode {
                 await convertToGIF(videoURL: savedURL)
             }
@@ -284,23 +259,27 @@ final class AppCoordinator {
     }
 
     func showRecordingIndicator(in rect: NSRect) {
-        let indicatorView = RecordingIndicatorView(
-            isPreRecord: false,
-            selectedRect: rect
-        )
-        let hostingView = NSHostingView(rootView: indicatorView)
-
-        let toolbarHeight: CGFloat = 48
         let cocoaRect = cgToCocoaRect(rect)
-        let expandedRect = CGRect(
-            x: cocoaRect.origin.x,
-            y: cocoaRect.origin.y - toolbarHeight,
-            width: cocoaRect.width,
-            height: cocoaRect.height + toolbarHeight
-        )
+
+        // 1. Border overlay — click-through
+        showBorderWindow(cocoaRect: cocoaRect, isPreRecord: false)
+
+        // 2. Toolbar panel — non-activating, accepts first mouse
+        let toolbarView = RecordingToolbarView()
+        showToolbarPanel(toolbarView: toolbarView, cocoaRect: cocoaRect)
+    }
+
+    // MARK: - Window Helpers
+
+    /// Click-through border window — shows area highlight only.
+    private func showBorderWindow(cocoaRect: CGRect, isPreRecord: Bool) {
+        recordingBorderWindow?.close()
+
+        let borderView = RecordingBorderView(isPreRecord: isPreRecord)
+        let hostingView = NSHostingView(rootView: borderView)
 
         let window = NSWindow(
-            contentRect: expandedRect,
+            contentRect: cocoaRect,
             styleMask: .borderless,
             backing: .buffered,
             defer: false
@@ -309,17 +288,54 @@ final class AppCoordinator {
         window.level = .statusBar
         window.isOpaque = false
         window.backgroundColor = .clear
-        window.ignoresMouseEvents = false
+        window.ignoresMouseEvents = true    // Click-through!
         window.isReleasedWhenClosed = false
-        window.makeKeyAndOrderFront(nil)
+        window.collectionBehavior = [.canJoinAllSpaces, .stationary]
+        window.orderFrontRegardless()
 
-        recordingIndicatorWindow?.close()
-        recordingIndicatorWindow = window
+        recordingBorderWindow = window
+    }
+
+    /// Non-activating toolbar panel — buttons respond on first click.
+    private func showToolbarPanel<V: View>(toolbarView: V, cocoaRect: CGRect) {
+        recordingToolbarPanel?.close()
+
+        let hostingView = FirstMouseHostingView(rootView: toolbarView)
+        let intrinsicSize = hostingView.fittingSize
+
+        // Position toolbar centered below the border
+        let toolbarRect = CGRect(
+            x: cocoaRect.midX - intrinsicSize.width / 2,
+            y: cocoaRect.origin.y - intrinsicSize.height - 8,
+            width: intrinsicSize.width,
+            height: intrinsicSize.height
+        )
+
+        let panel = NSPanel(
+            contentRect: toolbarRect,
+            styleMask: [.borderless, .nonactivatingPanel],
+            backing: .buffered,
+            defer: false
+        )
+        panel.contentView = hostingView
+        panel.level = .statusBar + 1
+        panel.isOpaque = false
+        panel.backgroundColor = .clear
+        panel.isFloatingPanel = true
+        panel.hidesOnDeactivate = false
+        panel.isReleasedWhenClosed = false
+        panel.becomesKeyOnlyIfNeeded = true
+        panel.collectionBehavior = [.canJoinAllSpaces, .stationary]
+        panel.orderFrontRegardless()
+
+        recordingToolbarPanel = panel
     }
 
     func dismissRecordingIndicator() {
-        recordingIndicatorWindow?.close()
-        recordingIndicatorWindow = nil
+        recordingBorderWindow?.close()
+        recordingBorderWindow = nil
+        recordingToolbarPanel?.close()
+        recordingToolbarPanel = nil
     }
 
     // MARK: - Coordinate Helpers
@@ -342,7 +358,8 @@ final class AppCoordinator {
         quickAccessPanel?.close()
         annotationWindow?.close()
         onboardingWindow?.close()
-        recordingIndicatorWindow?.close()
+        recordingBorderWindow?.close()
+        recordingToolbarPanel?.close()
         floatingPins.forEach { $0.close() }
         floatingPins.removeAll()
     }
