@@ -1060,3 +1060,247 @@ final class AnnotationWorkflowTests: XCTestCase {
         XCTAssertFalse(vm.annotations[0].isSelected)
     }
 }
+
+// MARK: - BlurEffectRenderer Tests
+
+final class BlurEffectRendererTests: XCTestCase {
+
+    /// Create a test image with colored regions for verifiable pixelation
+    private func makeColorTestImage() -> NSImage {
+        let image = NSImage(size: NSSize(width: 200, height: 200))
+        image.lockFocus()
+        // Top-left: red
+        NSColor.red.setFill()
+        NSBezierPath.fill(NSRect(x: 0, y: 100, width: 100, height: 100))
+        // Top-right: blue
+        NSColor.blue.setFill()
+        NSBezierPath.fill(NSRect(x: 100, y: 100, width: 100, height: 100))
+        // Bottom-left: green
+        NSColor.green.setFill()
+        NSBezierPath.fill(NSRect(x: 0, y: 0, width: 100, height: 100))
+        // Bottom-right: yellow
+        NSColor.yellow.setFill()
+        NSBezierPath.fill(NSRect(x: 100, y: 0, width: 100, height: 100))
+        image.unlockFocus()
+        return image
+    }
+
+    func testPixelateRegion_returnsValidImage() {
+        let source = makeColorTestImage()
+        let region = CGRect(x: 10, y: 10, width: 100, height: 100)
+
+        let result = BlurEffectRenderer.pixelateRegion(
+            sourceImage: source,
+            region: region,
+            pixelSize: 20
+        )
+
+        XCTAssertNotNil(result, "Pixelate should return a valid NSImage")
+        XCTAssertEqual(result?.size.width, 100)
+        XCTAssertEqual(result?.size.height, 100)
+    }
+
+    func testPixelateRegion_differentPixelSizes() {
+        let source = makeColorTestImage()
+        let region = CGRect(x: 0, y: 0, width: 100, height: 100)
+
+        let small = BlurEffectRenderer.pixelateRegion(sourceImage: source, region: region, pixelSize: 4)
+        let large = BlurEffectRenderer.pixelateRegion(sourceImage: source, region: region, pixelSize: 30)
+
+        XCTAssertNotNil(small)
+        XCTAssertNotNil(large)
+    }
+
+    func testPixelateRegion_zeroSize_returnsNil() {
+        let source = makeColorTestImage()
+        let zeroRegion = CGRect(x: 0, y: 0, width: 0, height: 0)
+        let result = BlurEffectRenderer.pixelateRegion(sourceImage: source, region: zeroRegion)
+        XCTAssertNil(result)
+    }
+
+    func testPixelateRegion_outOfBounds_returnsNilOrClampedImage() {
+        let source = makeColorTestImage()
+        // Completely outside the image
+        let outsideRegion = CGRect(x: 500, y: 500, width: 100, height: 100)
+        let result = BlurEffectRenderer.pixelateRegion(sourceImage: source, region: outsideRegion)
+        // Either nil or a valid image (fallback)
+        // The important thing is it doesn't crash
+    }
+
+    func testBlurRegion_returnsValidImage() {
+        let source = makeColorTestImage()
+        let region = CGRect(x: 10, y: 10, width: 100, height: 100)
+
+        let result = BlurEffectRenderer.blurRegion(
+            sourceImage: source,
+            region: region,
+            radius: 10
+        )
+
+        XCTAssertNotNil(result, "Blur should return a valid NSImage")
+        XCTAssertEqual(result?.size.width, 100)
+        XCTAssertEqual(result?.size.height, 100)
+    }
+
+    func testBlurRegion_largeRadius() {
+        let source = makeColorTestImage()
+        let region = CGRect(x: 0, y: 0, width: 100, height: 100)
+
+        let result = BlurEffectRenderer.blurRegion(sourceImage: source, region: region, radius: 50)
+        XCTAssertNotNil(result)
+    }
+
+    func testBlurRegion_zeroRadius() {
+        let source = makeColorTestImage()
+        let region = CGRect(x: 0, y: 0, width: 100, height: 100)
+
+        let result = BlurEffectRenderer.blurRegion(sourceImage: source, region: region, radius: 0)
+        XCTAssertNotNil(result)
+    }
+
+    func testBlurRegion_zeroSize_returnsNil() {
+        let source = makeColorTestImage()
+        let result = BlurEffectRenderer.blurRegion(sourceImage: source, region: .zero)
+        XCTAssertNil(result)
+    }
+
+    func testPixelateRegion_fullImage() {
+        let source = makeColorTestImage()
+        let region = CGRect(origin: .zero, size: source.size)
+
+        let result = BlurEffectRenderer.pixelateRegion(sourceImage: source, region: region, pixelSize: 20)
+        XCTAssertNotNil(result)
+        XCTAssertEqual(result?.size.width, 200)
+        XCTAssertEqual(result?.size.height, 200)
+    }
+}
+
+// MARK: - Export Service with Effects Tests
+
+final class ExportServiceEffectTests: XCTestCase {
+
+    private func makeTestImage() -> NSImage {
+        let image = NSImage(size: NSSize(width: 400, height: 300))
+        image.lockFocus()
+        NSColor.white.setFill()
+        NSBezierPath.fill(NSRect(x: 0, y: 0, width: 400, height: 300))
+        // Add some colored regions so pixelate has real content
+        NSColor.red.setFill()
+        NSBezierPath.fill(NSRect(x: 50, y: 50, width: 100, height: 100))
+        NSColor.blue.setFill()
+        NSBezierPath.fill(NSRect(x: 200, y: 100, width: 150, height: 80))
+        image.unlockFocus()
+        return image
+    }
+
+    func testExport_withPixelateEffect() {
+        let service = ExportService()
+        let image = makeTestImage()
+
+        let annotations: [any AnnotationItem] = [
+            EffectAnnotation(type: .pixelate,
+                           rect: CGRect(x: 100, y: 100, width: 200, height: 150),
+                           intensity: 0.8)
+        ]
+
+        let result = service.renderAnnotatedImage(
+            baseImage: image, annotations: annotations,
+            canvasSize: CGSize(width: 800, height: 600),
+            imageRect: CGRect(x: 0, y: 0, width: 800, height: 600)
+        )
+        XCTAssertNotNil(result, "Export with pixelate should succeed")
+        XCTAssertEqual(result?.size, image.size)
+    }
+
+    func testExport_withBlurEffect() {
+        let service = ExportService()
+        let image = makeTestImage()
+
+        let annotations: [any AnnotationItem] = [
+            EffectAnnotation(type: .blur,
+                           rect: CGRect(x: 50, y: 50, width: 200, height: 100),
+                           intensity: 0.7)
+        ]
+
+        let result = service.renderAnnotatedImage(
+            baseImage: image, annotations: annotations,
+            canvasSize: CGSize(width: 800, height: 600),
+            imageRect: CGRect(x: 0, y: 0, width: 800, height: 600)
+        )
+        XCTAssertNotNil(result, "Export with blur should succeed")
+    }
+
+    func testExport_withSpotlightEffect() {
+        let service = ExportService()
+        let image = makeTestImage()
+
+        let annotations: [any AnnotationItem] = [
+            EffectAnnotation(type: .spotlight,
+                           rect: CGRect(x: 100, y: 100, width: 200, height: 150),
+                           intensity: 1.0)
+        ]
+
+        let result = service.renderAnnotatedImage(
+            baseImage: image, annotations: annotations,
+            canvasSize: CGSize(width: 800, height: 600),
+            imageRect: CGRect(x: 0, y: 0, width: 800, height: 600)
+        )
+        XCTAssertNotNil(result, "Export with spotlight should succeed")
+    }
+
+    func testExport_mixedEffectsAndAnnotations() {
+        let service = ExportService()
+        let image = makeTestImage()
+
+        let annotations: [any AnnotationItem] = [
+            EffectAnnotation(type: .pixelate, rect: CGRect(x: 50, y: 50, width: 100, height: 80), intensity: 0.8),
+            EffectAnnotation(type: .blur, rect: CGRect(x: 200, y: 100, width: 100, height: 80), intensity: 0.6),
+            ShapeAnnotation(type: .rectangle, rect: CGRect(x: 10, y: 10, width: 80, height: 60), color: .red, strokeWidth: 2, isFilled: false, cornerRadius: 0),
+            ArrowAnnotation(startPoint: CGPoint(x: 200, y: 50), endPoint: CGPoint(x: 350, y: 150), color: .green, strokeWidth: 2, isCurved: false),
+            CounterAnnotation(position: CGPoint(x: 350, y: 50), number: 1, color: .red, size: 28),
+            TextAnnotation(position: CGPoint(x: 100, y: 200), text: "Test", font: .systemFont(ofSize: 14), color: .red, backgroundColor: nil, style: .plain),
+        ]
+
+        let result = service.renderAnnotatedImage(
+            baseImage: image, annotations: annotations,
+            canvasSize: CGSize(width: 800, height: 600),
+            imageRect: CGRect(x: 0, y: 0, width: 800, height: 600)
+        )
+        XCTAssertNotNil(result, "Mixed effects + annotations export should succeed")
+        XCTAssertEqual(result?.size, image.size)
+    }
+
+    func testExport_multiplePixelateEffects() {
+        let service = ExportService()
+        let image = makeTestImage()
+
+        let annotations: [any AnnotationItem] = [
+            EffectAnnotation(type: .pixelate, rect: CGRect(x: 10, y: 10, width: 80, height: 60), intensity: 0.5),
+            EffectAnnotation(type: .pixelate, rect: CGRect(x: 150, y: 80, width: 100, height: 80), intensity: 1.0),
+            EffectAnnotation(type: .pixelate, rect: CGRect(x: 300, y: 20, width: 60, height: 60), intensity: 0.3),
+        ]
+
+        let result = service.renderAnnotatedImage(
+            baseImage: image, annotations: annotations,
+            canvasSize: CGSize(width: 800, height: 600),
+            imageRect: CGRect(x: 0, y: 0, width: 800, height: 600)
+        )
+        XCTAssertNotNil(result, "Multiple pixelate effects should render")
+    }
+
+    func testExport_effectWithZeroIntensity() {
+        let service = ExportService()
+        let image = makeTestImage()
+
+        let annotations: [any AnnotationItem] = [
+            EffectAnnotation(type: .blur, rect: CGRect(x: 50, y: 50, width: 100, height: 100), intensity: 0.0),
+        ]
+
+        let result = service.renderAnnotatedImage(
+            baseImage: image, annotations: annotations,
+            canvasSize: CGSize(width: 800, height: 600),
+            imageRect: CGRect(x: 0, y: 0, width: 800, height: 600)
+        )
+        XCTAssertNotNil(result, "Zero-intensity effect should not crash")
+    }
+}

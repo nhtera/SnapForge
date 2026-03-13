@@ -442,62 +442,101 @@ struct AnnotationView: View {
     private func drawEffect(_ effect: EffectAnnotation, context: inout GraphicsContext) {
         switch effect.type {
         case .blur:
-            // Isolate blur in its own layer so it doesn't leak to other annotations
-            context.drawLayer { layerContext in
-                // Draw a frosted-glass overlay to represent the blur region
-                layerContext.clip(to: Path(effect.rect))
-                layerContext.addFilter(.blur(radius: 8 * effect.intensity))
-                layerContext.fill(Path(effect.rect), with: .color(.white.opacity(0.4)))
+            // Render real Gaussian blur of the underlying image region
+            if let blurredImage = renderEffectImage(effect: effect, type: .blur) {
+                context.draw(Image(nsImage: blurredImage), in: effect.rect)
+            } else {
+                // Fallback: frosted overlay
+                context.drawLayer { layerContext in
+                    layerContext.clip(to: Path(effect.rect))
+                    layerContext.addFilter(.blur(radius: 8 * effect.intensity))
+                    layerContext.fill(Path(effect.rect), with: .color(.white.opacity(0.4)))
+                }
             }
-            // Dashed border (outside the layer, so it's crisp)
             context.stroke(Path(effect.rect), with: .color(.blue.opacity(0.6)),
                           style: StrokeStyle(lineWidth: 2, dash: [6, 4]))
-            // Label
-            let label = context.resolve(
-                Text("BLUR").font(.system(size: 10, weight: .bold)).foregroundColor(.blue.opacity(0.7))
-            )
-            context.draw(label, at: CGPoint(x: effect.rect.midX, y: effect.rect.minY - 10), anchor: .center)
 
         case .pixelate:
-            // Isolate pixelate in its own layer
-            context.drawLayer { layerContext in
-                layerContext.clip(to: Path(effect.rect))
-                // Mosaic grid pattern
-                let gridSize: CGFloat = max(6, 14 * effect.intensity)
-                for x in stride(from: effect.rect.minX, to: effect.rect.maxX, by: gridSize) {
-                    for y in stride(from: effect.rect.minY, to: effect.rect.maxY, by: gridSize) {
-                        let cellRect = CGRect(x: x, y: y, width: gridSize, height: gridSize)
-                        let grayValue = Double.random(in: 0.3...0.7)
-                        layerContext.fill(Path(cellRect), with: .color(.gray.opacity(grayValue)))
+            // Render real pixelated mosaic of the underlying image region
+            if let pixelatedImage = renderEffectImage(effect: effect, type: .pixelate) {
+                context.draw(Image(nsImage: pixelatedImage), in: effect.rect)
+            } else {
+                // Fallback: gray grid
+                context.drawLayer { layerContext in
+                    layerContext.clip(to: Path(effect.rect))
+                    let gridSize: CGFloat = max(6, 14 * effect.intensity)
+                    for x in stride(from: effect.rect.minX, to: effect.rect.maxX, by: gridSize) {
+                        for y in stride(from: effect.rect.minY, to: effect.rect.maxY, by: gridSize) {
+                            let cellRect = CGRect(x: x, y: y, width: gridSize, height: gridSize)
+                            let grayValue = Double.random(in: 0.3...0.7)
+                            layerContext.fill(Path(cellRect), with: .color(.gray.opacity(grayValue)))
+                        }
                     }
                 }
             }
-            // Dashed border
             context.stroke(Path(effect.rect), with: .color(.purple.opacity(0.6)),
                           style: StrokeStyle(lineWidth: 2, dash: [6, 4]))
-            let label = context.resolve(
-                Text("PIXELATE").font(.system(size: 10, weight: .bold)).foregroundColor(.purple.opacity(0.7))
-            )
-            context.draw(label, at: CGPoint(x: effect.rect.midX, y: effect.rect.minY - 10), anchor: .center)
 
         case .spotlight:
             // Isolate spotlight dimming in its own layer
             context.drawLayer { layerContext in
-                // Draw dark overlay covering everything
                 layerContext.fill(Path(CGRect(origin: .zero, size: canvasSize)),
                                 with: .color(.black.opacity(0.5)))
-                // Cut out the spotlight area
                 layerContext.blendMode = .destinationOut
                 layerContext.fill(Path(roundedRect: effect.rect, cornerRadius: 8),
                                 with: .color(.white))
             }
-            // Bright border around spotlight area
             context.stroke(Path(roundedRect: effect.rect, cornerRadius: 8),
                           with: .color(.yellow.opacity(0.6)), lineWidth: 2)
 
         default:
             break
         }
+    }
+
+    /// Convert canvas-space effect rect to image-space and render the effect using BlurEffectRenderer
+    private func renderEffectImage(effect: EffectAnnotation, type: EffectRenderType) -> NSImage? {
+        guard imageRect.width > 0, imageRect.height > 0 else { return nil }
+
+        // Map canvas rect → image pixel coordinates
+        let scaleX = image.size.width / imageRect.width
+        let scaleY = image.size.height / imageRect.height
+
+        let imgX = (effect.rect.minX - imageRect.minX) * scaleX
+        let imgY = (effect.rect.minY - imageRect.minY) * scaleY
+        let imgW = effect.rect.width * scaleX
+        let imgH = effect.rect.height * scaleY
+
+        // NSImage coordinates are bottom-up
+        let imageRegion = CGRect(
+            x: max(0, imgX),
+            y: max(0, image.size.height - imgY - imgH),
+            width: min(imgW, image.size.width),
+            height: min(imgH, image.size.height)
+        )
+
+        guard imageRegion.width > 1, imageRegion.height > 1 else { return nil }
+
+        switch type {
+        case .pixelate:
+            let pixelSize = max(6, 14 * effect.intensity)
+            return BlurEffectRenderer.pixelateRegion(
+                sourceImage: image,
+                region: imageRegion,
+                pixelSize: pixelSize
+            )
+        case .blur:
+            let radius = 20.0 * Double(effect.intensity)
+            return BlurEffectRenderer.blurRegion(
+                sourceImage: image,
+                region: imageRegion,
+                radius: radius
+            )
+        }
+    }
+
+    private enum EffectRenderType {
+        case pixelate, blur
     }
 
     private func drawCounter(_ counter: CounterAnnotation, context: inout GraphicsContext) {

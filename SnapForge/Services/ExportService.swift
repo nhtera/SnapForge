@@ -100,6 +100,13 @@ final class ExportService {
         let scaleX = imageSize.width / imageRect.width
         let scaleY = imageSize.height / imageRect.height
 
+        // Render effects first (they modify the base image)
+        for annotation in annotations {
+            if let effect = annotation as? EffectAnnotation {
+                renderEffect(effect, in: context, baseImage: baseImage, imageSize: imageSize, imageRect: imageRect, scaleX: scaleX, scaleY: scaleY)
+            }
+        }
+
         context.saveGState()
         // Flip coordinate system (NSImage draws bottom-up)
         context.translateBy(x: 0, y: imageSize.height)
@@ -109,13 +116,70 @@ final class ExportService {
         context.scaleBy(x: scaleX, y: scaleY)
 
         for annotation in annotations {
-            renderAnnotation(annotation, in: context)
+            if !(annotation is EffectAnnotation) {
+                renderAnnotation(annotation, in: context)
+            }
         }
 
         context.restoreGState()
         result.unlockFocus()
 
         return result
+    }
+
+    private func renderEffect(
+        _ effect: EffectAnnotation,
+        in context: CGContext,
+        baseImage: NSImage,
+        imageSize: CGSize,
+        imageRect: CGRect,
+        scaleX: CGFloat,
+        scaleY: CGFloat
+    ) {
+        // Convert canvas rect to image coordinates
+        let imgX = (effect.rect.minX - imageRect.minX) * scaleX
+        let imgY = (effect.rect.minY - imageRect.minY) * scaleY
+        let imgW = effect.rect.width * scaleX
+        let imgH = effect.rect.height * scaleY
+
+        // Image coordinate region (bottom-up for NSImage)
+        let imageRegion = CGRect(
+            x: max(0, imgX),
+            y: max(0, imageSize.height - imgY - imgH),
+            width: min(imgW, imageSize.width),
+            height: min(imgH, imageSize.height)
+        )
+
+        switch effect.type {
+        case .pixelate:
+            let pixelSize = max(6, 14 * effect.intensity)
+            BlurEffectRenderer.drawPixelatedRegion(
+                in: context,
+                sourceImage: baseImage,
+                region: imageRegion,
+                pixelSize: pixelSize
+            )
+        case .blur:
+            let radius = 20.0 * Double(effect.intensity)
+            BlurEffectRenderer.drawGaussianRegion(
+                in: context,
+                sourceImage: baseImage,
+                region: imageRegion,
+                radius: radius
+            )
+        case .spotlight:
+            // Dim everything except spotlight
+            context.saveGState()
+            let fullRect = CGRect(origin: .zero, size: imageSize)
+            context.setFillColor(NSColor.black.withAlphaComponent(0.5).cgColor)
+            context.fill(fullRect)
+            context.setBlendMode(.clear)
+            context.fill(imageRegion)
+            context.setBlendMode(.normal)
+            context.restoreGState()
+        default:
+            break
+        }
     }
 
     private func renderAnnotation(_ annotation: any AnnotationItem, in context: CGContext) {
