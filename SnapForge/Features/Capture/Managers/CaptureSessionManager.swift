@@ -15,6 +15,7 @@ final class CaptureSessionManager {
 
     private var currentMode: CaptureMode = .area
     private var recordingAreaCallback: ((CGRect) -> Void)?
+    private var pendingTimedRect: CGRect?
 
     // MARK: - Start Capture Session
 
@@ -109,7 +110,14 @@ final class CaptureSessionManager {
 
         // Wire up callbacks
         view.onSelectionComplete = { [weak self] rect in
-            self?.handleAreaSelected(rect)
+            guard let self else { return }
+            if self.currentMode == .timedArea {
+                // Self-timer: area selected → now start countdown
+                self.dismissOverlay()
+                self.startCountdown(for: rect)
+            } else {
+                self.handleAreaSelected(rect)
+            }
         }
         view.onWindowClicked = { [weak self] point in
             self?.handleWindowClicked(at: point)
@@ -331,6 +339,12 @@ final class CaptureSessionManager {
     private var countdownWindow: NSWindow?
 
     private func startTimedCapture() {
+        // CleanShot X flow: select area first → then countdown → then capture
+        showOverlay(mode: .timedArea)
+    }
+
+    /// Shows countdown overlay, then captures the stored rect on completion
+    private func startCountdown(for rect: CGRect) {
         let delay = UserDefaults.standard.integer(forKey: "timerDelay")
         let seconds = delay > 0 ? delay : 5
 
@@ -338,10 +352,20 @@ final class CaptureSessionManager {
 
         let countdownView = CountdownOverlayView(
             totalSeconds: seconds,
+            captureRect: rect,
+            screenSize: screen.frame.size,
             onComplete: { [weak self] in
                 self?.dismissCountdown()
-                // After countdown, show area selection
-                self?.showOverlay(mode: .area)
+                // Countdown finished → capture the previously selected area
+                Task { @MainActor [weak self] in
+                    guard let self else { return }
+                    do {
+                        let image = try await self.scKitService.captureArea(rect)
+                        self.handleCapturedImage(image)
+                    } catch {
+                        print("❌ Timed area capture failed: \(error)")
+                    }
+                }
             },
             onCancel: { [weak self] in
                 self?.dismissCountdown()

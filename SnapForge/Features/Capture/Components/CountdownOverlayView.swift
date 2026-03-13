@@ -1,74 +1,83 @@
 import SwiftUI
 
-/// Full-screen countdown overlay for Self-Timer Capture.
-/// Shows a large animated number counting down, then triggers capture.
+/// Full-screen countdown overlay for Self-Timer Capture — CleanShot X style.
+/// Shows the selected area with a thin border, dimmed surroundings, and a compact
+/// countdown badge at the top-center of the selection.
 struct CountdownOverlayView: View {
     let totalSeconds: Int
+    let captureRect: CGRect  // In screen (AppKit) coordinates
+    let screenSize: CGSize
     let onComplete: () -> Void
     let onCancel: () -> Void
 
     @State private var remaining: Int
-    @State private var animateScale = false
-    @State private var countdownTask: Task<Void, Never>?
+    @State private var pulseScale: CGFloat = 1.0
 
-    init(totalSeconds: Int = 5, onComplete: @escaping () -> Void, onCancel: @escaping () -> Void) {
+    init(
+        totalSeconds: Int = 5,
+        captureRect: CGRect = .zero,
+        screenSize: CGSize = .zero,
+        onComplete: @escaping () -> Void,
+        onCancel: @escaping () -> Void
+    ) {
         self.totalSeconds = totalSeconds
+        self.captureRect = captureRect
+        self.screenSize = screenSize
         self.onComplete = onComplete
         self.onCancel = onCancel
         self._remaining = State(initialValue: totalSeconds)
     }
 
+    /// The captureRect is already in CG screen coordinates (Y=0 at top),
+    /// which matches SwiftUI's coordinate space — no conversion needed.
+    private var displayRect: CGRect { captureRect }
+
     var body: some View {
         ZStack {
-            // Semi-transparent background
-            Color.black.opacity(0.4)
-                .ignoresSafeArea()
-
-            VStack(spacing: 24) {
-                // Countdown number
-                Text("\(remaining)")
-                    .font(.system(size: 160, weight: .bold, design: .rounded))
-                    .foregroundStyle(.white)
-                    .shadow(color: .black.opacity(0.4), radius: 20)
-                    .scaleEffect(animateScale ? 1.0 : 1.4)
-                    .opacity(animateScale ? 1.0 : 0.3)
-                    .animation(.easeOut(duration: 0.4), value: animateScale)
-                    .id(remaining) // Force view reload on change
-
-                // Label
-                Text("Capturing in \(remaining)s...")
-                    .font(.system(size: 18, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.7))
-
-                // Progress ring
-                ZStack {
-                    Circle()
-                        .stroke(.white.opacity(0.2), lineWidth: 4)
-                    Circle()
-                        .trim(from: 0, to: progress)
-                        .stroke(.white, style: StrokeStyle(lineWidth: 4, lineCap: .round))
-                        .rotationEffect(.degrees(-90))
-                        .animation(.linear(duration: 1), value: remaining)
-                }
-                .frame(width: 60, height: 60)
-
-                // Cancel hint
-                Text("Press Esc to cancel")
-                    .font(.system(size: 12))
-                    .foregroundStyle(.white.opacity(0.4))
-                    .padding(.top, 8)
+            // Dimmed background with cutout for the selected area
+            Canvas { context, size in
+                // Fill entire screen with dim color
+                context.fill(
+                    Path(CGRect(origin: .zero, size: size)),
+                    with: .color(.black.opacity(0.45))
+                )
+                // Cut out the selected area (clear)
+                context.blendMode = .clear
+                context.fill(
+                    Path(displayRect),
+                    with: .color(.white)
+                )
             }
+            .ignoresSafeArea()
+
+            // Thin white border around selected area
+            Rectangle()
+                .stroke(Color.white.opacity(0.6), lineWidth: 1.5)
+                .frame(width: displayRect.width, height: displayRect.height)
+                .position(
+                    x: displayRect.midX,
+                    y: displayRect.midY
+                )
+
+            // Countdown badge — centered above the selected area
+            countdownBadge
+                .position(
+                    x: displayRect.midX,
+                    y: max(displayRect.minY - 30, 30) // 30pt above selection, clamped
+                )
         }
         .task {
-            animateScale = true
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(1))
                 guard !Task.isCancelled else { return }
                 if remaining > 1 {
                     remaining -= 1
-                    animateScale = false
-                    withAnimation {
-                        animateScale = true
+                    // Pulse animation
+                    withAnimation(.easeOut(duration: 0.25)) {
+                        pulseScale = 1.2
+                    }
+                    withAnimation(.easeInOut(duration: 0.2).delay(0.25)) {
+                        pulseScale = 1.0
                     }
                 } else {
                     onComplete()
@@ -78,7 +87,24 @@ struct CountdownOverlayView: View {
         }
     }
 
-    private var progress: CGFloat {
-        CGFloat(remaining) / CGFloat(totalSeconds)
+    // MARK: - Countdown Badge (CleanShot X style)
+
+    private var countdownBadge: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "timer")
+                .font(.system(size: 14, weight: .semibold))
+            Text("\(remaining)")
+                .font(.system(size: 20, weight: .bold, design: .rounded))
+                .monospacedDigit()
+        }
+        .foregroundStyle(.white)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 8)
+        .background(
+            Capsule()
+                .fill(Color.orange)
+                .shadow(color: .black.opacity(0.4), radius: 8, y: 4)
+        )
+        .scaleEffect(pulseScale)
     }
 }
