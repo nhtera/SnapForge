@@ -1,10 +1,11 @@
-import XCTest
+import Testing
+import AppKit
 @testable import SnapForge
 
 /// Tests for ClipboardService — copy image to pasteboard
-final class ClipboardServiceTests: XCTestCase {
+struct ClipboardServiceTests {
 
-    func testCopyImage_setsClipboard() {
+    @Test func copyImageSetsClipboard() {
         let clipboard = ClipboardService()
         let image = NSImage(size: NSSize(width: 50, height: 50))
         image.lockFocus()
@@ -17,7 +18,7 @@ final class ClipboardServiceTests: XCTestCase {
         // Verify the pasteboard has image data
         let pasteboard = NSPasteboard.general
         let types = pasteboard.types ?? []
-        XCTAssertTrue(
+        #expect(
             types.contains(.tiff) || types.contains(.png),
             "Pasteboard should contain image data after copyImage"
         )

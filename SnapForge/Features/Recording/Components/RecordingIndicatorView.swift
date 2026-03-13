@@ -97,7 +97,7 @@ struct PreRecordToolbarView: View {
 /// Floating toolbar: REC/GIF badge + timer + pause/stop/delete.
 /// Stop and cancel route through AppCoordinator so GIF conversion runs.
 struct RecordingToolbarView: View {
-    @ObservedObject private var recorder = ScreenRecordingService.shared
+    @State private var recorder = ScreenRecordingService.shared
     @State private var isBlinking = true
 
     /// Whether recording in GIF mode (shows GIF badge)
@@ -146,7 +146,9 @@ struct RecordingToolbarView: View {
             // Delete (cancel recording without saving)
             Button(action: {
                 Task {
-                    await AppCoordinator.shared.cancelRecording()
+                    do {
+                        await AppCoordinator.shared.cancelRecording()
+                    }
                 }
             }) {
                 Image(systemName: "trash")
@@ -162,7 +164,9 @@ struct RecordingToolbarView: View {
             // Stop (save — triggers GIF conversion if in GIF mode)
             Button(action: {
                 Task {
-                    await AppCoordinator.shared.stopRecording()
+                    do {
+                        await AppCoordinator.shared.stopRecording()
+                    }
                 }
             }) {
                 Image(systemName: "stop.fill")

@@ -1,65 +1,57 @@
-import XCTest
+import Testing
+import Foundation
+import AppKit
 @testable import SnapForge
 
 /// Tests for StorageService — file naming, saving, directory management
-final class StorageServiceTests: XCTestCase {
+struct StorageServiceTests {
 
-    private func makeStorage() -> StorageService {
-        StorageService()
-    }
+    let sut = StorageService()
 
     // MARK: - Filename Generation
 
-    func testGenerateImageFilename_defaultFormat() {
-        let storage = makeStorage()
-        let filename = storage.generateImageFilename()
-        XCTAssertTrue(filename.hasPrefix("SnapForge_"), "Filename should start with 'SnapForge_'")
-        XCTAssertTrue(filename.hasSuffix(".png"), "Default format should be .png")
+    @Test func generateImageFilenameDefaultFormat() {
+        let filename = sut.generateImageFilename()
+        #expect(filename.hasPrefix("SnapForge_"), "Filename should start with 'SnapForge_'")
+        #expect(filename.hasSuffix(".png"), "Default format should be .png")
     }
 
-    func testGenerateImageFilename_jpegFormat() {
-        let storage = makeStorage()
-        let filename = storage.generateImageFilename(format: "jpeg")
-        XCTAssertTrue(filename.hasSuffix(".jpeg"))
+    @Test func generateImageFilenameJpegFormat() {
+        let filename = sut.generateImageFilename(format: "jpeg")
+        #expect(filename.hasSuffix(".jpeg"))
     }
 
-    func testGenerateVideoFilename_defaultFormat() {
-        let storage = makeStorage()
-        let filename = storage.generateVideoFilename()
-        XCTAssertTrue(filename.hasPrefix("SnapForge_Recording_"))
-        XCTAssertTrue(filename.hasSuffix(".mp4"))
+    @Test func generateVideoFilenameDefaultFormat() {
+        let filename = sut.generateVideoFilename()
+        #expect(filename.hasPrefix("SnapForge_Recording_"))
+        #expect(filename.hasSuffix(".mp4"))
     }
 
-    func testGenerateVideoFilename_movFormat() {
-        let storage = makeStorage()
-        let filename = storage.generateVideoFilename(format: "mov")
-        XCTAssertTrue(filename.hasSuffix(".mov"))
+    @Test func generateVideoFilenameMovFormat() {
+        let filename = sut.generateVideoFilename(format: "mov")
+        #expect(filename.hasSuffix(".mov"))
     }
 
-    func testFilenamesAreUnique() {
-        let storage = makeStorage()
-        let filenames = (0..<10).map { _ in storage.generateImageFilename() }
-        XCTAssertTrue(filenames.allSatisfy { $0.hasPrefix("SnapForge_") })
+    @Test func filenamesHaveConsistentPrefix() {
+        let filenames = (0..<10).map { _ in sut.generateImageFilename() }
+        #expect(filenames.allSatisfy { $0.hasPrefix("SnapForge_") })
     }
 
     // MARK: - Directory Management
 
-    func testSnapForgeDirectoryPath() {
-        let storage = makeStorage()
-        let dir = storage.snapForgeDirectory
-        XCTAssertTrue(dir.lastPathComponent == "SnapForge")
+    @Test func snapForgeDirectoryPath() {
+        let dir = sut.snapForgeDirectory
+        #expect(dir.lastPathComponent == "SnapForge")
     }
 
-    func testDefaultSaveURL_isNotEmpty() {
-        let storage = makeStorage()
-        let url = storage.defaultSaveURL
-        XCTAssertFalse(url.path.isEmpty)
+    @Test func defaultSaveURLIsNotEmpty() {
+        let url = sut.defaultSaveURL
+        #expect(url.path.isEmpty == false)
     }
 
     // MARK: - Image Save/Load
 
-    func testSaveImage_createsFile() throws {
-        let storage = makeStorage()
+    @Test func saveImageCreatesFile() throws {
         let image = NSImage(size: NSSize(width: 100, height: 100))
         image.lockFocus()
         NSColor.red.setFill()
@@ -67,16 +59,15 @@ final class StorageServiceTests: XCTestCase {
         image.unlockFocus()
 
         let filename = "test_capture_\(UUID().uuidString).png"
-        let savedURL = try storage.saveImage(image, filename: filename)
+        let savedURL = try sut.saveImage(image, filename: filename)
 
-        XCTAssertTrue(FileManager.default.fileExists(atPath: savedURL.path))
+        #expect(FileManager.default.fileExists(atPath: savedURL.path))
 
         // Cleanup
         try? FileManager.default.removeItem(at: savedURL)
     }
 
-    func testSaveImage_pngHasContent() throws {
-        let storage = makeStorage()
+    @Test func saveImagePngHasContent() throws {
         let image = NSImage(size: NSSize(width: 50, height: 50))
         image.lockFocus()
         NSColor.blue.setFill()
@@ -84,10 +75,10 @@ final class StorageServiceTests: XCTestCase {
         image.unlockFocus()
 
         let filename = "test_content_\(UUID().uuidString).png"
-        let savedURL = try storage.saveImage(image, filename: filename)
+        let savedURL = try sut.saveImage(image, filename: filename)
 
         let data = try Data(contentsOf: savedURL)
-        XCTAssertGreaterThan(data.count, 0, "Saved PNG should have content")
+        #expect(data.count > 0, "Saved PNG should have content")
 
         // Cleanup
         try? FileManager.default.removeItem(at: savedURL)

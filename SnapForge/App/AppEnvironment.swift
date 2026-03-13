@@ -22,7 +22,7 @@ final class AppEnvironment {
         // Register default settings
         UserDefaults.standard.register(defaults: [
             "hasCompletedOnboarding": false,
-            "saveLocation": NSSearchPathForDirectoriesInDomains(.picturesDirectory, .userDomainMask, true).first ?? "~/Pictures",
+            "saveLocation": URL.picturesDirectory.path(),
             "imageFormat": "png",
             "jpegQuality": 0.9,
             "showQuickAccess": true,

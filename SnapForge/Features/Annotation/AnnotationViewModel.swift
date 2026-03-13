@@ -1,6 +1,7 @@
 import SwiftUI
 
 /// ViewModel for the annotation editor.
+@MainActor
 @Observable
 final class AnnotationViewModel {
     var selectedTool: AnnotationType = .select

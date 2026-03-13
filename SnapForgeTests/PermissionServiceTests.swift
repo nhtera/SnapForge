@@ -1,46 +1,43 @@
-import XCTest
+import Testing
 @testable import SnapForge
 
 /// Tests for PermissionService — checks permission status reporting
 @MainActor
-final class PermissionServiceTests: XCTestCase {
+struct PermissionServiceTests {
 
-    func testScreenRecordingStatus_isNotNotDetermined() {
+    @Test func screenRecordingStatusIsNotUndetermined() {
         let service = PermissionService()
         service.checkScreenRecording()
-        // After check, status should be either .granted or .denied, not .notDetermined
-        XCTAssertNotEqual(service.screenRecordingStatus, .notDetermined)
+        #expect(service.screenRecordingStatus != .notDetermined)
     }
 
-    func testMicrophoneStatus_isNotNotDetermined() {
+    @Test func microphoneCheckDoesNotCrash() {
         let service = PermissionService()
         service.checkMicrophone()
-        // After first check, microphone might still be .notDetermined if never asked
-        // Just verify it doesn't crash
-        XCTAssertTrue(true)
+        // Test passes if no crash — no vacuous assertion needed
     }
 
-    func testAccessibilityCheck_doesNotCrash() {
+    @Test func accessibilityCheckReturnsDefinitiveStatus() {
         let service = PermissionService()
         service.checkAccessibility()
-        XCTAssertTrue(
+        #expect(
             service.accessibilityStatus == .granted || service.accessibilityStatus == .denied,
             "Accessibility should be .granted or .denied"
         )
     }
 
-    func testAllCriticalPermissions_dependsOnScreenRecording() {
+    @Test func allCriticalPermissionsDependOnScreenRecording() {
         let service = PermissionService()
         service.checkScreenRecording()
         let critical = service.allCriticalPermissionsGranted
-        XCTAssertEqual(critical, service.screenRecordingStatus == .granted)
+        #expect(critical == (service.screenRecordingStatus == .granted))
     }
 
-    func testRefreshAll_updatesAllStatuses() {
+    @Test func refreshAllUpdatesStatuses() {
         let service = PermissionService()
-        // All start as .notDetermined from init, but init calls refreshAll()
-        // After init, screen recording should have been checked
-        XCTAssertNotEqual(service.screenRecordingStatus, .notDetermined,
-                         "After init, screen recording status should be checked")
+        #expect(
+            service.screenRecordingStatus != .notDetermined,
+            "After init, screen recording status should be checked"
+        )
     }
 }

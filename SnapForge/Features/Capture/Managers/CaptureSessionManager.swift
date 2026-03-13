@@ -115,7 +115,8 @@ final class CaptureSessionManager {
         panel.makeFirstResponder(view)
 
         // Force key window after brief delay (ensures it takes focus from any other panels)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(50))
             panel.makeKeyAndOrderFront(nil)
             panel.makeFirstResponder(view)
         }
@@ -189,7 +190,8 @@ final class CaptureSessionManager {
         dismissOverlay()
 
         // Small delay to let the overlay disappear before querying windows
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .milliseconds(100))
             self?.captureWindowUnderCursor()
         }
     }

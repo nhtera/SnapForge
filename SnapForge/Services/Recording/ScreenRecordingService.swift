@@ -57,15 +57,16 @@ enum RecordingError: Error, LocalizedError {
 // MARK: - Screen Recording Service
 
 @MainActor
-final class ScreenRecordingService: NSObject, ObservableObject {
+@Observable
+final class ScreenRecordingService: NSObject {
 
     static let shared = ScreenRecordingService()
 
-    // MARK: - Published State
+    // MARK: - Observable State
 
-    @Published private(set) var state: RecordingState = .idle
-    @Published private(set) var elapsedSeconds: Int = 0
-    @Published private(set) var error: RecordingError?
+    private(set) var state: RecordingState = .idle
+    private(set) var elapsedSeconds: Int = 0
+    private(set) var error: RecordingError?
 
     var formattedDuration: String {
         let mins = elapsedSeconds / 60
@@ -84,7 +85,7 @@ final class ScreenRecordingService: NSObject, ObservableObject {
 
     // MARK: - Timing
 
-    private var timer: Timer?
+    private var timerTask: Task<Void, Never>?
     private var startTime: Date?
     private var pausedDuration: TimeInterval = 0
     private var pauseStartTime: Date?
@@ -235,8 +236,8 @@ final class ScreenRecordingService: NSObject, ObservableObject {
         session.isCapturing = false
         state = .stopping
 
-        timer?.invalidate()
-        timer = nil
+        timerTask?.cancel()
+        timerTask = nil
 
         // Teardown stream
         if let activeStream = stream {
@@ -259,8 +260,8 @@ final class ScreenRecordingService: NSObject, ObservableObject {
     func cancelRecording() async {
         guard state != .idle else { return }
 
-        timer?.invalidate()
-        timer = nil
+        timerTask?.cancel()
+        timerTask = nil
 
         if let activeStream = stream {
             await teardownStream(activeStream)
@@ -471,8 +472,10 @@ final class ScreenRecordingService: NSObject, ObservableObject {
     }
 
     private func startTimer() {
-        timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
-            Task { @MainActor in
+        timerTask = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(1))
+                guard !Task.isCancelled else { break }
                 self?.updateElapsedTime()
             }
         }
@@ -500,8 +503,8 @@ final class ScreenRecordingService: NSObject, ObservableObject {
     }
 
     private func cleanup() {
-        timer?.invalidate()
-        timer = nil
+        timerTask?.cancel()
+        timerTask = nil
         startTime = nil
         pauseStartTime = nil
         pausedDuration = 0

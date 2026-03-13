@@ -3,14 +3,15 @@ import SwiftUI
 
 /// Displays expanding ripple effects at mouse click locations during screen recording.
 @MainActor
-final class ClickVisualizer: ObservableObject {
+@Observable
+final class ClickVisualizer {
     private var clickMonitor: Any?
     private var rippleWindows: [NSWindow] = []
 
-    @Published var isActive = false
-    @Published var rippleColor: NSColor = .systemYellow
-    @Published var rippleSize: CGFloat = 40
-    @Published var fadeDuration: TimeInterval = 0.4
+    var isActive = false
+    var rippleColor: NSColor = .systemYellow
+    var rippleSize: CGFloat = 40
+    var fadeDuration: TimeInterval = 0.4
 
     // MARK: - Start/Stop
 

@@ -9,7 +9,7 @@ struct CountdownOverlayView: View {
 
     @State private var remaining: Int
     @State private var animateScale = false
-    @State private var timer: Timer?
+    @State private var countdownTask: Task<Void, Never>?
 
     init(totalSeconds: Int = 5, onComplete: @escaping () -> Void, onCancel: @escaping () -> Void) {
         self.totalSeconds = totalSeconds
@@ -59,31 +59,26 @@ struct CountdownOverlayView: View {
                     .padding(.top, 8)
             }
         }
-        .onAppear { startTimer() }
-        .onDisappear { timer?.invalidate() }
-    }
-
-    private var progress: CGFloat {
-        CGFloat(remaining) / CGFloat(totalSeconds)
-    }
-
-    private func startTimer() {
-        animateScale = true
-        timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { _ in
-            Task { @MainActor in
+        .task {
+            animateScale = true
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(1))
+                guard !Task.isCancelled else { return }
                 if remaining > 1 {
                     remaining -= 1
-                    // Trigger scale animation
                     animateScale = false
                     withAnimation {
                         animateScale = true
                     }
                 } else {
-                    timer?.invalidate()
-                    timer = nil
                     onComplete()
+                    return
                 }
             }
         }
+    }
+
+    private var progress: CGFloat {
+        CGFloat(remaining) / CGFloat(totalSeconds)
     }
 }

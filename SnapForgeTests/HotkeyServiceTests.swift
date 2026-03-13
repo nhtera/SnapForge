@@ -1,72 +1,72 @@
-import XCTest
+import Testing
+import Foundation
 @testable import SnapForge
 
 /// Tests for HotkeyService — registration and key matching
-final class HotkeyServiceTests: XCTestCase {
+struct HotkeyServiceTests {
 
-    func testHotkeyDefaults_haveCorrectKeyCodes() {
+    @Test func hotkeyDefaultsHaveCorrectKeyCodes() {
         // Carbon key codes from HIToolbox
         let area = HotkeyService.Hotkey.captureArea
-        XCTAssertEqual(area.keyCode, 0x15) // kVK_ANSI_4 = 0x15 = 21
-        XCTAssertEqual(area.id, "captureArea")
+        #expect(area.keyCode == 0x15) // kVK_ANSI_4 = 0x15 = 21
+        #expect(area.id == "captureArea")
 
         let fullscreen = HotkeyService.Hotkey.captureFullscreen
-        XCTAssertEqual(fullscreen.keyCode, 0x14) // kVK_ANSI_3 = 0x14 = 20
-        XCTAssertEqual(fullscreen.id, "captureFullscreen")
+        #expect(fullscreen.keyCode == 0x14) // kVK_ANSI_3 = 0x14 = 20
+        #expect(fullscreen.id == "captureFullscreen")
 
         let window = HotkeyService.Hotkey.captureWindow
-        XCTAssertEqual(window.keyCode, 0x0D) // kVK_ANSI_W = 0x0D = 13
-        XCTAssertEqual(window.id, "captureWindow")
+        #expect(window.keyCode == 0x0D) // kVK_ANSI_W = 0x0D = 13
+        #expect(window.id == "captureWindow")
     }
 
-    func testHotkeyModifiers_containCommandShift() {
+    @Test func hotkeyModifiersContainCommandShift() {
         let area = HotkeyService.Hotkey.captureArea
-        XCTAssertTrue(area.modifiers.contains(.maskCommand))
-        XCTAssertTrue(area.modifiers.contains(.maskShift))
+        #expect(area.modifiers.contains(.maskCommand))
+        #expect(area.modifiers.contains(.maskShift))
     }
 
-    func testNSModifiers_correctlyConverted() {
+    @Test func nsModifiersCorrectlyConverted() {
         let area = HotkeyService.Hotkey.captureArea
         let nsFlags = area.nsModifiers
-        XCTAssertTrue(nsFlags.contains(.command))
-        XCTAssertTrue(nsFlags.contains(.shift))
-        XCTAssertFalse(nsFlags.contains(.option))
-        XCTAssertFalse(nsFlags.contains(.control))
+        #expect(nsFlags.contains(.command))
+        #expect(nsFlags.contains(.shift))
+        #expect(nsFlags.contains(.option) == false)
+        #expect(nsFlags.contains(.control) == false)
     }
 
-    func testRegisterHotkey_storesAction() {
+    @Test func registerHotkeyStoresAction() {
         let service = HotkeyService()
 
         service.register(hotkey: .captureArea) { @Sendable in
             // no-op for test
         }
 
-        // Verify registration count
-        XCTAssertEqual(service.registeredHotkeys.count, 5, "Should have 5 default hotkeys")
+        #expect(service.registeredHotkeys.count == 5, "Should have 5 default hotkeys")
     }
 
-    func testStartListening_setsIsListening() {
+    @Test func startListeningSetsIsListening() {
         let service = HotkeyService()
         service.startListening()
-        XCTAssertTrue(service.isListening)
+        #expect(service.isListening)
         service.stopListening()
-        XCTAssertFalse(service.isListening)
+        #expect(service.isListening == false)
     }
 
-    func testStartListening_idempotent() {
+    @Test func startListeningIsIdempotent() {
         let service = HotkeyService()
         service.startListening()
         service.startListening() // Should not crash or create duplicate monitors
-        XCTAssertTrue(service.isListening)
+        #expect(service.isListening)
         service.stopListening()
     }
 
-    func testHotkeyCodable() throws {
+    @Test func hotkeyCodableRoundTrip() throws {
         let hotkey = HotkeyService.Hotkey.captureArea
         let data = try JSONEncoder().encode(hotkey)
         let decoded = try JSONDecoder().decode(HotkeyService.Hotkey.self, from: data)
-        XCTAssertEqual(decoded.id, hotkey.id)
-        XCTAssertEqual(decoded.keyCode, hotkey.keyCode)
-        XCTAssertEqual(decoded.modifiersRawValue, hotkey.modifiersRawValue)
+        #expect(decoded.id == hotkey.id)
+        #expect(decoded.keyCode == hotkey.keyCode)
+        #expect(decoded.modifiersRawValue == hotkey.modifiersRawValue)
     }
 }

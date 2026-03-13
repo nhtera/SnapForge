@@ -702,7 +702,8 @@ struct AnnotationView: View {
                 }
                 .onAppear {
                     // Focus the text field after a short delay
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    Task { @MainActor in
+                        try? await Task.sleep(for: .milliseconds(100))
                         NSApp.keyWindow?.makeFirstResponder(nil)
                     }
                 }
@@ -1037,7 +1038,7 @@ struct ToolButton: View {
                 Image(systemName: tool.icon)
                     .font(.system(size: 18))
                 Text(tool.rawValue)
-                    .font(.system(size: 8))
+                    .font(.caption2)
             }
             .frame(width: 44, height: 44)
             .background(isSelected ? Color.accentColor.opacity(0.2) : .clear, in: RoundedRectangle(cornerRadius: 8))

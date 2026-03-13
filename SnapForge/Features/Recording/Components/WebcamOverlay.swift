@@ -4,15 +4,16 @@ import AppKit
 
 /// Floating webcam overlay for screen recording — shows camera feed in a draggable circle.
 @MainActor
-final class WebcamOverlayManager: NSObject, ObservableObject {
+@Observable
+final class WebcamOverlayManager: NSObject {
     private var panel: NSPanel?
     private var captureSession: AVCaptureSession?
     private var previewLayer: AVCaptureVideoPreviewLayer?
 
-    @Published var isVisible = false
-    @Published var diameter: CGFloat = 150
-    @Published var opacity: Double = 1.0
-    @Published var shape: OverlayShape = .circle
+    var isVisible = false
+    var diameter: CGFloat = 150
+    var opacity: Double = 1.0
+    var shape: OverlayShape = .circle
 
     enum OverlayShape {
         case circle, roundedRect

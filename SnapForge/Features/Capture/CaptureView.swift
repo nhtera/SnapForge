@@ -12,6 +12,8 @@ struct CaptureView: View {
                 .onTapGesture {
                     AppCoordinator.shared.dismissCaptureOverlay()
                 }
+                .accessibilityAddTraits(.isButton)
+                .accessibilityLabel("Dismiss capture overlay")
 
             // Selection rectangle
             if let selection = viewModel.selectionRect {

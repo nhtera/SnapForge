@@ -1,163 +1,156 @@
-import XCTest
+import Testing
+import Foundation
+import AVFoundation
 @testable import SnapForge
 
 /// Tests for ScreenRecordingService — state machine and configuration
 @MainActor
-final class ScreenRecordingServiceTests: XCTestCase {
+struct ScreenRecordingServiceTests {
 
-    func testSharedInstance_isSingleton() {
+    @Test func sharedInstanceIsSingleton() {
         let a = ScreenRecordingService.shared
         let b = ScreenRecordingService.shared
-        XCTAssertTrue(a === b)
+        #expect(a === b)
     }
 
-    func testInitialState_isIdle() {
+    @Test func initialStateIsIdle() {
         let recorder = ScreenRecordingService.shared
-        XCTAssertEqual(recorder.state, .idle)
-        XCTAssertFalse(recorder.isRecording)
-        XCTAssertFalse(recorder.isPaused)
-        XCTAssertFalse(recorder.isActive)
+        #expect(recorder.state == .idle)
+        #expect(recorder.isRecording == false)
+        #expect(recorder.isPaused == false)
+        #expect(recorder.isActive == false)
     }
 
-    func testFormattedDuration_formatsCorrectly() {
+    @Test func formattedDurationFormatsCorrectly() {
         let recorder = ScreenRecordingService.shared
-        // elapsedSeconds is 0 by default
-        XCTAssertEqual(recorder.formattedDuration, "00:00")
+        #expect(recorder.formattedDuration == "00:00")
     }
 
-    func testStopRecording_whenIdle_returnsNil() async {
+    @Test func stopRecordingWhenIdleReturnsNil() async {
         let recorder = ScreenRecordingService.shared
         let url = await recorder.stopRecording()
-        XCTAssertNil(url, "Stop when idle should return nil")
+        #expect(url == nil, "Stop when idle should return nil")
     }
 
-    func testCancelRecording_whenIdle_doesNotCrash() async {
+    @Test func cancelRecordingWhenIdleDoesNotCrash() async {
         let recorder = ScreenRecordingService.shared
         await recorder.cancelRecording()
-        XCTAssertEqual(recorder.state, .idle)
+        #expect(recorder.state == .idle)
     }
 
-    func testPauseRecording_whenIdle_doesNothing() {
+    @Test func pauseRecordingWhenIdleDoesNothing() {
         let recorder = ScreenRecordingService.shared
         recorder.pauseRecording()
-        XCTAssertEqual(recorder.state, .idle, "Should remain idle")
+        #expect(recorder.state == .idle, "Should remain idle")
     }
 
-    func testResumeRecording_whenIdle_doesNothing() {
+    @Test func resumeRecordingWhenIdleDoesNothing() {
         let recorder = ScreenRecordingService.shared
         recorder.resumeRecording()
-        XCTAssertEqual(recorder.state, .idle, "Should remain idle")
+        #expect(recorder.state == .idle, "Should remain idle")
     }
 
-    func testTogglePause_whenIdle_doesNothing() {
+    @Test func togglePauseWhenIdleDoesNothing() {
         let recorder = ScreenRecordingService.shared
         recorder.togglePause()
-        XCTAssertEqual(recorder.state, .idle)
+        #expect(recorder.state == .idle)
     }
 }
 
 /// Tests for RecordingSession — thread-safe writer session
-final class RecordingSessionTests: XCTestCase {
+struct RecordingSessionTests {
 
-    func testReset_clearsAllState() {
+    @Test func resetClearsAllState() {
         let session = RecordingSession()
         session.isCapturing = true
         session.sessionStarted = true
 
         session.reset()
 
-        XCTAssertFalse(session.isCapturing)
-        XCTAssertFalse(session.sessionStarted)
-        XCTAssertNil(session.assetWriter)
-        XCTAssertNil(session.videoInput)
-        XCTAssertNil(session.audioInput)
-        XCTAssertNil(session.microphoneInput)
-        XCTAssertNil(session.pixelBufferAdaptor)
+        #expect(session.isCapturing == false)
+        #expect(session.sessionStarted == false)
+        #expect(session.assetWriter == nil)
+        #expect(session.videoInput == nil)
+        #expect(session.audioInput == nil)
+        #expect(session.microphoneInput == nil)
+        #expect(session.pixelBufferAdaptor == nil)
     }
 
-    func testIsCapturing_threadSafe() {
+    @Test func isCapturingIsThreadSafe() async {
         let session = RecordingSession()
 
-        // Access from multiple threads
-        let expectation = XCTestExpectation(description: "concurrent access")
-        expectation.expectedFulfillmentCount = 100
-
-        for i in 0..<100 {
-            DispatchQueue.global().async {
-                session.isCapturing = (i % 2 == 0)
-                _ = session.isCapturing
-                expectation.fulfill()
+        await withTaskGroup(of: Void.self) { group in
+            for i in 0..<100 {
+                group.addTask {
+                    session.isCapturing = (i % 2 == 0)
+                    _ = session.isCapturing
+                }
             }
         }
-
-        wait(for: [expectation], timeout: 5)
+        // Test passes if no crash from concurrent access
     }
 
-    func testFinishWriting_whenNoWriter_completesQuickly() async {
+    @Test func finishWritingWhenNoWriterCompletesQuickly() async {
         let session = RecordingSession()
-        // Should not hang or crash
         await session.finishWriting()
-        XCTAssertTrue(true)
+        // Test passes if no hang or crash
     }
 
-    func testCancelWriting_whenNoWriter_doesNotCrash() {
+    @Test func cancelWritingWhenNoWriterDoesNotCrash() {
         let session = RecordingSession()
         session.cancelWriting()
-        XCTAssertTrue(true)
+        // Test passes if no crash
     }
 
-    func testFinishInputs_whenNoInputs_doesNotCrash() {
+    @Test func finishInputsWhenNoInputsDoesNotCrash() {
         let session = RecordingSession()
         session.finishInputs()
-        XCTAssertTrue(true)
+        // Test passes if no crash
     }
 }
 
 /// Tests for VideoFormat and VideoQuality enums
-final class RecordingTypesTests: XCTestCase {
+struct RecordingTypesTests {
 
-    func testVideoFormat_fileTypes() {
-        XCTAssertEqual(VideoFormat.mov.fileExtension, "mov")
-        XCTAssertEqual(VideoFormat.mp4.fileExtension, "mp4")
+    @Test func videoFormatFileTypes() {
+        #expect(VideoFormat.mov.fileExtension == "mov")
+        #expect(VideoFormat.mp4.fileExtension == "mp4")
     }
 
-    func testVideoQuality_bitrateMultipliers() {
-        XCTAssertGreaterThan(VideoQuality.high.bitrateMultiplier, VideoQuality.medium.bitrateMultiplier)
-        XCTAssertGreaterThan(VideoQuality.medium.bitrateMultiplier, VideoQuality.low.bitrateMultiplier)
+    @Test func videoQualityBitrateMultipliers() {
+        #expect(VideoQuality.high.bitrateMultiplier > VideoQuality.medium.bitrateMultiplier)
+        #expect(VideoQuality.medium.bitrateMultiplier > VideoQuality.low.bitrateMultiplier)
     }
 
-    func testVideoFormat_codable() throws {
+    @Test func videoFormatCodable() throws {
         let format = VideoFormat.mp4
         let data = try JSONEncoder().encode(format)
         let decoded = try JSONDecoder().decode(VideoFormat.self, from: data)
-        XCTAssertEqual(decoded, format)
+        #expect(decoded == format)
     }
 
-    func testVideoQuality_codable() throws {
+    @Test func videoQualityCodable() throws {
         let quality = VideoQuality.high
         let data = try JSONEncoder().encode(quality)
         let decoded = try JSONDecoder().decode(VideoQuality.self, from: data)
-        XCTAssertEqual(decoded, quality)
+        #expect(decoded == quality)
     }
 
-    func testRecordingState_equality() {
-        XCTAssertEqual(RecordingState.idle, RecordingState.idle)
-        XCTAssertNotEqual(RecordingState.idle, RecordingState.recording)
+    @Test func recordingStateEquality() {
+        #expect(RecordingState.idle == RecordingState.idle)
+        #expect(RecordingState.idle != RecordingState.recording)
     }
 
-    func testRecordingError_descriptions() {
-        let errors: [RecordingError] = [
-            .permissionDenied,
-            .microphonePermissionDenied,
-            .noDisplayFound,
-            .setupFailed("test"),
-            .writeFailed("test"),
-            .cancelled,
-        ]
-
-        for error in errors {
-            XCTAssertNotNil(error.errorDescription, "\(error) should have a description")
-            XCTAssertFalse(error.errorDescription!.isEmpty)
-        }
+    @Test(arguments: [
+        RecordingError.permissionDenied,
+        RecordingError.microphonePermissionDenied,
+        RecordingError.noDisplayFound,
+        RecordingError.setupFailed("test"),
+        RecordingError.writeFailed("test"),
+        RecordingError.cancelled,
+    ])
+    func recordingErrorHasDescription(error: RecordingError) throws {
+        let description = try #require(error.errorDescription)
+        #expect(description.isEmpty == false)
     }
 }

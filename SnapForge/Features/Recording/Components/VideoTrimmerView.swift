@@ -140,12 +140,16 @@ struct VideoTrimmerView: View {
         self.player = avPlayer
 
         Task {
-            let asset = AVURLAsset(url: videoURL)
-            let dur = try? await asset.load(.duration)
-            let seconds = dur.map { CMTimeGetSeconds($0) } ?? 0
-            await MainActor.run {
-                duration = seconds
-                trimEnd = seconds
+            do {
+                let asset = AVURLAsset(url: videoURL)
+                let dur = try await asset.load(.duration)
+                let seconds = CMTimeGetSeconds(dur)
+                await MainActor.run {
+                    duration = seconds
+                    trimEnd = seconds
+                }
+            } catch {
+                print("⚠️ Failed to load video duration: \(error)")
             }
         }
     }

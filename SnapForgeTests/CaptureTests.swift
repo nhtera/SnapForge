@@ -1,65 +1,56 @@
-import XCTest
+import Testing
+import CoreGraphics
 @testable import SnapForge
 
 /// Tests for CaptureSessionManager — mode routing and overlay management
 @MainActor
-final class CaptureSessionManagerTests: XCTestCase {
+struct CaptureSessionManagerTests {
 
-    func testSharedInstance_isSingleton() {
+    @Test func sharedInstanceIsSingleton() {
         let a = CaptureSessionManager.shared
         let b = CaptureSessionManager.shared
-        XCTAssertTrue(a === b, "Should be the same singleton instance")
+        #expect(a === b, "Should be the same singleton instance")
     }
 
-    func testDismissOverlay_whenNone_doesNotCrash() {
+    @Test func dismissOverlayWhenNoneDoesNotCrash() {
         CaptureSessionManager.shared.dismissOverlay()
-        // Should not crash
-        XCTAssertTrue(true)
+        // Test passes if no crash
     }
 }
 
 /// Tests for SCKitService — capture types and availability
 @MainActor
-final class SCKitServiceTests: XCTestCase {
+struct SCKitServiceTests {
 
-    func testWindowInfo_initiallyEmpty() {
+    @Test func windowInfoInitiallyEmpty() {
         let service = SCKitService()
-        XCTAssertTrue(service.availableWindows.isEmpty, "Windows should be empty before refresh")
+        #expect(service.availableWindows.isEmpty, "Windows should be empty before refresh")
     }
 
-    func testRefreshContent_doesNotThrow() async {
+    @Test func refreshContentDoesNotThrow() async throws {
         let service = SCKitService()
-        do {
+        await withKnownIssue("Fails in CI without screen recording permission") {
             try await service.refreshContent()
-            // If permission is granted, should have displays
-            XCTAssertFalse(service.availableDisplays.isEmpty, "Should have at least one display")
-        } catch {
-            // Permission denied is acceptable in CI
-            print("⚠️ SCKitService refresh failed (permission): \(error)")
+            #expect(service.availableDisplays.isEmpty == false, "Should have at least one display")
         }
     }
 
-    func testCaptureFullscreen_producesImage() async {
+    @Test func captureFullscreenProducesImage() async throws {
         let service = SCKitService()
-        do {
+        await withKnownIssue("Fails in CI without screen recording permission") {
             let image = try await service.captureFullscreen()
-            XCTAssertGreaterThan(image.size.width, 0)
-            XCTAssertGreaterThan(image.size.height, 0)
-        } catch {
-            // Permission denied is acceptable in CI
-            print("⚠️ Fullscreen capture failed (permission): \(error)")
+            #expect(image.size.width > 0)
+            #expect(image.size.height > 0)
         }
     }
 
-    func testCaptureArea_producesImage() async {
+    @Test func captureAreaProducesImage() async throws {
         let service = SCKitService()
         let rect = CGRect(x: 100, y: 100, width: 200, height: 200)
-        do {
+        await withKnownIssue("Fails in CI without screen recording permission") {
             let image = try await service.captureArea(rect)
-            XCTAssertGreaterThan(image.size.width, 0)
-            XCTAssertGreaterThan(image.size.height, 0)
-        } catch {
-            print("⚠️ Area capture failed (permission): \(error)")
+            #expect(image.size.width > 0)
+            #expect(image.size.height > 0)
         }
     }
 }

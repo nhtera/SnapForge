@@ -206,7 +206,7 @@ final class HistoryViewModel {
         captures.filter { capture in
             if let typeFilter, capture.type != typeFilter { return false }
             if !searchText.isEmpty {
-                return capture.filename.localizedCaseInsensitiveContains(searchText)
+                return capture.filename.localizedStandardContains(searchText)
             }
             return true
         }
