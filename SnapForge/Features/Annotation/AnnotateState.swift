@@ -530,10 +530,16 @@ final class AnnotateState: ObservableObject {
         width: region.bounds.width,
         height: region.bounds.height
       )
+      // Use solid black fill — the industry standard for redaction.
+      // Blur/pixelation can sometimes be reversed; solid fill cannot.
       let annotation = AnnotationItem(
-        type: .blur(.pixelated),
+        type: .filledRectangle,
         bounds: flippedBounds,
-        properties: AnnotationProperties(strokeColor: .clear, strokeWidth: 0)
+        properties: AnnotationProperties(
+          strokeColor: .black,
+          fillColor: .black,
+          strokeWidth: 0
+        )
       )
       annotations.append(annotation)
     }
