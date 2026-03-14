@@ -532,13 +532,11 @@ final class AnnotateState: ObservableObject {
         width: region.bounds.width + padding * 2,
         height: region.bounds.height + padding * 2
       )
-      // Dynamic pixel size: ensure MAXIMUM 3-4 blocks across the region.
-      // For text ~200×25px, this gives pixelSize ~50, producing 4×1 blocks
-      // — completely unreadable instead of 10×2 blocks at pixelSize=20.
+      // Dynamic pixel size: ensure ~6-8 blocks across the region.
       let dynamicPixelSize = max(
-        paddedBounds.width / 4,
-        paddedBounds.height,
-        30
+        paddedBounds.width / 8,
+        paddedBounds.height / 2,
+        20
       )
       let annotation = AnnotationItem(
         type: .blur(.pixelated),
