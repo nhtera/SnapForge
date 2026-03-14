@@ -61,22 +61,84 @@ final class QuickBlurService: Sendable {
     var rects: [CGRect] = []
     let request = VNRecognizeTextRequest { request, _ in
       guard let observations = request.results as? [VNRecognizedTextObservation] else { return }
-      rects = observations.map { observation in
+      for observation in observations {
+        // Get the recognized text to check if it's sensitive
+        guard let candidate = observation.topCandidates(1).first else { continue }
+        let text = candidate.string
+
+        // Only blur text that matches sensitive patterns
+        guard isSensitiveText(text) else { continue }
+
         let box = observation.boundingBox
-        return CGRect(
+        rects.append(CGRect(
           x: box.origin.x * width,
           y: (1 - box.origin.y - box.height) * height,
           width: box.width * width,
           height: box.height * height
-        )
+        ))
       }
     }
-    request.recognitionLevel = .fast
+    request.recognitionLevel = .accurate  // Need accurate text to check patterns
     request.recognitionLanguages = ["en", "vi"]
 
     let handler = VNImageRequestHandler(cgImage: cgImage, options: [:])
     try? handler.perform([request])
     return rects
+  }
+
+  /// Check if text looks like sensitive content that should be auto-blurred
+  private static func isSensitiveText(_ text: String) -> Bool {
+    let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard trimmed.count >= 3 else { return false }
+
+    // Email pattern: contains @ with domain
+    if trimmed.contains("@") && trimmed.contains(".") { return true }
+
+    // Phone pattern: digits with dashes/spaces/parens, 7+ digits
+    let digitsOnly = trimmed.filter(\.isNumber)
+    if digitsOnly.count >= 7 && digitsOnly.count <= 15 {
+      let phoneChars = CharacterSet(charactersIn: "0123456789+-() .")
+      if trimmed.unicodeScalars.allSatisfy({ phoneChars.contains($0) }) { return true }
+    }
+
+    // SSN-like: ###-##-#### or similar
+    let ssnPattern = #"^\d{3}[-\s]?\d{2}[-\s]?\d{4}$"#
+    if trimmed.range(of: ssnPattern, options: .regularExpression) != nil { return true }
+
+    // Credit card: 13-19 digits (with optional spaces/dashes)
+    if digitsOnly.count >= 13 && digitsOnly.count <= 19 {
+      let ccChars = CharacterSet(charactersIn: "0123456789- ")
+      if trimmed.unicodeScalars.allSatisfy({ ccChars.contains($0) }) { return true }
+    }
+
+    // Password-like: random alphanumeric string (high entropy, mixed case/digits)
+    if looksLikePassword(trimmed) { return true }
+
+    // IP address
+    let ipPattern = #"^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$"#
+    if trimmed.range(of: ipPattern, options: .regularExpression) != nil { return true }
+
+    return false
+  }
+
+  /// Heuristic: string looks like a password or token (mixed case + digits, no spaces)
+  private static func looksLikePassword(_ text: String) -> Bool {
+    guard text.count >= 6, !text.contains(" ") else { return false }
+
+    let hasUpper = text.contains(where: \.isUppercase)
+    let hasLower = text.contains(where: \.isLowercase)
+    let hasDigit = text.contains(where: \.isNumber)
+    let hasSpecial = text.contains(where: { !$0.isLetter && !$0.isNumber })
+
+    // Mixed case + digits = likely password/token
+    let complexity = [hasUpper, hasLower, hasDigit, hasSpecial].filter { $0 }.count
+    if complexity >= 3 { return true }
+
+    // High ratio of digits in alphanumeric string = likely token
+    let digitRatio = Double(text.filter(\.isNumber).count) / Double(text.count)
+    if hasLower && hasDigit && digitRatio > 0.3 && text.count >= 8 { return true }
+
+    return false
   }
 
   private static func detectFaceRegions(
