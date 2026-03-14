@@ -177,17 +177,20 @@ final class QuickBlurService: Sendable {
     let scaleX = pixelWidth / width
     let scaleY = pixelHeight / height
 
-    // Create pixelated version (scale relative to pixel dimensions)
-    let pixellateFilter = CIFilter(name: "CIPixellate")
-    pixellateFilter?.setValue(ciImage, forKey: kCIInputImageKey)
-    pixellateFilter?.setValue(max(pixelWidth, pixelHeight) / 40, forKey: kCIInputScaleKey)
+    // Create Gaussian-blurred version (smooth, professional look)
+    let blurFilter = CIFilter(name: "CIGaussianBlur")
+    blurFilter?.setValue(ciImage, forKey: kCIInputImageKey)
+    blurFilter?.setValue(20.0 * max(scaleX, scaleY), forKey: kCIInputRadiusKey)
 
-    guard let pixelatedOutput = pixellateFilter?.outputImage else { return nil }
+    guard let blurredOutput = blurFilter?.outputImage else { return nil }
 
-    // Composite: draw pixelated regions on top of original
+    // Clamp blurred image to original extent (CIGaussianBlur expands bounds)
+    let clampedBlur = blurredOutput.cropped(to: ciImage.extent)
+
+    // Composite: blend blurred regions with rounded-rect masks
     var composite = ciImage
     for region in regions {
-      let paddedRegion = region.insetBy(dx: -4, dy: -4)
+      let paddedRegion = region.insetBy(dx: -8, dy: -6)
       let clippedRegion = paddedRegion.intersection(
         CGRect(x: 0, y: 0, width: width, height: height)
       )
@@ -201,9 +204,19 @@ final class QuickBlurService: Sendable {
         height: clippedRegion.height * scaleY
       )
 
-      // Crop the pixelated region and composite over original
-      let croppedBlur = pixelatedOutput.cropped(to: ciRect)
-      composite = croppedBlur.composited(over: composite)
+      // Create a rounded-rect mask with soft edges
+      let cornerRadius = min(ciRect.width, ciRect.height) * 0.15
+      let maskImage = createRoundedRectMask(rect: ciRect, cornerRadius: cornerRadius)
+
+      // Use CIBlendWithMask: show blurred where mask is white, original where black
+      let blendFilter = CIFilter(name: "CIBlendWithMask")
+      blendFilter?.setValue(clampedBlur, forKey: kCIInputImageKey)
+      blendFilter?.setValue(composite, forKey: kCIInputBackgroundImageKey)
+      blendFilter?.setValue(maskImage, forKey: kCIInputMaskImageKey)
+
+      if let blended = blendFilter?.outputImage {
+        composite = blended
+      }
     }
 
     // Render final image to TIFF data
@@ -215,6 +228,30 @@ final class QuickBlurService: Sendable {
     let rep = NSBitmapImageRep(cgImage: cgResult)
     rep.size = NSSize(width: width, height: height)  // Preserve logical size
     return rep.tiffRepresentation
+  }
+
+  /// Create a CIImage mask: white rounded rect on black, with soft feathered edges
+  private static func createRoundedRectMask(rect: CGRect, cornerRadius: CGFloat) -> CIImage {
+    // We need a mask the size of the full image extent — but we can use a
+    // white-on-transparent rect and composite it onto a black background.
+
+    // Create white rounded rect as CIImage
+    let roundedRect = CIImage(color: .white)
+      .cropped(to: rect)
+
+    // Create black background
+    let black = CIImage(color: .black)
+      .cropped(to: rect.insetBy(dx: -100, dy: -100))
+
+    // Composite white rect over black
+    let mask = roundedRect.composited(over: black)
+
+    // Apply slight Gaussian blur for feathered edges
+    let softMask = mask
+      .applyingGaussianBlur(sigma: 3.0)
+      .cropped(to: rect.insetBy(dx: -50, dy: -50))
+
+    return softMask
   }
 
   // MARK: - Geometry Helpers
