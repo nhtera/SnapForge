@@ -66,6 +66,9 @@ struct AnnotationRenderer {
 
     case .text(let content):
       drawText(content, in: annotation.bounds, properties: annotation.properties)
+
+    case .sticker(let sticker):
+      drawSticker(sticker, in: annotation.bounds, color: annotation.properties.strokeColor)
     }
   }
 
@@ -283,5 +286,36 @@ struct AnnotationRenderer {
     context.setLineDash(phase: 0, lengths: [6, 4])
     context.stroke(rect)
     context.setLineDash(phase: 0, lengths: [])
+  }
+
+  private func drawSticker(_ sticker: StickerItem, in bounds: CGRect, color: Color) {
+    let config = NSImage.SymbolConfiguration(pointSize: bounds.height * 0.8, weight: .regular)
+    guard let symbolImage = NSImage(
+      systemSymbolName: sticker.symbol,
+      accessibilityDescription: sticker.name
+    )?.withSymbolConfiguration(config) else { return }
+
+    // Tint the symbol with the annotation color
+    let tintedImage = NSImage(size: bounds.size, flipped: false) { drawRect in
+      NSColor(color).set()
+      symbolImage.draw(
+        in: drawRect,
+        from: .zero,
+        operation: .sourceOver,
+        fraction: 1.0
+      )
+      // Apply tint via source atop compositing
+      NSColor(color).set()
+      drawRect.fill(using: .sourceAtop)
+      return true
+    }
+
+    context.saveGState()
+    if let cgImage = tintedImage.cgImage(
+      forProposedRect: nil, context: nil, hints: nil
+    ) {
+      context.draw(cgImage, in: bounds)
+    }
+    context.restoreGState()
   }
 }

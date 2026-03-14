@@ -55,6 +55,7 @@ enum AnnotationType: Equatable {
   case highlight([CGPoint])
   case blur(BlurType)
   case counter(Int)
+  case sticker(StickerItem)
 }
 
 /// Visual properties for an annotation
@@ -88,7 +89,7 @@ extension AnnotationItem {
     let tolerance = baseTolerance + properties.strokeWidth / 2
 
     switch type {
-    case .rectangle, .filledRectangle, .blur:
+    case .rectangle, .filledRectangle, .blur, .sticker:
       return bounds.contains(point)
 
     case .oval:
@@ -185,6 +186,7 @@ extension AnnotationType {
     case .highlight: return "Highlight"
     case .blur(let blurType): return "Blur (\(blurType.displayName))"
     case .counter(let number): return "Counter #\(number)"
+    case .sticker(let item): return "Sticker: \(item.name)"
     }
   }
 
@@ -201,6 +203,7 @@ extension AnnotationType {
     case .highlight: return "highlighter"
     case .blur: return "eye.slash"
     case .counter: return "list.number"
+    case .sticker(let item): return item.symbol
     }
   }
 }

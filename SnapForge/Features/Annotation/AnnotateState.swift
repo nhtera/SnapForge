@@ -51,6 +51,15 @@ final class AnnotateState: ObservableObject {
   @Published var hiddenAnnotationIds: Set<UUID> = []
   @Published var lockedAnnotationIds: Set<UUID> = []
 
+  // MARK: - Redact State
+
+  @Published var redactRegions: [RedactRegion] = []
+  @Published var isRedactScanning = false
+
+  // MARK: - Sticker State
+
+  @Published var isStickerLibraryVisible = false
+
   // MARK: - Undo/Redo
 
   @Published var canUndo = false
@@ -484,6 +493,67 @@ final class AnnotateState: ObservableObject {
   func isAnnotationLocked(_ id: UUID) -> Bool {
     lockedAnnotationIds.contains(id)
   }
+
+  // MARK: - Redact
+
+  /// Start auto-redact scanning
+  func startRedact() {
+    guard let image = sourceImage else { return }
+    isRedactScanning = true
+    redactRegions = []
+
+    Task {
+      let regions = await AutoRedactService.shared.detectSensitiveRegions(in: image)
+      await MainActor.run {
+        self.redactRegions = regions
+        self.isRedactScanning = false
+      }
+    }
+  }
+
+  /// Cancel redaction and clear regions
+  func cancelRedact() {
+    redactRegions = []
+    isRedactScanning = false
+    selectedTool = .selection
+  }
+
+  /// Apply selected redact regions as blur annotations
+  func applyRedactions() {
+    saveState()
+    for region in redactRegions where region.isSelected {
+      let annotation = AnnotationItem(
+        type: .blur(.gaussian),
+        bounds: region.bounds,
+        properties: AnnotationProperties(strokeColor: .clear, strokeWidth: 0)
+      )
+      annotations.append(annotation)
+    }
+    redactRegions = []
+    selectedTool = .selection
+  }
+
+  // MARK: - Sticker Placement
+
+  /// Place a sticker at the center of the canvas
+  func placeSticker(_ sticker: StickerItem) {
+    saveState()
+    let stickerSize: CGFloat = 60
+    let centerX = imageWidth / 2 - stickerSize / 2
+    let centerY = imageHeight / 2 - stickerSize / 2
+    let bounds = CGRect(x: centerX, y: centerY, width: stickerSize, height: stickerSize)
+
+    let annotation = AnnotationItem(
+      type: .sticker(sticker),
+      bounds: bounds,
+      properties: AnnotationProperties(strokeColor: state.strokeColor)
+    )
+    annotations.append(annotation)
+    selectedAnnotationId = annotation.id
+  }
+
+  /// Reference to self for sticker color access
+  private var state: AnnotateState { self }
 }
 
 // MARK: - Crop Aspect Ratio

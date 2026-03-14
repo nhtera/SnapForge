@@ -1,15 +1,22 @@
 import SwiftUI
 
-/// Capture history — scans SnapForge directory, searchable grid with type filters.
+/// Capture history — smart folders, tags, OCR-powered search, grid with filters.
 struct HistoryView: View {
     @State private var viewModel = HistoryViewModel()
 
     var body: some View {
         VStack(spacing: 0) {
-            // Type filter chips
-            filterChips
+            // Smart folder bar
+            smartFolderBar
                 .padding(.horizontal)
                 .padding(.top, 8)
+
+            // Tag filter chips (if any tags exist)
+            if !viewModel.availableTags.isEmpty {
+                tagFilterBar
+                    .padding(.horizontal)
+                    .padding(.top, 4)
+            }
 
             if viewModel.filteredCaptures.isEmpty {
                 ContentUnavailableView(
@@ -26,7 +33,7 @@ struct HistoryView: View {
                 ScrollView {
                     LazyVGrid(columns: [GridItem(.adaptive(minimum: 200), spacing: 16)], spacing: 16) {
                         ForEach(viewModel.filteredCaptures) { capture in
-                            HistoryItemView(capture: capture)
+                            HistoryItemView(capture: capture, viewModel: viewModel)
                                 .contextMenu {
                                     Button("Open") { viewModel.open(capture) }
                                     Button("Copy") { viewModel.copy(capture) }
@@ -36,8 +43,32 @@ struct HistoryView: View {
                                         Button("Annotate") { viewModel.annotate(capture) }
                                         Button("Mockup") { viewModel.mockup(capture) }
                                         Button("OCR → Clipboard") { viewModel.ocr(capture) }
+                                        Button("Index (OCR)") { viewModel.indexCapture(capture) }
                                         Divider()
                                     }
+                                    // Tag submenu
+                                    Menu("Tags") {
+                                        ForEach(viewModel.suggestedTags, id: \.self) { tag in
+                                            let hasTag = viewModel.captureHasTag(capture, tag: tag)
+                                            Button(action: {
+                                                if hasTag {
+                                                    viewModel.removeTag(tag, from: capture)
+                                                } else {
+                                                    viewModel.addTag(tag, to: capture)
+                                                }
+                                            }) {
+                                                HStack {
+                                                    Text(tag)
+                                                    if hasTag {
+                                                        Image(systemName: "checkmark")
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        Divider()
+                                        Button("Add New Tag…") { viewModel.promptNewTag(for: capture) }
+                                    }
+                                    Divider()
                                     Button("Delete", role: .destructive) { viewModel.delete(capture) }
                                 }
                         }
@@ -46,10 +77,16 @@ struct HistoryView: View {
                 }
             }
         }
-        .searchable(text: $viewModel.searchText, prompt: "Search captures...")
+        .searchable(text: $viewModel.searchText, prompt: "Search captures, tags, text…")
         .navigationTitle("Capture History")
         .onAppear { viewModel.loadCaptures() }
         .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button(action: { viewModel.indexAllCaptures() }) {
+                    Image(systemName: "text.viewfinder")
+                }
+                .help("Index All (OCR)")
+            }
             ToolbarItem(placement: .primaryAction) {
                 Button(action: { viewModel.loadCaptures() }) {
                     Image(systemName: "arrow.clockwise")
@@ -63,28 +100,51 @@ struct HistoryView: View {
                 .help("Open in Finder")
             }
         }
+        .sheet(isPresented: $viewModel.showingTagInput) {
+            TagInputSheet(viewModel: viewModel)
+        }
     }
 
-    // MARK: - Filter Chips
+    // MARK: - Smart Folder Bar
 
-    private var filterChips: some View {
-        HStack(spacing: 6) {
-            FilterChip(title: "All", isSelected: viewModel.typeFilter == nil) {
-                viewModel.typeFilter = nil
+    private var smartFolderBar: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 6) {
+                ForEach(SmartFolder.allCases) { folder in
+                    FilterChip(
+                        title: folder.displayName,
+                        icon: folder.icon,
+                        isSelected: viewModel.selectedFolder == folder
+                    ) {
+                        viewModel.selectedFolder = folder
+                    }
+                }
+                Spacer()
+                Text("\(viewModel.filteredCaptures.count) items")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
-            FilterChip(title: "Screenshots", isSelected: viewModel.typeFilter == .screenshot) {
-                viewModel.typeFilter = .screenshot
+        }
+    }
+
+    // MARK: - Tag Filter Bar
+
+    private var tagFilterBar: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 4) {
+                Image(systemName: "tag")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+
+                ForEach(viewModel.availableTags, id: \.self) { tag in
+                    TagChip(
+                        tag: tag,
+                        isSelected: viewModel.selectedTag == tag
+                    ) {
+                        viewModel.selectedTag = viewModel.selectedTag == tag ? nil : tag
+                    }
+                }
             }
-            FilterChip(title: "Recordings", isSelected: viewModel.typeFilter == .recording) {
-                viewModel.typeFilter = .recording
-            }
-            FilterChip(title: "GIFs", isSelected: viewModel.typeFilter == .gif) {
-                viewModel.typeFilter = .gif
-            }
-            Spacer()
-            Text("\(viewModel.filteredCaptures.count) items")
-                .font(.caption)
-                .foregroundStyle(.secondary)
         }
     }
 }
@@ -93,19 +153,86 @@ struct HistoryView: View {
 
 struct FilterChip: View {
     let title: String
+    var icon: String? = nil
     let isSelected: Bool
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
-            Text(title)
-                .font(.system(size: 11, weight: isSelected ? .semibold : .regular))
-                .padding(.horizontal, 10)
-                .padding(.vertical, 4)
-                .background(isSelected ? Color.accentColor.opacity(0.15) : Color.clear, in: Capsule())
+            HStack(spacing: 3) {
+                if let icon {
+                    Image(systemName: icon)
+                        .font(.system(size: 9))
+                }
+                Text(title)
+                    .font(.system(size: 11, weight: isSelected ? .semibold : .regular))
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 4)
+            .background(isSelected ? Color.accentColor.opacity(0.15) : Color.clear, in: Capsule())
+            .foregroundStyle(isSelected ? Color.accentColor : .secondary)
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+// MARK: - Tag Chip
+
+struct TagChip: View {
+    let tag: String
+    let isSelected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Text("#\(tag)")
+                .font(.system(size: 10, weight: isSelected ? .semibold : .regular))
+                .padding(.horizontal, 8)
+                .padding(.vertical, 2)
+                .background(
+                    isSelected ? Color.accentColor.opacity(0.2) : Color(white: 0.2),
+                    in: Capsule()
+                )
                 .foregroundStyle(isSelected ? Color.accentColor : .secondary)
         }
         .buttonStyle(.plain)
+    }
+}
+
+// MARK: - Tag Input Sheet
+
+struct TagInputSheet: View {
+    @ObservedObject var viewModel: HistoryViewModel
+    @State private var tagText = ""
+
+    var body: some View {
+        VStack(spacing: 16) {
+            Text("Add Tag")
+                .font(.headline)
+
+            TextField("Enter tag name…", text: $tagText)
+                .textFieldStyle(.roundedBorder)
+                .onSubmit { submit() }
+
+            HStack {
+                Button("Cancel") { viewModel.showingTagInput = false }
+                    .keyboardShortcut(.cancelAction)
+                Spacer()
+                Button("Add") { submit() }
+                    .keyboardShortcut(.defaultAction)
+                    .disabled(tagText.isEmpty)
+            }
+        }
+        .padding(20)
+        .frame(width: 300)
+    }
+
+    private func submit() {
+        guard !tagText.isEmpty else { return }
+        if let capture = viewModel.tagInputCapture {
+            viewModel.addTag(tagText, to: capture)
+        }
+        viewModel.showingTagInput = false
     }
 }
 
@@ -113,18 +240,22 @@ struct FilterChip: View {
 
 struct HistoryItemView: View {
     let capture: HistoryCapture
+    @ObservedObject var viewModel: HistoryViewModel
     @State private var isHovered = false
+
+    private var tags: [String] {
+        MetadataService.shared.getMetadata(for: capture.filename)?.tags ?? []
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Thumbnail — fixed height, properly contained
+            // Thumbnail
             thumbnailView
                 .frame(height: 130)
                 .frame(maxWidth: .infinity)
                 .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                 .overlay(alignment: .topTrailing) {
-                    typeBadge
-                        .padding(6)
+                    typeBadge.padding(6)
                 }
 
             // Info section
@@ -142,6 +273,22 @@ struct HistoryItemView: View {
                     Text(capture.formattedSize)
                         .font(.system(size: 10, design: .monospaced))
                         .foregroundStyle(.tertiary)
+                }
+
+                // Tags row
+                if !tags.isEmpty {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 3) {
+                            ForEach(tags, id: \.self) { tag in
+                                Text("#\(tag)")
+                                    .font(.system(size: 8, weight: .medium))
+                                    .foregroundStyle(.cyan)
+                                    .padding(.horizontal, 4)
+                                    .padding(.vertical, 1)
+                                    .background(Color.cyan.opacity(0.1), in: Capsule())
+                            }
+                        }
+                    }
                 }
             }
             .padding(.horizontal, 10)
@@ -197,19 +344,42 @@ struct HistoryItemView: View {
 
 @MainActor
 @Observable
-final class HistoryViewModel {
+final class HistoryViewModel: ObservableObject {
     var captures: [HistoryCapture] = []
     var searchText = ""
-    var typeFilter: HistoryCapture.CaptureType?
+    var selectedFolder: SmartFolder = .all
+    var selectedTag: String?
+    var showingTagInput = false
+    var tagInputCapture: HistoryCapture?
 
     var filteredCaptures: [HistoryCapture] {
-        captures.filter { capture in
-            if let typeFilter, capture.type != typeFilter { return false }
-            if !searchText.isEmpty {
-                return capture.filename.localizedStandardContains(searchText)
+        var result = captures
+
+        // Apply smart folder filter
+        result = MetadataService.shared.filter(result, by: selectedFolder)
+
+        // Apply tag filter
+        if let tag = selectedTag {
+            result = result.filter { capture in
+                MetadataService.shared.getMetadata(for: capture.filename)?.tags.contains(tag) ?? false
             }
-            return true
         }
+
+        // Apply search
+        if !searchText.isEmpty {
+            result = MetadataService.shared.search(searchText, in: result)
+        }
+
+        return result
+    }
+
+    var availableTags: [String] {
+        MetadataService.shared.allTags
+    }
+
+    var suggestedTags: [String] {
+        let common = ["important", "bug", "design", "review", "reference", "todo", "docs"]
+        return Array(Set(common + availableTags)).sorted()
     }
 
     func loadCaptures() {
@@ -252,7 +422,14 @@ final class HistoryViewModel {
             )
         }
         .sorted { $0.date > $1.date }
+
+        // Ensure metadata exists for all captures
+        for capture in captures {
+            _ = MetadataService.shared.ensureMetadata(for: capture)
+        }
     }
+
+    // MARK: - Actions
 
     func open(_ capture: HistoryCapture) {
         NSWorkspace.shared.open(URL(fileURLWithPath: capture.filePath))
@@ -292,12 +469,49 @@ final class HistoryViewModel {
 
     func delete(_ capture: HistoryCapture) {
         try? FileManager.default.removeItem(atPath: capture.filePath)
+        MetadataService.shared.deleteMetadata(for: capture.filename)
         captures.removeAll { $0.id == capture.id }
     }
 
     func openInFinder() {
         let storage = AppEnvironment.shared.storageService
         NSWorkspace.shared.open(storage.snapForgeDirectory)
+    }
+
+    // MARK: - Tag Management
+
+    func addTag(_ tag: String, to capture: HistoryCapture) {
+        MetadataService.shared.addTag(tag, to: capture.filename)
+    }
+
+    func removeTag(_ tag: String, from capture: HistoryCapture) {
+        MetadataService.shared.removeTag(tag, from: capture.filename)
+    }
+
+    func captureHasTag(_ capture: HistoryCapture, tag: String) -> Bool {
+        MetadataService.shared.getMetadata(for: capture.filename)?.tags.contains(tag) ?? false
+    }
+
+    func promptNewTag(for capture: HistoryCapture) {
+        tagInputCapture = capture
+        showingTagInput = true
+    }
+
+    // MARK: - Indexing
+
+    func indexCapture(_ capture: HistoryCapture) {
+        Task {
+            await MetadataService.shared.indexCapture(capture)
+        }
+    }
+
+    func indexAllCaptures() {
+        let screenshots = captures.filter { $0.type == .screenshot }
+        Task {
+            for capture in screenshots {
+                await MetadataService.shared.indexCapture(capture)
+            }
+        }
     }
 }
 

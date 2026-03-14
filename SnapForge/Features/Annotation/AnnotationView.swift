@@ -20,6 +20,11 @@ struct AnnotationView: View {
         LayersPanelView(state: state)
       }
 
+      // Sticker library (left sidebar, conditionally shown)
+      if state.isStickerLibraryVisible {
+        StickerLibraryView(state: state)
+      }
+
       // Canvas area
       GeometryReader { geo in
          ZStack {
@@ -33,6 +38,29 @@ struct AnnotationView: View {
               Spacer()
               cropToolbar
                 .padding(.bottom, 16)
+            }
+          }
+
+          // Redact overlay
+          if state.selectedTool == .redact {
+            if state.isRedactScanning {
+              VStack(spacing: 12) {
+                ProgressView()
+                  .controlSize(.large)
+                Text("Scanning for sensitive content…")
+                  .font(.system(size: 13, weight: .medium))
+                  .foregroundStyle(.secondary)
+              }
+              .frame(maxWidth: .infinity, maxHeight: .infinity)
+              .background(.ultraThinMaterial)
+            } else if !state.redactRegions.isEmpty {
+              let scale = imageRect.width / image.size.width
+              RedactOverlayView(
+                state: state,
+                scale: scale,
+                imageSize: image.size
+              )
+              .position(x: imageRect.midX, y: imageRect.midY)
             }
           }
         }
@@ -77,6 +105,11 @@ struct AnnotationView: View {
           Image(systemName: state.isLayersPanelVisible ? "sidebar.leading" : "square.3.layers.3d")
         }
         .help(state.isLayersPanelVisible ? "Hide Layers" : "Show Layers")
+
+        Button(action: { state.isStickerLibraryVisible.toggle() }) {
+          Image(systemName: state.isStickerLibraryVisible ? "face.smiling.inverse" : "face.smiling")
+        }
+        .help(state.isStickerLibraryVisible ? "Hide Stickers" : "Show Stickers")
 
         Divider()
 
@@ -399,6 +432,11 @@ struct ToolPaletteView: View {
               } else {
                 state.isCropActive = true
               }
+            }
+
+            // Auto-scan when redact tool is selected
+            if tool == .redact && state.hasImage {
+              state.startRedact()
             }
           }
         }
