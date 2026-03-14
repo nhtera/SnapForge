@@ -109,10 +109,16 @@ final class QuickBlurService: Sendable {
   ) -> Data? {
     guard let ciImage = CIImage(data: tiffData) else { return nil }
 
-    // Create pixelated version
+    // CIImage extent is in PIXELS, but detection regions are in POINTS
+    let pixelWidth = ciImage.extent.width
+    let pixelHeight = ciImage.extent.height
+    let scaleX = pixelWidth / width
+    let scaleY = pixelHeight / height
+
+    // Create pixelated version (scale relative to pixel dimensions)
     let pixellateFilter = CIFilter(name: "CIPixellate")
     pixellateFilter?.setValue(ciImage, forKey: kCIInputImageKey)
-    pixellateFilter?.setValue(max(width, height) / 40, forKey: kCIInputScaleKey)
+    pixellateFilter?.setValue(max(pixelWidth, pixelHeight) / 40, forKey: kCIInputScaleKey)
 
     guard let pixelatedOutput = pixellateFilter?.outputImage else { return nil }
 
@@ -125,18 +131,16 @@ final class QuickBlurService: Sendable {
       )
       guard !clippedRegion.isEmpty else { continue }
 
-      // Flip Y for CIImage (bottom-left origin)
+      // Scale from points → pixels and flip Y for CIImage (bottom-left origin)
       let ciRect = CGRect(
-        x: clippedRegion.origin.x,
-        y: height - clippedRegion.origin.y - clippedRegion.height,
-        width: clippedRegion.width,
-        height: clippedRegion.height
+        x: clippedRegion.origin.x * scaleX,
+        y: (height - clippedRegion.origin.y - clippedRegion.height) * scaleY,
+        width: clippedRegion.width * scaleX,
+        height: clippedRegion.height * scaleY
       )
 
-      // Crop the pixelated region
+      // Crop the pixelated region and composite over original
       let croppedBlur = pixelatedOutput.cropped(to: ciRect)
-
-      // Composite over the original
       composite = croppedBlur.composited(over: composite)
     }
 
@@ -147,6 +151,7 @@ final class QuickBlurService: Sendable {
     }
 
     let rep = NSBitmapImageRep(cgImage: cgResult)
+    rep.size = NSSize(width: width, height: height)  // Preserve logical size
     return rep.tiffRepresentation
   }
 
