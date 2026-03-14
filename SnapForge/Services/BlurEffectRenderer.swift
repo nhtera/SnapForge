@@ -2,197 +2,256 @@ import AppKit
 import CoreGraphics
 import CoreImage
 
-/// Renders real pixelate and Gaussian blur effects using CIFilter (GPU-accelerated).
-/// Uses CIPixellate for mosaic and CIGaussianBlur for blur — format-agnostic, thread-safe.
+/// Renders real pixelate and Gaussian blur effects.
+/// Uses direct pixel sampling for pixelate (reliable coordinates) and CIGaussianBlur for blur.
 struct BlurEffectRenderer {
 
-    /// Default pixel block size for pixelate effect
-    static let defaultPixelSize: CGFloat = 12
+  /// Default pixel block size for pixelate effect
+  static let defaultPixelSize: CGFloat = 12
 
-    /// Default Gaussian blur radius
-    static let defaultGaussianRadius: Double = 20.0
+  /// Default Gaussian blur radius
+  static let defaultGaussianRadius: Double = 20.0
 
-    /// Shared GPU-backed CIContext for performance (reused across all operations)
-    static let sharedCIContext: CIContext = {
-        if let metalDevice = MTLCreateSystemDefaultDevice() {
-            return CIContext(mtlDevice: metalDevice, options: [
-                .cacheIntermediates: true,
-                .priorityRequestLow: false
-            ])
-        }
-        return CIContext(options: [.cacheIntermediates: true])
-    }()
+  /// Shared GPU-backed CIContext for performance
+  static let sharedCIContext: CIContext = {
+    if let metalDevice = MTLCreateSystemDefaultDevice() {
+      return CIContext(mtlDevice: metalDevice, options: [
+        .cacheIntermediates: true,
+        .priorityRequestLow: false,
+      ])
+    }
+    return CIContext(options: [.cacheIntermediates: true])
+  }()
 
-    // MARK: - Core: Crop source image region to CGImage
+  // MARK: - Core: Crop source image region
 
-    /// Extract CGImage from source image at the specified region (in NSImage coordinates)
-    private static func cropSourceImage(
-        _ sourceImage: NSImage,
-        region: CGRect
-    ) -> (cgImage: CGImage, clampedRegion: CGRect)? {
-        guard region.width > 0, region.height > 0 else { return nil }
+  /// Extract CGImage from source image at the specified region (in image coordinates, bottom-left origin)
+  private static func cropSourceImage(
+    _ sourceImage: NSImage,
+    region: CGRect
+  ) -> (cgImage: CGImage, clampedRegion: CGRect)? {
+    guard region.width > 0, region.height > 0 else { return nil }
 
-        guard let cgImage = sourceImage.cgImage(forProposedRect: nil, context: nil, hints: nil) else {
-            return nil
-        }
-
-        let imageBounds = CGRect(origin: .zero, size: sourceImage.size)
-        let clampedRegion = region.intersection(imageBounds)
-        guard !clampedRegion.isEmpty, clampedRegion.width > 0, clampedRegion.height > 0 else { return nil }
-
-        let imageScale = CGFloat(cgImage.width) / sourceImage.size.width
-
-        // Convert NSImage coords (bottom-up) to CGImage coords (top-down)
-        let pixelRegion = CGRect(
-            x: clampedRegion.origin.x * imageScale,
-            y: (sourceImage.size.height - clampedRegion.origin.y - clampedRegion.height) * imageScale,
-            width: clampedRegion.width * imageScale,
-            height: clampedRegion.height * imageScale
-        )
-
-        let clampedPixelRegion = pixelRegion.intersection(
-            CGRect(x: 0, y: 0, width: cgImage.width, height: cgImage.height)
-        )
-        guard !clampedPixelRegion.isEmpty else { return nil }
-
-        guard let cropped = cgImage.cropping(to: clampedPixelRegion) else { return nil }
-        return (cropped, clampedRegion)
+    guard let cgImage = sourceImage.cgImage(forProposedRect: nil, context: nil, hints: nil) else {
+      return nil
     }
 
-    // MARK: - Pixelate (CIPixellate — GPU-accelerated)
+    let imageBounds = CGRect(origin: .zero, size: sourceImage.size)
+    let clampedRegion = region.intersection(imageBounds)
+    guard !clampedRegion.isEmpty, clampedRegion.width > 0, clampedRegion.height > 0 else { return nil }
 
-    /// Create a pixelated NSImage from a source image region using CIPixellate filter.
-    /// Thread-safe, format-agnostic, works from any thread including SwiftUI Canvas.
-    static func pixelateRegion(
-        sourceImage: NSImage,
-        region: CGRect,
-        pixelSize: CGFloat = defaultPixelSize
-    ) -> NSImage? {
-        guard let (croppedCG, clampedRegion) = cropSourceImage(sourceImage, region: region) else {
-            return nil
-        }
+    let imageScale = CGFloat(cgImage.width) / sourceImage.size.width
 
-        // Use CIPixellate filter (GPU-accelerated, handles all pixel formats correctly)
-        let ciImage = CIImage(cgImage: croppedCG)
-        let filter = CIFilter(name: "CIPixellate")
-        filter?.setValue(ciImage, forKey: kCIInputImageKey)
-        filter?.setValue(pixelSize, forKey: kCIInputScaleKey)
-        // Center the pixel grid
-        filter?.setValue(CIVector(x: ciImage.extent.midX, y: ciImage.extent.midY), forKey: kCIInputCenterKey)
+    // Convert image coords (bottom-left origin) to CGImage coords (top-left origin)
+    let pixelRegion = CGRect(
+      x: clampedRegion.origin.x * imageScale,
+      y: (sourceImage.size.height - clampedRegion.origin.y - clampedRegion.height) * imageScale,
+      width: clampedRegion.width * imageScale,
+      height: clampedRegion.height * imageScale
+    )
 
-        guard let outputImage = filter?.outputImage else { return nil }
+    let clampedPixelRegion = pixelRegion.intersection(
+      CGRect(x: 0, y: 0, width: cgImage.width, height: cgImage.height)
+    )
+    guard !clampedPixelRegion.isEmpty else { return nil }
 
-        // Crop to original extent (pixellate might shift edges)
-        let croppedOutput = outputImage.cropped(to: ciImage.extent)
+    guard let cropped = cgImage.cropping(to: clampedPixelRegion) else { return nil }
+    return (cropped, clampedRegion)
+  }
 
-        guard let resultCG = sharedCIContext.createCGImage(croppedOutput, from: ciImage.extent) else {
-            return nil
-        }
+  // MARK: - Pixelate (Direct pixel sampling — Snapzy approach)
 
-        let width = Int(ceil(clampedRegion.width))
-        let height = Int(ceil(clampedRegion.height))
-        return NSImage(cgImage: resultCG, size: NSSize(width: width, height: height))
+  /// Draw pixelated region using direct pixel sampling.
+  /// More reliable than CIPixellate for coordinate alignment.
+  static func drawPixelatedRegion(
+    in context: CGContext,
+    sourceImage: NSImage,
+    region: CGRect,
+    pixelSize: CGFloat = defaultPixelSize
+  ) {
+    guard let (croppedCG, clampedRegion) = cropSourceImage(sourceImage, region: region) else {
+      drawFallback(in: context, region: region)
+      return
     }
 
-    /// Draw pixelated region directly into a CGContext (for ExportService)
-    static func drawPixelatedRegion(
-        in context: CGContext,
-        sourceImage: NSImage,
-        region: CGRect,
-        pixelSize: CGFloat = defaultPixelSize
-    ) {
-        guard let (croppedCG, clampedRegion) = cropSourceImage(sourceImage, region: region) else {
-            drawFallback(in: context, region: region)
-            return
-        }
+    drawPixelated(
+      croppedImage: croppedCG,
+      in: context,
+      destRect: clampedRegion,
+      pixelSize: pixelSize
+    )
+  }
 
-        let ciImage = CIImage(cgImage: croppedCG)
-        let filter = CIFilter(name: "CIPixellate")
-        filter?.setValue(ciImage, forKey: kCIInputImageKey)
-        filter?.setValue(pixelSize, forKey: kCIInputScaleKey)
-        filter?.setValue(CIVector(x: ciImage.extent.midX, y: ciImage.extent.midY), forKey: kCIInputCenterKey)
+  /// Draw pixelated version by sampling pixel colors and filling blocks
+  private static func drawPixelated(
+    croppedImage: CGImage,
+    in context: CGContext,
+    destRect: CGRect,
+    pixelSize: CGFloat
+  ) {
+    let cols = Int(ceil(destRect.width / pixelSize))
+    let rows = Int(ceil(destRect.height / pixelSize))
+    guard cols > 0, rows > 0 else { return }
 
-        guard let outputImage = filter?.outputImage else {
-            drawFallback(in: context, region: region)
-            return
-        }
+    let imageWidth = croppedImage.width
+    let imageHeight = croppedImage.height
 
-        let croppedOutput = outputImage.cropped(to: ciImage.extent)
-        guard let resultCG = sharedCIContext.createCGImage(croppedOutput, from: ciImage.extent) else {
-            drawFallback(in: context, region: region)
-            return
-        }
+    // Normalize pixel data through a bitmap context with known RGBA format
+    // This handles BGRA, ARGB, premultiplied alpha, and other variants
+    let bytesPerPixel = 4
+    let bytesPerRow = imageWidth * bytesPerPixel
+    let colorSpace = CGColorSpaceCreateDeviceRGB()
+    let bitmapInfo = CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue)
 
-        context.draw(resultCG, in: clampedRegion)
+    guard let bitmapContext = CGContext(
+      data: nil,
+      width: imageWidth,
+      height: imageHeight,
+      bitsPerComponent: 8,
+      bytesPerRow: bytesPerRow,
+      space: colorSpace,
+      bitmapInfo: bitmapInfo.rawValue
+    ) else {
+      drawFallback(in: context, region: destRect)
+      return
     }
 
-    // MARK: - Gaussian Blur (CIGaussianBlur — GPU-accelerated)
+    // Draw source image into normalized context
+    bitmapContext.draw(croppedImage, in: CGRect(x: 0, y: 0, width: imageWidth, height: imageHeight))
 
-    /// Create a Gaussian-blurred NSImage from a source image region.
-    /// Thread-safe, uses CIFilter GPU acceleration.
-    static func blurRegion(
-        sourceImage: NSImage,
-        region: CGRect,
-        radius: Double = defaultGaussianRadius
-    ) -> NSImage? {
-        guard let (croppedCG, clampedRegion) = cropSourceImage(sourceImage, region: region) else {
-            return nil
-        }
+    guard let pixelData = bitmapContext.data else {
+      drawFallback(in: context, region: destRect)
+      return
+    }
+    let bytes = pixelData.assumingMemoryBound(to: UInt8.self)
 
-        let ciImage = CIImage(cgImage: croppedCG)
-        let filter = CIFilter(name: "CIGaussianBlur")
-        filter?.setValue(ciImage, forKey: kCIInputImageKey)
-        filter?.setValue(radius, forKey: kCIInputRadiusKey)
+    // Clip to destRect to prevent blocks from overflowing
+    context.saveGState()
+    context.clip(to: destRect)
 
-        guard let outputImage = filter?.outputImage else { return nil }
+    for row in 0..<rows {
+      for col in 0..<cols {
+        // Sample from center of each grid cell
+        let sampleX = Int((CGFloat(col) + 0.5) / CGFloat(cols) * CGFloat(imageWidth))
+        let sampleY = Int((CGFloat(row) + 0.5) / CGFloat(rows) * CGFloat(imageHeight))
 
-        // Crop to original extent (blur expands the image)
-        let croppedOutput = outputImage.cropped(to: ciImage.extent)
-        guard let resultCG = sharedCIContext.createCGImage(croppedOutput, from: ciImage.extent) else {
-            return nil
-        }
+        let clampedX = min(max(sampleX, 0), imageWidth - 1)
+        let clampedY = min(max(sampleY, 0), imageHeight - 1)
 
-        let width = Int(ceil(clampedRegion.width))
-        let height = Int(ceil(clampedRegion.height))
-        return NSImage(cgImage: resultCG, size: NSSize(width: width, height: height))
+        let offset = clampedY * bytesPerRow + clampedX * bytesPerPixel
+        let r = CGFloat(bytes[offset]) / 255.0
+        let g = CGFloat(bytes[offset + 1]) / 255.0
+        let b = CGFloat(bytes[offset + 2]) / 255.0
+        let a = bytesPerPixel >= 4 ? CGFloat(bytes[offset + 3]) / 255.0 : 1.0
+
+        // Block position: flip Y for Core Graphics (bottom-left origin)
+        let blockX = destRect.origin.x + CGFloat(col) * pixelSize
+        let blockY = destRect.origin.y + destRect.height - CGFloat(row + 1) * pixelSize
+
+        let blockRect = CGRect(x: blockX, y: blockY, width: pixelSize, height: pixelSize)
+
+        context.setFillColor(red: r, green: g, blue: b, alpha: a)
+        context.fill(blockRect)
+      }
     }
 
-    /// Draw Gaussian blur region directly into a CGContext (for ExportService)
-    static func drawGaussianRegion(
-        in context: CGContext,
-        sourceImage: NSImage,
-        region: CGRect,
-        radius: Double = defaultGaussianRadius
-    ) {
-        guard let (croppedCG, clampedRegion) = cropSourceImage(sourceImage, region: region) else {
-            drawFallback(in: context, region: region)
-            return
-        }
+    context.restoreGState()
+  }
 
-        let ciImage = CIImage(cgImage: croppedCG)
-        let filter = CIFilter(name: "CIGaussianBlur")
-        filter?.setValue(ciImage, forKey: kCIInputImageKey)
-        filter?.setValue(radius, forKey: kCIInputRadiusKey)
+  // MARK: - Pixelate NSImage (for BlurCacheManager)
 
-        guard let outputImage = filter?.outputImage else {
-            drawFallback(in: context, region: region)
-            return
-        }
-
-        let croppedOutput = outputImage.cropped(to: ciImage.extent)
-        guard let resultCG = sharedCIContext.createCGImage(croppedOutput, from: ciImage.extent) else {
-            drawFallback(in: context, region: region)
-            return
-        }
-
-        context.draw(resultCG, in: clampedRegion)
+  static func pixelateRegion(
+    sourceImage: NSImage,
+    region: CGRect,
+    pixelSize: CGFloat = defaultPixelSize
+  ) -> NSImage? {
+    guard let (croppedCG, clampedRegion) = cropSourceImage(sourceImage, region: region) else {
+      return nil
     }
 
-    // MARK: - Fallback
+    let width = Int(ceil(clampedRegion.width))
+    let height = Int(ceil(clampedRegion.height))
+    guard width > 0, height > 0 else { return nil }
 
-    /// Fallback when image sampling fails — semi-transparent overlay
-    static func drawFallback(in context: CGContext, region: CGRect) {
-        context.setFillColor(NSColor.gray.withAlphaComponent(0.7).cgColor)
-        context.fill(region)
+    let nsImage = NSImage(size: NSSize(width: width, height: height))
+    nsImage.lockFocus()
+    guard let context = NSGraphicsContext.current?.cgContext else {
+      nsImage.unlockFocus()
+      return nil
     }
+
+    let destRect = CGRect(x: 0, y: 0, width: width, height: height)
+    drawPixelated(croppedImage: croppedCG, in: context, destRect: destRect, pixelSize: pixelSize)
+
+    nsImage.unlockFocus()
+    return nsImage
+  }
+
+  // MARK: - Gaussian Blur (CIGaussianBlur)
+
+  /// Draw Gaussian blur region directly into a CGContext
+  static func drawGaussianRegion(
+    in context: CGContext,
+    sourceImage: NSImage,
+    region: CGRect,
+    radius: Double = defaultGaussianRadius
+  ) {
+    guard let (croppedCG, clampedRegion) = cropSourceImage(sourceImage, region: region) else {
+      drawFallback(in: context, region: region)
+      return
+    }
+
+    let ciImage = CIImage(cgImage: croppedCG)
+    let filter = CIFilter(name: "CIGaussianBlur")
+    filter?.setValue(ciImage, forKey: kCIInputImageKey)
+    filter?.setValue(radius, forKey: kCIInputRadiusKey)
+
+    guard let outputImage = filter?.outputImage else {
+      drawFallback(in: context, region: region)
+      return
+    }
+
+    let croppedOutput = outputImage.cropped(to: ciImage.extent)
+    guard let resultCG = sharedCIContext.createCGImage(croppedOutput, from: ciImage.extent) else {
+      drawFallback(in: context, region: region)
+      return
+    }
+
+    context.draw(resultCG, in: clampedRegion)
+  }
+
+  /// Create a Gaussian-blurred NSImage from a source image region
+  static func blurRegion(
+    sourceImage: NSImage,
+    region: CGRect,
+    radius: Double = defaultGaussianRadius
+  ) -> NSImage? {
+    guard let (croppedCG, clampedRegion) = cropSourceImage(sourceImage, region: region) else {
+      return nil
+    }
+
+    let ciImage = CIImage(cgImage: croppedCG)
+    let filter = CIFilter(name: "CIGaussianBlur")
+    filter?.setValue(ciImage, forKey: kCIInputImageKey)
+    filter?.setValue(radius, forKey: kCIInputRadiusKey)
+
+    guard let outputImage = filter?.outputImage else { return nil }
+
+    let croppedOutput = outputImage.cropped(to: ciImage.extent)
+    guard let resultCG = sharedCIContext.createCGImage(croppedOutput, from: ciImage.extent) else {
+      return nil
+    }
+
+    let width = Int(ceil(clampedRegion.width))
+    let height = Int(ceil(clampedRegion.height))
+    return NSImage(cgImage: resultCG, size: NSSize(width: width, height: height))
+  }
+
+  // MARK: - Fallback
+
+  /// Fallback when image sampling fails — semi-transparent overlay
+  static func drawFallback(in context: CGContext, region: CGRect) {
+    context.setFillColor(NSColor.gray.withAlphaComponent(0.7).cgColor)
+    context.fill(region)
+  }
 }
