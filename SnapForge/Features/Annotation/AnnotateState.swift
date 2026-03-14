@@ -522,9 +522,17 @@ final class AnnotateState: ObservableObject {
   func applyRedactions() {
     saveState()
     for region in redactRegions where region.isSelected {
+      // Flip Y: detection coordinates use top-left origin (SwiftUI),
+      // but canvas renders in bottom-left origin (NSView/CoreGraphics)
+      let flippedBounds = CGRect(
+        x: region.bounds.origin.x,
+        y: imageHeight - region.bounds.origin.y - region.bounds.height,
+        width: region.bounds.width,
+        height: region.bounds.height
+      )
       let annotation = AnnotationItem(
         type: .blur(.gaussian),
-        bounds: region.bounds,
+        bounds: flippedBounds,
         properties: AnnotationProperties(strokeColor: .clear, strokeWidth: 0)
       )
       annotations.append(annotation)
