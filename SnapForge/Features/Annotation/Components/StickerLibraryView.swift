@@ -41,15 +41,18 @@ struct StickerLibraryView: View {
 
       Divider()
 
-      // Category tabs — wrapping layout (works with any mouse)
-      FlowLayout(spacing: 6) {
-        categoryChip(title: "All", category: nil)
-        ForEach(StickerCategory.allCases) { category in
-          categoryChip(title: category.displayName, category: category)
+      // Category tabs — single row, scrollable with any mouse
+      HorizontalMouseScrollView {
+        HStack(spacing: 6) {
+          categoryChip(title: "All", category: nil)
+          ForEach(StickerCategory.allCases) { category in
+            categoryChip(title: category.displayName, category: category)
+          }
         }
+        .fixedSize(horizontal: true, vertical: false)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
       }
-      .padding(.horizontal, 12)
-      .padding(.vertical, 6)
 
       Divider()
 
