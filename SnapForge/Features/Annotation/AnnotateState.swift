@@ -531,7 +531,7 @@ final class AnnotateState: ObservableObject {
         height: region.bounds.height
       )
       let annotation = AnnotationItem(
-        type: .blur(.gaussian),
+        type: .blur(.pixelated),
         bounds: flippedBounds,
         properties: AnnotationProperties(strokeColor: .clear, strokeWidth: 0)
       )
