@@ -3,157 +3,156 @@ import Vision
 
 /// Service to auto-detect and blur sensitive content in screenshots.
 /// Uses Vision framework to find text regions and faces, then applies blur.
-@MainActor
-final class QuickBlurService {
+/// All heavy work runs on a background thread to keep UI responsive.
+final class QuickBlurService: Sendable {
   static let shared = QuickBlurService()
   private init() {}
 
   /// Detect sensitive regions (text and faces) in an image and blur them.
   /// Returns a new image with blurred regions, or the original if nothing detected.
+  /// Safe to call from any thread — internally dispatches to background.
   func autoBlurSensitiveAreas(in image: NSImage) async -> NSImage {
-    guard let cgImage = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else {
+    // Capture image data on caller's thread, then do all work in background
+    guard let tiffData = image.tiffRepresentation,
+          let bitmapRep = NSBitmapImageRep(data: tiffData),
+          let cgImage = bitmapRep.cgImage else {
       return image
     }
 
-    let imageSize = image.size
-    var regions: [CGRect] = []
+    let imageWidth = image.size.width
+    let imageHeight = image.size.height
 
-    // Detect text regions
-    let textRegions = await detectTextRegions(in: cgImage, imageSize: imageSize)
-    regions.append(contentsOf: textRegions)
+    // Run entire pipeline (detection + rendering) off main thread
+    let resultData: Data? = await Task.detached(priority: .userInitiated) {
+      var regions: [CGRect] = []
 
-    // Detect face regions
-    let faceRegions = await detectFaceRegions(in: cgImage, imageSize: imageSize)
-    regions.append(contentsOf: faceRegions)
+      // Detect text regions
+      let textRegions = Self.detectTextRegions(in: cgImage, width: imageWidth, height: imageHeight)
+      regions.append(contentsOf: textRegions)
 
-    guard !regions.isEmpty else { return image }
+      // Detect face regions
+      let faceRegions = Self.detectFaceRegions(in: cgImage, width: imageWidth, height: imageHeight)
+      regions.append(contentsOf: faceRegions)
 
-    // Merge overlapping regions for cleaner blur
-    let mergedRegions = mergeOverlappingRects(regions, padding: 4)
+      guard !regions.isEmpty else { return nil as Data? }
 
-    // Apply pixelated blur to each region
-    return renderBlurred(image: image, regions: mergedRegions)
+      // Merge overlapping regions
+      let mergedRegions = Self.mergeOverlappingRects(regions, padding: 4)
+
+      // Render blurred result and return as TIFF data (thread-safe)
+      return Self.renderBlurred(
+        tiffData: tiffData, regions: mergedRegions,
+        width: imageWidth, height: imageHeight
+      )
+    }.value
+
+    // Convert result data back to NSImage on main thread
+    if let resultData, let result = NSImage(data: resultData) {
+      return result
+    }
+    return image
   }
 
-  // MARK: - Detection
+  // MARK: - Detection (static, runs on background thread)
 
-  private func detectTextRegions(
-    in cgImage: CGImage, imageSize: NSSize
-  ) async -> [CGRect] {
-    await withCheckedContinuation { continuation in
-      let request = VNRecognizeTextRequest { request, _ in
-        guard let observations = request.results as? [VNRecognizedTextObservation] else {
-          continuation.resume(returning: [])
-          return
-        }
-
-        let rects = observations.map { observation -> CGRect in
-          let box = observation.boundingBox
-          // Vision uses normalized coordinates with bottom-left origin
-          return CGRect(
-            x: box.origin.x * imageSize.width,
-            y: (1 - box.origin.y - box.height) * imageSize.height,
-            width: box.width * imageSize.width,
-            height: box.height * imageSize.height
-          )
-        }
-        continuation.resume(returning: rects)
-      }
-      request.recognitionLevel = .fast
-      request.recognitionLanguages = ["en", "vi"]
-
-      let handler = VNImageRequestHandler(cgImage: cgImage, options: [:])
-      do {
-        try handler.perform([request])
-      } catch {
-        continuation.resume(returning: [])
+  private static func detectTextRegions(
+    in cgImage: CGImage, width: CGFloat, height: CGFloat
+  ) -> [CGRect] {
+    var rects: [CGRect] = []
+    let request = VNRecognizeTextRequest { request, _ in
+      guard let observations = request.results as? [VNRecognizedTextObservation] else { return }
+      rects = observations.map { observation in
+        let box = observation.boundingBox
+        return CGRect(
+          x: box.origin.x * width,
+          y: (1 - box.origin.y - box.height) * height,
+          width: box.width * width,
+          height: box.height * height
+        )
       }
     }
+    request.recognitionLevel = .fast
+    request.recognitionLanguages = ["en", "vi"]
+
+    let handler = VNImageRequestHandler(cgImage: cgImage, options: [:])
+    try? handler.perform([request])
+    return rects
   }
 
-  private func detectFaceRegions(
-    in cgImage: CGImage, imageSize: NSSize
-  ) async -> [CGRect] {
-    await withCheckedContinuation { continuation in
-      let request = VNDetectFaceRectanglesRequest { request, _ in
-        guard let observations = request.results as? [VNFaceObservation] else {
-          continuation.resume(returning: [])
-          return
-        }
-
-        let rects = observations.map { observation -> CGRect in
-          let box = observation.boundingBox
-          return CGRect(
-            x: box.origin.x * imageSize.width,
-            y: (1 - box.origin.y - box.height) * imageSize.height,
-            width: box.width * imageSize.width,
-            height: box.height * imageSize.height
-          )
-        }
-        continuation.resume(returning: rects)
-      }
-
-      let handler = VNImageRequestHandler(cgImage: cgImage, options: [:])
-      do {
-        try handler.perform([request])
-      } catch {
-        continuation.resume(returning: [])
+  private static func detectFaceRegions(
+    in cgImage: CGImage, width: CGFloat, height: CGFloat
+  ) -> [CGRect] {
+    var rects: [CGRect] = []
+    let request = VNDetectFaceRectanglesRequest { request, _ in
+      guard let observations = request.results as? [VNFaceObservation] else { return }
+      rects = observations.map { observation in
+        let box = observation.boundingBox
+        return CGRect(
+          x: box.origin.x * width,
+          y: (1 - box.origin.y - box.height) * height,
+          width: box.width * width,
+          height: box.height * height
+        )
       }
     }
+
+    let handler = VNImageRequestHandler(cgImage: cgImage, options: [:])
+    try? handler.perform([request])
+    return rects
   }
 
-  // MARK: - Rendering
+  // MARK: - Rendering (static, uses CG-level APIs only — no lockFocus)
 
-  private func renderBlurred(image: NSImage, regions: [CGRect]) -> NSImage {
-    let size = image.size
-    let result = NSImage(size: size)
-    result.lockFocus()
+  private static func renderBlurred(
+    tiffData: Data, regions: [CGRect],
+    width: CGFloat, height: CGFloat
+  ) -> Data? {
+    guard let ciImage = CIImage(data: tiffData) else { return nil }
 
-    // Draw original
-    image.draw(in: NSRect(origin: .zero, size: size))
-
-    // Create pixelated version using CIFilter
-    guard let ciImage = CIImage(data: image.tiffRepresentation ?? Data()) else {
-      result.unlockFocus()
-      return image
-    }
-
+    // Create pixelated version
     let pixellateFilter = CIFilter(name: "CIPixellate")
     pixellateFilter?.setValue(ciImage, forKey: kCIInputImageKey)
-    pixellateFilter?.setValue(max(size.width, size.height) / 40, forKey: kCIInputScaleKey)
+    pixellateFilter?.setValue(max(width, height) / 40, forKey: kCIInputScaleKey)
 
-    guard let outputImage = pixellateFilter?.outputImage else {
-      result.unlockFocus()
-      return image
-    }
+    guard let pixelatedOutput = pixellateFilter?.outputImage else { return nil }
 
-    let context = CIContext()
-    guard let cgBlurred = context.createCGImage(outputImage, from: outputImage.extent) else {
-      result.unlockFocus()
-      return image
-    }
-
-    let blurredNSImage = NSImage(cgImage: cgBlurred, size: size)
-
-    // Draw blurred regions on top
+    // Composite: draw pixelated regions on top of original
+    var composite = ciImage
     for region in regions {
       let paddedRegion = region.insetBy(dx: -4, dy: -4)
-      let clippedRegion = paddedRegion.intersection(NSRect(origin: .zero, size: size))
+      let clippedRegion = paddedRegion.intersection(
+        CGRect(x: 0, y: 0, width: width, height: height)
+      )
+      guard !clippedRegion.isEmpty else { continue }
 
-      NSGraphicsContext.current?.saveGraphicsState()
-      NSBezierPath(roundedRect: clippedRegion, xRadius: 4, yRadius: 4).addClip()
-      blurredNSImage.draw(in: NSRect(origin: .zero, size: size))
-      NSGraphicsContext.current?.restoreGraphicsState()
+      // Flip Y for CIImage (bottom-left origin)
+      let ciRect = CGRect(
+        x: clippedRegion.origin.x,
+        y: height - clippedRegion.origin.y - clippedRegion.height,
+        width: clippedRegion.width,
+        height: clippedRegion.height
+      )
+
+      // Crop the pixelated region
+      let croppedBlur = pixelatedOutput.cropped(to: ciRect)
+
+      // Composite over the original
+      composite = croppedBlur.composited(over: composite)
     }
 
-    result.unlockFocus()
-    return result
+    // Render final image to TIFF data
+    let context = CIContext()
+    guard let cgResult = context.createCGImage(composite, from: composite.extent) else {
+      return nil
+    }
+
+    let rep = NSBitmapImageRep(cgImage: cgResult)
+    return rep.tiffRepresentation
   }
 
   // MARK: - Geometry Helpers
 
-  /// Merge overlapping rectangles to reduce visual noise
-  private func mergeOverlappingRects(_ rects: [CGRect], padding: CGFloat) -> [CGRect] {
+  private static func mergeOverlappingRects(_ rects: [CGRect], padding: CGFloat) -> [CGRect] {
     guard !rects.isEmpty else { return [] }
 
     var merged = rects.map { $0.insetBy(dx: -padding, dy: -padding) }

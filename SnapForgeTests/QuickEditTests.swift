@@ -16,14 +16,12 @@ struct QuickBlurServiceTests {
     return image
   }
 
-  @MainActor
   @Test func autoBlurReturnsImageOfSameSize() async {
     let image = makeTestImage()
     let result = await QuickBlurService.shared.autoBlurSensitiveAreas(in: image)
     #expect(result.size == image.size)
   }
 
-  @MainActor
   @Test func autoBlurReturnsValidImage() async {
     let image = makeTestImage()
     let result = await QuickBlurService.shared.autoBlurSensitiveAreas(in: image)
@@ -31,11 +29,9 @@ struct QuickBlurServiceTests {
     #expect(result.size.height > 0)
   }
 
-  @MainActor
   @Test func autoBlurHandlesEmptyImage() async {
     let image = NSImage(size: .zero)
     let result = await QuickBlurService.shared.autoBlurSensitiveAreas(in: image)
-    // Should return original if no CGImage can be created
     #expect(result.size == .zero)
   }
 }
