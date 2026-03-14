@@ -160,6 +160,14 @@ final class AnnotateState: ObservableObject {
     canRedo = !redoStack.isEmpty
   }
 
+  /// Clear undo/redo history (e.g. after crop changes coordinates)
+  func clearUndoHistory() {
+    undoStack.removeAll()
+    redoStack.removeAll()
+    canUndo = false
+    canRedo = false
+  }
+
   // MARK: - Counter
 
   /// Derive next counter value from existing annotations (undo-safe)

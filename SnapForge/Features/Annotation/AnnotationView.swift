@@ -359,7 +359,42 @@ struct AnnotationView: View {
     cropHistory.append((image: image, annotations: state.annotations))
 
     image = croppedImage
-    state.loadImage(croppedImage)
+
+    // Update source image WITHOUT clearing annotations
+    // (state.loadImage() would clear all annotations)
+    state.sourceImage = croppedImage
+    state.cropRect = nil
+    state.isCropActive = false
+    state.hasUnsavedChanges = true
+
+    // Translate annotations: shift by crop offset (bottom-left origin)
+    // cropRect origin is in image coords (bottom-left)
+    let offsetX = cropRect.origin.x
+    let offsetY = cropRect.origin.y
+    let cropW = cropRect.width
+    let cropH = cropRect.height
+
+    state.annotations = state.annotations.compactMap { annotation in
+      var item = annotation
+      var bounds = item.bounds
+
+      // Shift annotation by crop offset
+      bounds.origin.x -= offsetX
+      bounds.origin.y -= offsetY
+
+      // Skip annotations completely outside the crop area
+      guard bounds.maxX > 0, bounds.maxY > 0,
+            bounds.origin.x < cropW, bounds.origin.y < cropH else {
+        return nil
+      }
+
+      item.bounds = bounds
+      return item
+    }
+
+    // Clear undo/redo since we changed the coordinate system
+    state.clearUndoHistory()
+
     imageRect = calcImageRect(canvasSize: canvasSize, imageSize: croppedImage.size)
   }
 
