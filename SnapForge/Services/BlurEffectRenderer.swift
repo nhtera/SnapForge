@@ -83,6 +83,7 @@ struct BlurEffectRenderer {
   }
 
   /// Draw pixelated version by sampling pixel colors and filling blocks
+  /// Uses direct dataProvider access (matching Snapzy's approach)
   private static func drawPixelated(
     croppedImage: CGImage,
     in context: CGContext,
@@ -96,34 +97,16 @@ struct BlurEffectRenderer {
     let imageWidth = croppedImage.width
     let imageHeight = croppedImage.height
 
-    // Normalize pixel data through a bitmap context with known RGBA format
-    // This handles BGRA, ARGB, premultiplied alpha, and other variants
-    let bytesPerPixel = 4
-    let bytesPerRow = imageWidth * bytesPerPixel
-    let colorSpace = CGColorSpaceCreateDeviceRGB()
-    let bitmapInfo = CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue)
-
-    guard let bitmapContext = CGContext(
-      data: nil,
-      width: imageWidth,
-      height: imageHeight,
-      bitsPerComponent: 8,
-      bytesPerRow: bytesPerRow,
-      space: colorSpace,
-      bitmapInfo: bitmapInfo.rawValue
-    ) else {
+    // Read pixel data directly from dataProvider (Snapzy approach)
+    guard let dataProvider = croppedImage.dataProvider,
+          let data = dataProvider.data,
+          let bytes = CFDataGetBytePtr(data) else {
       drawFallback(in: context, region: destRect)
       return
     }
 
-    // Draw source image into normalized context
-    bitmapContext.draw(croppedImage, in: CGRect(x: 0, y: 0, width: imageWidth, height: imageHeight))
-
-    guard let pixelData = bitmapContext.data else {
-      drawFallback(in: context, region: destRect)
-      return
-    }
-    let bytes = pixelData.assumingMemoryBound(to: UInt8.self)
+    let bytesPerPixel = croppedImage.bitsPerPixel / 8
+    let bytesPerRow = croppedImage.bytesPerRow
 
     // Clip to destRect to prevent blocks from overflowing
     context.saveGState()
