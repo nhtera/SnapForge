@@ -41,7 +41,7 @@ struct StickerLibraryView: View {
 
       Divider()
 
-      // Category tabs
+      // Category tabs — horizontally scrollable
       ScrollView(.horizontal, showsIndicators: false) {
         HStack(spacing: 6) {
           categoryChip(title: "All", category: nil)
@@ -49,9 +49,11 @@ struct StickerLibraryView: View {
             categoryChip(title: category.displayName, category: category)
           }
         }
+        .fixedSize(horizontal: true, vertical: false)
         .padding(.horizontal, 12)
         .padding(.vertical, 6)
       }
+      .frame(maxWidth: .infinity)
 
       Divider()
 
