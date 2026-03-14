@@ -524,22 +524,19 @@ final class AnnotateState: ObservableObject {
     for region in redactRegions where region.isSelected {
       // Flip Y: detection coordinates use top-left origin (SwiftUI),
       // but canvas renders in bottom-left origin (NSView/CoreGraphics)
-      let flippedBounds = CGRect(
-        x: region.bounds.origin.x,
-        y: imageHeight - region.bounds.origin.y - region.bounds.height,
-        width: region.bounds.width,
-        height: region.bounds.height
+      // Expand bounds slightly for better coverage of text edges
+      let padding: CGFloat = 8
+      let paddedBounds = CGRect(
+        x: region.bounds.origin.x - padding,
+        y: imageHeight - region.bounds.origin.y - region.bounds.height - padding,
+        width: region.bounds.width + padding * 2,
+        height: region.bounds.height + padding * 2
       )
-      // Use solid black fill — the industry standard for redaction.
-      // Blur/pixelation can sometimes be reversed; solid fill cannot.
+      // Use heavy pixelation — looks natural while effectively hiding content
       let annotation = AnnotationItem(
-        type: .filledRectangle,
-        bounds: flippedBounds,
-        properties: AnnotationProperties(
-          strokeColor: .black,
-          fillColor: .black,
-          strokeWidth: 0
-        )
+        type: .blur(.pixelated),
+        bounds: paddedBounds,
+        properties: AnnotationProperties(strokeColor: .clear, strokeWidth: 0)
       )
       annotations.append(annotation)
     }

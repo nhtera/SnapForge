@@ -7,7 +7,7 @@ import CoreImage
 struct BlurEffectRenderer {
 
   /// Default pixel block size for pixelate effect
-  static let defaultPixelSize: CGFloat = 12
+  static let defaultPixelSize: CGFloat = 20
 
   /// Default Gaussian blur radius
   static let defaultGaussianRadius: Double = 20.0
