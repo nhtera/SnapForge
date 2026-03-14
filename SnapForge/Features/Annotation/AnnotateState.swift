@@ -532,11 +532,22 @@ final class AnnotateState: ObservableObject {
         width: region.bounds.width + padding * 2,
         height: region.bounds.height + padding * 2
       )
-      // Use heavy pixelation — looks natural while effectively hiding content
+      // Dynamic pixel size: ensure MAXIMUM 3-4 blocks across the region.
+      // For text ~200×25px, this gives pixelSize ~50, producing 4×1 blocks
+      // — completely unreadable instead of 10×2 blocks at pixelSize=20.
+      let dynamicPixelSize = max(
+        paddedBounds.width / 4,
+        paddedBounds.height,
+        30
+      )
       let annotation = AnnotationItem(
         type: .blur(.pixelated),
         bounds: paddedBounds,
-        properties: AnnotationProperties(strokeColor: .clear, strokeWidth: 0)
+        properties: AnnotationProperties(
+          strokeColor: .clear,
+          strokeWidth: 0,
+          pixelSize: dynamicPixelSize
+        )
       )
       annotations.append(annotation)
     }

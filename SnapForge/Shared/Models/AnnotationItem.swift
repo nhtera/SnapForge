@@ -65,19 +65,23 @@ struct AnnotationProperties: Equatable {
   var strokeWidth: CGFloat
   var fontSize: CGFloat
   var fontName: String
+  /// Custom pixel size for blur annotations (0 = use default)
+  var pixelSize: CGFloat
 
   init(
     strokeColor: Color = .red,
     fillColor: Color = .clear,
     strokeWidth: CGFloat = 3,
     fontSize: CGFloat = 16,
-    fontName: String = "SF Pro"
+    fontName: String = "SF Pro",
+    pixelSize: CGFloat = 0
   ) {
     self.strokeColor = strokeColor
     self.fillColor = fillColor
     self.strokeWidth = strokeWidth
     self.fontSize = fontSize
     self.fontName = fontName
+    self.pixelSize = pixelSize
   }
 }
 

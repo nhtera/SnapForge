@@ -62,7 +62,10 @@ struct AnnotationRenderer {
       drawCounter(value: value, at: annotation.bounds.origin, color: annotation.properties.strokeColor)
 
     case .blur(let blurType):
-      drawBlur(bounds: annotation.bounds, annotationId: annotation.id, blurType: blurType)
+      let ps = annotation.properties.pixelSize > 0
+        ? annotation.properties.pixelSize
+        : BlurEffectRenderer.defaultPixelSize
+      drawBlur(bounds: annotation.bounds, annotationId: annotation.id, blurType: blurType, pixelSize: ps)
 
     case .text(let content):
       drawText(content, in: annotation.bounds, properties: annotation.properties)
@@ -221,7 +224,7 @@ struct AnnotationRenderer {
     )
   }
 
-  private func drawBlur(bounds: CGRect, annotationId: UUID, blurType: BlurType) {
+  private func drawBlur(bounds: CGRect, annotationId: UUID, blurType: BlurType, pixelSize: CGFloat) {
     guard let sourceImage else {
       BlurEffectRenderer.drawFallback(in: context, region: bounds)
       return
@@ -233,7 +236,8 @@ struct AnnotationRenderer {
          for: annotationId,
          bounds: bounds,
          sourceImage: sourceImage,
-         blurType: blurType
+         blurType: blurType,
+         pixelSize: pixelSize
        )
     {
       context.draw(cachedImage, in: bounds)
@@ -246,7 +250,8 @@ struct AnnotationRenderer {
       BlurEffectRenderer.drawPixelatedRegion(
         in: context,
         sourceImage: sourceImage,
-        region: bounds
+        region: bounds,
+        pixelSize: pixelSize
       )
     case .gaussian:
       BlurEffectRenderer.drawGaussianRegion(
