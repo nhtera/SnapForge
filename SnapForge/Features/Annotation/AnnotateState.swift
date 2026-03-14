@@ -532,11 +532,11 @@ final class AnnotateState: ObservableObject {
         width: region.bounds.width + padding * 2,
         height: region.bounds.height + padding * 2
       )
-      // Dynamic pixel size: ~6 blocks across, text height merged
+      // Dynamic pixel size: softer mosaic with ~8-10 blocks across
       let dynamicPixelSize = max(
-        paddedBounds.width / 6,
-        paddedBounds.height * 0.8,
-        25
+        paddedBounds.width / 8,
+        paddedBounds.height * 0.6,
+        15
       )
       let annotation = AnnotationItem(
         type: .blur(.pixelated),
