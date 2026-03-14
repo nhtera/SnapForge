@@ -59,10 +59,10 @@ struct BlurEffectRenderer {
     return (cropped, clampedRegion)
   }
 
-  // MARK: - Pixelate (Direct pixel sampling — Snapzy approach)
+  // MARK: - Pixelate (CIPixellate — GPU-accelerated)
 
-  /// Draw pixelated region using direct pixel sampling.
-  /// More reliable than CIPixellate for coordinate alignment.
+  /// Draw pixelated region using CIPixellate filter (professional mosaic effect).
+  /// Falls back to manual pixel sampling if CIPixellate fails.
   static func drawPixelatedRegion(
     in context: CGContext,
     sourceImage: NSImage,
@@ -74,12 +74,28 @@ struct BlurEffectRenderer {
       return
     }
 
-    drawPixelated(
-      croppedImage: croppedCG,
-      in: context,
-      destRect: clampedRegion,
-      pixelSize: pixelSize
+    // Use CIPixellate for professional mosaic effect
+    let ciImage = CIImage(cgImage: croppedCG)
+    let filter = CIFilter(name: "CIPixellate")
+    filter?.setValue(ciImage, forKey: kCIInputImageKey)
+    filter?.setValue(pixelSize, forKey: kCIInputScaleKey)
+    filter?.setValue(
+      CIVector(x: ciImage.extent.midX, y: ciImage.extent.midY),
+      forKey: kCIInputCenterKey
     )
+
+    guard let outputImage = filter?.outputImage else {
+      drawPixelated(croppedImage: croppedCG, in: context, destRect: clampedRegion, pixelSize: pixelSize)
+      return
+    }
+
+    let croppedOutput = outputImage.cropped(to: ciImage.extent)
+    guard let pixelatedCG = sharedCIContext.createCGImage(croppedOutput, from: ciImage.extent) else {
+      drawPixelated(croppedImage: croppedCG, in: context, destRect: clampedRegion, pixelSize: pixelSize)
+      return
+    }
+
+    context.draw(pixelatedCG, in: clampedRegion)
   }
 
   /// Draw pixelated version by sampling pixel colors and filling blocks

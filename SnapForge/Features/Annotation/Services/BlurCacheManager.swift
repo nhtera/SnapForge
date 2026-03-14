@@ -95,7 +95,7 @@ final class BlurCacheManager {
     return context.makeImage()
   }
 
-  /// Render pixelated region directly to context
+  /// Render pixelated region using CIPixellate filter
   private func renderPixelatedRegion(
     in context: CGContext,
     sourceImage: NSImage,
@@ -155,12 +155,28 @@ final class BlurCacheManager {
       return
     }
 
-    drawPixelated(
-      croppedImage: croppedImage,
-      in: context,
-      destRect: clampedDestRegion,
-      pixelSize: pixelSize
+    // Use CIPixellate for professional mosaic effect
+    let ciImage = CIImage(cgImage: croppedImage)
+    let filter = CIFilter(name: "CIPixellate")
+    filter?.setValue(ciImage, forKey: kCIInputImageKey)
+    filter?.setValue(pixelSize, forKey: kCIInputScaleKey)
+    filter?.setValue(
+      CIVector(x: ciImage.extent.midX, y: ciImage.extent.midY),
+      forKey: kCIInputCenterKey
     )
+
+    guard let outputImage = filter?.outputImage else {
+      drawPixelated(croppedImage: croppedImage, in: context, destRect: clampedDestRegion, pixelSize: pixelSize)
+      return
+    }
+
+    let croppedOutput = outputImage.cropped(to: ciImage.extent)
+    guard let pixelatedCG = BlurEffectRenderer.sharedCIContext.createCGImage(croppedOutput, from: ciImage.extent) else {
+      drawPixelated(croppedImage: croppedImage, in: context, destRect: clampedDestRegion, pixelSize: pixelSize)
+      return
+    }
+
+    context.draw(pixelatedCG, in: clampedDestRegion)
   }
 
   /// Draw pixelated version of cropped image region
