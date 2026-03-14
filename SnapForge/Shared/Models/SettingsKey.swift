@@ -51,4 +51,7 @@ enum SettingsKey {
     static let gifMaxWidth = "gifMaxWidth"
     static let gifQuality = "gifQuality"
     static let gifLoopCount = "gifLoopCount"
+
+    // Color Picker
+    static let colorPickerCopyFormat = "colorPickerCopyFormat"
 }

@@ -45,6 +45,12 @@ final class AnnotateState: ObservableObject {
   @Published var isCropShiftLocked = false
   var originalCropRect: CGRect?
 
+  // MARK: - Layers Panel State
+
+  @Published var isLayersPanelVisible = false
+  @Published var hiddenAnnotationIds: Set<UUID> = []
+  @Published var lockedAnnotationIds: Set<UUID> = []
+
   // MARK: - Undo/Redo
 
   @Published var canUndo = false
@@ -252,6 +258,10 @@ final class AnnotateState: ObservableObject {
   @discardableResult
   func selectAnnotation(at point: CGPoint) -> AnnotationItem? {
     for annotation in annotations.reversed() {
+      // Skip hidden or locked annotations
+      guard !hiddenAnnotationIds.contains(annotation.id),
+            !lockedAnnotationIds.contains(annotation.id) else { continue }
+
       let expandedBounds = annotation.bounds.insetBy(dx: -10, dy: -10)
       guard expandedBounds.contains(point) else { continue }
 
@@ -427,6 +437,52 @@ final class AnnotateState: ObservableObject {
     annotations.removeAll()
     selectedAnnotationId = nil
     editingTextAnnotationId = nil
+    hiddenAnnotationIds.removeAll()
+    lockedAnnotationIds.removeAll()
+  }
+
+  // MARK: - Layer Management
+
+  /// Toggle visibility of an annotation
+  func toggleVisibility(id: UUID) {
+    if hiddenAnnotationIds.contains(id) {
+      hiddenAnnotationIds.remove(id)
+    } else {
+      hiddenAnnotationIds.insert(id)
+      // Deselect if hiding the selected annotation
+      if selectedAnnotationId == id {
+        selectedAnnotationId = nil
+      }
+    }
+  }
+
+  /// Toggle lock state of an annotation
+  func toggleLock(id: UUID) {
+    if lockedAnnotationIds.contains(id) {
+      lockedAnnotationIds.remove(id)
+    } else {
+      lockedAnnotationIds.insert(id)
+      // Deselect if locking the selected annotation
+      if selectedAnnotationId == id {
+        selectedAnnotationId = nil
+      }
+    }
+  }
+
+  /// Move annotation from one index to another (for reordering layers)
+  func moveAnnotation(from source: IndexSet, to destination: Int) {
+    saveState()
+    annotations.move(fromOffsets: source, toOffset: destination)
+  }
+
+  /// Check if an annotation is visible
+  func isAnnotationVisible(_ id: UUID) -> Bool {
+    !hiddenAnnotationIds.contains(id)
+  }
+
+  /// Check if an annotation is locked
+  func isAnnotationLocked(_ id: UUID) -> Bool {
+    lockedAnnotationIds.contains(id)
   }
 }
 

@@ -15,6 +15,11 @@ struct AnnotationView: View {
 
   var body: some View {
     HSplitView {
+      // Layers panel (left sidebar, conditionally shown)
+      if state.isLayersPanelVisible {
+        LayersPanelView(state: state)
+      }
+
       // Canvas area
       GeometryReader { geo in
          ZStack {
@@ -68,6 +73,13 @@ struct AnnotationView: View {
 
         Divider()
 
+        Button(action: { state.isLayersPanelVisible.toggle() }) {
+          Image(systemName: state.isLayersPanelVisible ? "sidebar.leading" : "square.3.layers.3d")
+        }
+        .help(state.isLayersPanelVisible ? "Hide Layers" : "Show Layers")
+
+        Divider()
+
         Button("Export") {
           showExportPicker.toggle()
         }
@@ -76,6 +88,30 @@ struct AnnotationView: View {
           exportFormatPicker
         }
       }
+    }
+    // Tool keyboard shortcuts (work regardless of focus)
+    .background { toolShortcutButtons }
+  }
+
+  /// Hidden buttons that register keyboard shortcuts for each tool
+  @ViewBuilder
+  private var toolShortcutButtons: some View {
+    ForEach(AnnotationToolType.allCases) { tool in
+      Button("") {
+        // Skip if editing text (typing letters)
+        guard state.editingTextAnnotationId == nil else { return }
+        state.selectedTool = tool
+        // Auto-init crop when pressing shortcut
+        if tool == .crop && state.hasImage {
+          if state.cropRect == nil {
+            state.initializeCrop()
+          } else {
+            state.isCropActive = true
+          }
+        }
+      }
+      .keyboardShortcut(KeyEquivalent(tool.defaultShortcut), modifiers: [])
+      .hidden()
     }
   }
 

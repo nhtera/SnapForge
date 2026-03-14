@@ -69,6 +69,13 @@ final class HotkeyService {
             modifiers: [.maskCommand, .maskShift],
             label: "OCR Capture (⌘⇧O)"
         )
+
+        static let colorPicker = Hotkey(
+            id: "colorPicker",
+            keyCode: UInt16(kVK_ANSI_C),
+            modifiers: [.maskCommand, .maskShift],
+            label: "Pick Color (⌘⇧C)"
+        )
     }
 
     private var globalMonitor: Any?
@@ -81,6 +88,7 @@ final class HotkeyService {
         .captureWindow,
         .startRecording,
         .toggleOCR,
+        .colorPicker,
     ]
 
     var isListening = false

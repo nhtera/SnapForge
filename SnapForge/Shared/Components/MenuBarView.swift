@@ -97,6 +97,17 @@ struct MenuBarView: View {
                 }
 
                 MenuBarActionRow(
+                    icon: "eyedropper",
+                    label: String(localized: "menu.pick_color"),
+                    shortcut: "⌘⇧C",
+                    dismiss: dismiss
+                ) {
+                    Task {
+                        await ColorPickerService.shared.pickAndCopy()
+                    }
+                }
+
+                MenuBarActionRow(
                     icon: "pin.fill",
                     label: String(localized: "menu.pin_clipboard"),
                     shortcut: "",

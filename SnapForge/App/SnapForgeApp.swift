@@ -72,6 +72,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 CaptureSessionManager.shared.startCapture(mode: .ocrCapture)
             }
         }
+        hotkeys.register(hotkey: .colorPicker) { @Sendable in
+            Task { @MainActor in
+                await ColorPickerService.shared.pickAndCopy()
+            }
+        }
 
         hotkeys.startListening()
         print("⌨️ Global hotkeys registered and listening")

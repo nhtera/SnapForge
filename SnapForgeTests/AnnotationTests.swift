@@ -911,3 +911,230 @@ struct AnnotationWorkflowTests {
     #expect(state.annotations.count == 0)
   }
 }
+
+// MARK: - Layer Management Tests
+
+@MainActor
+struct LayerManagementTests {
+
+  private func makeState() -> AnnotateState {
+    AnnotateState()
+  }
+
+  private func makeRectAnnotation(
+    x: CGFloat = 50, y: CGFloat = 50, w: CGFloat = 100, h: CGFloat = 100,
+    color: Color = .red
+  ) -> AnnotationItem {
+    AnnotationItem(
+      type: .rectangle,
+      bounds: CGRect(x: x, y: y, width: w, height: h),
+      properties: AnnotationProperties(strokeColor: color, strokeWidth: 2)
+    )
+  }
+
+  // MARK: - Visibility Toggle
+
+  @Test func toggleVisibilityHidesAnnotation() {
+    let state = makeState()
+    let annotation = makeRectAnnotation()
+    state.annotations.append(annotation)
+    #expect(state.isAnnotationVisible(annotation.id))
+
+    state.toggleVisibility(id: annotation.id)
+    #expect(!state.isAnnotationVisible(annotation.id))
+    #expect(state.hiddenAnnotationIds.contains(annotation.id))
+  }
+
+  @Test func toggleVisibilityShowsAnnotation() {
+    let state = makeState()
+    let annotation = makeRectAnnotation()
+    state.annotations.append(annotation)
+
+    state.toggleVisibility(id: annotation.id) // hide
+    state.toggleVisibility(id: annotation.id) // show
+    #expect(state.isAnnotationVisible(annotation.id))
+    #expect(!state.hiddenAnnotationIds.contains(annotation.id))
+  }
+
+  @Test func hidingSelectedAnnotationDeselectsIt() {
+    let state = makeState()
+    let annotation = makeRectAnnotation()
+    state.annotations.append(annotation)
+    state.selectedAnnotationId = annotation.id
+
+    state.toggleVisibility(id: annotation.id)
+    #expect(state.selectedAnnotationId == nil)
+  }
+
+  // MARK: - Lock Toggle
+
+  @Test func toggleLockLocksAnnotation() {
+    let state = makeState()
+    let annotation = makeRectAnnotation()
+    state.annotations.append(annotation)
+    #expect(!state.isAnnotationLocked(annotation.id))
+
+    state.toggleLock(id: annotation.id)
+    #expect(state.isAnnotationLocked(annotation.id))
+    #expect(state.lockedAnnotationIds.contains(annotation.id))
+  }
+
+  @Test func toggleLockUnlocksAnnotation() {
+    let state = makeState()
+    let annotation = makeRectAnnotation()
+    state.annotations.append(annotation)
+
+    state.toggleLock(id: annotation.id) // lock
+    state.toggleLock(id: annotation.id) // unlock
+    #expect(!state.isAnnotationLocked(annotation.id))
+  }
+
+  @Test func lockingSelectedAnnotationDeselectsIt() {
+    let state = makeState()
+    let annotation = makeRectAnnotation()
+    state.annotations.append(annotation)
+    state.selectedAnnotationId = annotation.id
+
+    state.toggleLock(id: annotation.id)
+    #expect(state.selectedAnnotationId == nil)
+  }
+
+  // MARK: - Select Annotation Skips Hidden/Locked
+
+  @Test func selectAnnotationSkipsHiddenAnnotation() {
+    let state = makeState()
+    let annotation = makeRectAnnotation(x: 50, y: 50, w: 100, h: 100)
+    state.annotations.append(annotation)
+
+    state.toggleVisibility(id: annotation.id)
+    let hit = state.selectAnnotation(at: CGPoint(x: 75, y: 75))
+    #expect(hit == nil)
+    #expect(state.selectedAnnotationId == nil)
+  }
+
+  @Test func selectAnnotationSkipsLockedAnnotation() {
+    let state = makeState()
+    let annotation = makeRectAnnotation(x: 50, y: 50, w: 100, h: 100)
+    state.annotations.append(annotation)
+
+    state.toggleLock(id: annotation.id)
+    let hit = state.selectAnnotation(at: CGPoint(x: 75, y: 75))
+    #expect(hit == nil)
+    #expect(state.selectedAnnotationId == nil)
+  }
+
+  @Test func selectAnnotationSkipsHiddenButSelectsVisibleBelow() {
+    let state = makeState()
+    let bottom = makeRectAnnotation(x: 0, y: 0, w: 200, h: 200, color: .red)
+    let top = makeRectAnnotation(x: 50, y: 50, w: 100, h: 100, color: .blue)
+    state.annotations.append(bottom)
+    state.annotations.append(top)
+
+    // Hide the top annotation
+    state.toggleVisibility(id: top.id)
+
+    // Click should now select the bottom one
+    let hit = state.selectAnnotation(at: CGPoint(x: 75, y: 75))
+    #expect(hit?.id == bottom.id)
+  }
+
+  // MARK: - Move Annotation
+
+  @Test func moveAnnotationReordersCorrectly() {
+    let state = makeState()
+    let first = makeRectAnnotation(color: .red)
+    let second = makeRectAnnotation(color: .blue)
+    let third = makeRectAnnotation(color: .green)
+    state.annotations = [first, second, third]
+
+    // Move first to end
+    state.moveAnnotation(from: IndexSet(integer: 0), to: 3)
+    #expect(state.annotations[0].id == second.id)
+    #expect(state.annotations[1].id == third.id)
+    #expect(state.annotations[2].id == first.id)
+  }
+
+  @Test func moveAnnotationSavesUndoState() {
+    let state = makeState()
+    let first = makeRectAnnotation(color: .red)
+    let second = makeRectAnnotation(color: .blue)
+    state.annotations = [first, second]
+
+    state.moveAnnotation(from: IndexSet(integer: 0), to: 2)
+    #expect(state.canUndo)
+  }
+
+  // MARK: - Clear All Resets Layer State
+
+  @Test func clearAllResetsHiddenAndLockedSets() {
+    let state = makeState()
+    let annotation = makeRectAnnotation()
+    state.saveState()
+    state.annotations.append(annotation)
+
+    state.toggleVisibility(id: annotation.id)
+    state.toggleLock(id: annotation.id)
+    #expect(!state.hiddenAnnotationIds.isEmpty)
+    #expect(!state.lockedAnnotationIds.isEmpty)
+
+    state.clearAll()
+    #expect(state.hiddenAnnotationIds.isEmpty)
+    #expect(state.lockedAnnotationIds.isEmpty)
+  }
+
+  // MARK: - Layers Panel Toggle
+
+  @Test func layersPanelStartsHidden() {
+    let state = makeState()
+    #expect(state.isLayersPanelVisible == false)
+  }
+
+  @Test func layersPanelToggle() {
+    let state = makeState()
+    state.isLayersPanelVisible = true
+    #expect(state.isLayersPanelVisible == true)
+    state.isLayersPanelVisible = false
+    #expect(state.isLayersPanelVisible == false)
+  }
+}
+
+// MARK: - Annotation Type Display Name Tests
+
+struct AnnotationTypeDisplayNameTests {
+
+  @Test func rectangleDisplayName() {
+    let type: AnnotationType = .rectangle
+    #expect(type.displayName == "Rectangle")
+  }
+
+  @Test func textDisplayNameShowsPreview() {
+    let type: AnnotationType = .text("Hello World")
+    #expect(type.displayName == "Text: Hello World")
+  }
+
+  @Test func textDisplayNameTruncatesLongText() {
+    let type: AnnotationType = .text("This is a very long text annotation content that should be truncated")
+    #expect(type.displayName.starts(with: "Text: This is a very lon"))
+  }
+
+  @Test func counterDisplayNameShowsNumber() {
+    let type: AnnotationType = .counter(5)
+    #expect(type.displayName == "Counter #5")
+  }
+
+  @Test func blurDisplayNameShowsType() {
+    let type: AnnotationType = .blur(.pixelated)
+    #expect(type.displayName == "Blur (Pixelated)")
+  }
+
+  @Test func allTypesHaveIcons() {
+    let types: [AnnotationType] = [
+      .path([]), .rectangle, .filledRectangle, .oval,
+      .arrow(start: .zero, end: .zero), .line(start: .zero, end: .zero),
+      .text(""), .highlight([]), .blur(.gaussian), .counter(1),
+    ]
+    for type in types {
+      #expect(!type.icon.isEmpty, "\(type.displayName) should have an icon")
+    }
+  }
+}

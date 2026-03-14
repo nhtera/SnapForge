@@ -101,6 +101,24 @@ struct QuickAccessView: View {
 
                 Divider().frame(height: 30)
 
+                QuickActionButton(icon: "eye.slash.fill", label: "Blur") {
+                    Task {
+                        let blurred = await QuickBlurService.shared.autoBlurSensitiveAreas(in: capturedImage)
+                        AppEnvironment.shared.clipboardService.copyImage(blurred)
+                        AppCoordinator.shared.dismissQuickAccess()
+                    }
+                }
+
+                Divider().frame(height: 30)
+
+                QuickActionButton(icon: "sparkles.rectangle.stack", label: "BG") {
+                    let mockup = QuickMockupService.shared.applyLastMockup(to: capturedImage)
+                    AppEnvironment.shared.clipboardService.copyImage(mockup)
+                    AppCoordinator.shared.dismissQuickAccess()
+                }
+
+                Divider().frame(height: 30)
+
                 QuickActionButton(icon: "xmark", label: "Close") {
                     AppCoordinator.shared.dismissQuickAccess()
                 }

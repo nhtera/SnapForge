@@ -63,6 +63,8 @@ final class AppEnvironment {
             SettingsKey.gifMaxWidth: 640,
             SettingsKey.gifQuality: 0.8,
             SettingsKey.gifLoopCount: 0,
+            // Color Picker
+            SettingsKey.colorPickerCopyFormat: "hex",
         ])
     }
 }

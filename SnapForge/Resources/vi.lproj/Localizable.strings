@@ -9,6 +9,7 @@
 "menu.record_screen" = "Quay màn hình";
 "menu.stop_recording" = "Dừng quay";
 "menu.ocr_capture" = "Nhận dạng chữ (OCR)";
+"menu.pick_color" = "Chọn màu";
 "menu.pin_clipboard" = "Ghim từ Clipboard";
 "menu.capture_history" = "Lịch sử chụp";
 "menu.settings" = "Cài đặt";

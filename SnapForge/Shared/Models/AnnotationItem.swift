@@ -169,4 +169,38 @@ extension AnnotationType {
     if case .highlight = self { return true }
     return false
   }
+
+  /// Human-readable name for the layers panel
+  var displayName: String {
+    switch self {
+    case .path: return "Pencil"
+    case .rectangle: return "Rectangle"
+    case .filledRectangle: return "Filled Rect"
+    case .oval: return "Oval"
+    case .arrow: return "Arrow"
+    case .line: return "Line"
+    case .text(let content):
+      let preview = content.prefix(20)
+      return preview.isEmpty ? "Text" : "Text: \(preview)"
+    case .highlight: return "Highlight"
+    case .blur(let blurType): return "Blur (\(blurType.displayName))"
+    case .counter(let number): return "Counter #\(number)"
+    }
+  }
+
+  /// SF Symbol icon name for the layers panel
+  var icon: String {
+    switch self {
+    case .path: return "pencil"
+    case .rectangle: return "rectangle"
+    case .filledRectangle: return "rectangle.fill"
+    case .oval: return "circle"
+    case .arrow: return "arrow.up.right"
+    case .line: return "line.diagonal"
+    case .text: return "character.textbox"
+    case .highlight: return "highlighter"
+    case .blur: return "eye.slash"
+    case .counter: return "list.number"
+    }
+  }
 }
