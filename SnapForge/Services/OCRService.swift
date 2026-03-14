@@ -2,11 +2,21 @@ import Vision
 import AppKit
 
 /// OCR text recognition service using Apple Vision framework.
-/// Supports English and Vietnamese with accurate recognition.
+/// Supports 18 languages: English, French, Italian, German, Spanish, Portuguese,
+/// Chinese (Simplified/Traditional), Cantonese, Korean, Japanese, Russian, Ukrainian,
+/// Thai, Vietnamese, Arabic.
 @MainActor
 final class OCRService {
     static let shared = OCRService()
     private init() {}
+
+    /// All languages supported by Vision on macOS 15+
+    static let allSupportedLanguages: [String] = [
+        "en-US", "fr-FR", "it-IT", "de-DE", "es-ES", "pt-BR",
+        "zh-Hans", "zh-Hant", "yue-Hans", "yue-Hant",
+        "ko-KR", "ja-JP", "ru-RU", "uk-UA",
+        "th-TH", "vi-VT", "ar-SA",
+    ]
 
     struct OCRResult: Sendable {
         let text: String
@@ -17,7 +27,7 @@ final class OCRService {
     /// Recognize text in an image. Returns results sorted top-to-bottom, left-to-right.
     func recognizeText(
         in image: NSImage,
-        languages: [String] = ["en", "vi"]
+        languages: [String]? = nil
     ) async throws -> [OCRResult] {
         guard let cgImage = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else {
             throw OCRError.invalidImage
@@ -50,8 +60,9 @@ final class OCRService {
             }
 
             request.recognitionLevel = .accurate
-            request.recognitionLanguages = languages
+            request.recognitionLanguages = languages ?? OCRService.allSupportedLanguages
             request.usesLanguageCorrection = true
+            request.automaticallyDetectsLanguage = true
 
             let handler = VNImageRequestHandler(cgImage: cgImage, options: [:])
             do {

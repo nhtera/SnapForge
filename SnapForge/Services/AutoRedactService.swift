@@ -141,7 +141,12 @@ final class AutoRedactService: Sendable {
       }
     }
     request.recognitionLevel = .accurate
-    request.recognitionLanguages = ["en", "vi"]
+    request.recognitionLanguages = [
+      "en-US", "fr-FR", "it-IT", "de-DE", "es-ES", "pt-BR",
+      "zh-Hans", "zh-Hant", "ko-KR", "ja-JP",
+      "ru-RU", "uk-UA", "th-TH", "vi-VT", "ar-SA",
+    ]
+    request.automaticallyDetectsLanguage = true
 
     let handler = VNImageRequestHandler(cgImage: cgImage, options: [:])
     try? handler.perform([request])
