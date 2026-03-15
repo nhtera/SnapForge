@@ -33,7 +33,48 @@ final class AppCoordinator {
     private var stitcherWindow: NSWindow?
     private var screenDiffWindow: NSWindow?
 
-    private init() {}
+    private init() {
+        // Observe window close to auto-revert activation policy
+        NotificationCenter.default.addObserver(
+            forName: NSWindow.willCloseNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            guard let window = notification.object as? NSWindow else { return }
+            Task { @MainActor [weak self] in
+                self?.handleWindowClosed(window)
+            }
+        }
+    }
+
+    // MARK: - Activation Policy
+
+    /// Elevate to `.regular` so the app appears in Cmd+Tab.
+    private func elevateActivationPolicy() {
+        NSApp.setActivationPolicy(.regular)
+    }
+
+    /// Revert to `.accessory` (menu-bar-only) when no user-facing windows remain visible.
+    private func revertActivationPolicyIfNeeded() {
+        let hasVisibleWindows = [
+            onboardingWindow, annotationWindow, historyWindow,
+            stitcherWindow, screenDiffWindow
+        ].contains { $0?.isVisible == true }
+
+        if !hasVisibleWindows {
+            NSApp.setActivationPolicy(.accessory)
+        }
+    }
+
+    /// Handle tracked window being closed — nil out reference and check policy.
+    private func handleWindowClosed(_ window: NSWindow) {
+        if window === onboardingWindow { onboardingWindow = nil }
+        if window === annotationWindow { annotationWindow = nil }
+        if window === historyWindow { historyWindow = nil }
+        if window === stitcherWindow { stitcherWindow = nil }
+        if window === screenDiffWindow { screenDiffWindow = nil }
+        revertActivationPolicyIfNeeded()
+    }
 
     // MARK: - Onboarding
 
@@ -55,6 +96,7 @@ final class AppCoordinator {
         NSApp.activate(ignoringOtherApps: true)
 
         onboardingWindow = window
+        elevateActivationPolicy()
     }
 
     func dismissOnboarding() {
@@ -154,6 +196,7 @@ final class AppCoordinator {
         NSApp.activate(ignoringOtherApps: true)
 
         annotationWindow = window
+        elevateActivationPolicy()
     }
 
     func showBackgroundMockup(for image: NSImage) {
@@ -183,8 +226,8 @@ final class AppCoordinator {
         NSApp.activate(ignoringOtherApps: true)
 
         // Reuse annotationWindow reference for cleanup
-        annotationWindow?.close()
         annotationWindow = window
+        elevateActivationPolicy()
     }
 
     // MARK: - Floating Pin
@@ -575,6 +618,7 @@ final class AppCoordinator {
         NSApp.activate(ignoringOtherApps: true)
 
         historyWindow = window
+        elevateActivationPolicy()
     }
 
     // MARK: - Stitcher
@@ -603,6 +647,7 @@ final class AppCoordinator {
         NSApp.activate(ignoringOtherApps: true)
 
         stitcherWindow = window
+        elevateActivationPolicy()
     }
 
     // MARK: - Screen Diff
@@ -631,6 +676,7 @@ final class AppCoordinator {
         NSApp.activate(ignoringOtherApps: true)
 
         screenDiffWindow = window
+        elevateActivationPolicy()
     }
 
     // MARK: - Cleanup
