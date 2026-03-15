@@ -417,18 +417,22 @@ struct HistoryItemView: View {
 
     @ViewBuilder
     private var thumbnailView: some View {
-        if let image = NSImage(contentsOfFile: capture.filePath) {
-            Image(nsImage: image)
-                .resizable()
-                .aspectRatio(contentMode: .fill)
-        } else {
-            Rectangle()
-                .fill(Color(white: 0.15))
-                .overlay {
-                    Image(systemName: capture.type.icon)
-                        .font(.title2)
-                        .foregroundStyle(.secondary)
-                }
+        GeometryReader { geo in
+            if let image = NSImage(contentsOfFile: capture.filePath) {
+                Image(nsImage: image)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+                    .frame(width: geo.size.width, height: geo.size.height)
+                    .clipped()
+            } else {
+                Rectangle()
+                    .fill(Color(white: 0.15))
+                    .overlay {
+                        Image(systemName: capture.type.icon)
+                            .font(.title2)
+                            .foregroundStyle(.secondary)
+                    }
+            }
         }
     }
 
