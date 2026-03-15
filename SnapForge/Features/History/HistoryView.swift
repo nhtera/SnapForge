@@ -343,10 +343,12 @@ struct HistoryItemView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Thumbnail
+            // Thumbnail — fixed height, clipped to prevent tall images overflowing
             thumbnailView
-                .frame(height: 130)
                 .frame(maxWidth: .infinity)
+                .frame(height: 140)
+                .clipped()
+                .contentShape(Rectangle())
                 .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                 .overlay(alignment: .topTrailing) {
                     typeBadge.padding(6)
