@@ -11,7 +11,7 @@ struct BatchExportOptions {
   var maintainAspectRatio: Bool = true
 }
 
-/// Service for exporting multiple captures as a ZIP archive.
+/// Service for exporting multiple captures.
 @MainActor
 final class BatchExportService {
   static let shared = BatchExportService()
@@ -21,18 +21,23 @@ final class BatchExportService {
   var progress: Double = 0
   var currentItem: String = ""
   var isExporting: Bool = false
+  var errorMessage: String?
 
-  /// Export selected captures to a ZIP file.
-  /// Returns the URL of the created ZIP file, or nil on failure.
+  /// Export selected captures to a folder, then ZIP it.
+  /// Returns the URL of the resulting ZIP, or nil on failure.
   func exportBatch(
     captures: [HistoryCapture],
     options: BatchExportOptions
   ) async -> URL? {
-    guard !captures.isEmpty else { return nil }
+    guard !captures.isEmpty else {
+      errorMessage = "No captures to export"
+      return nil
+    }
 
     isExporting = true
     progress = 0
     currentItem = ""
+    errorMessage = nil
 
     let exportService = ExportService()
     let tempDir = FileManager.default.temporaryDirectory
@@ -40,104 +45,133 @@ final class BatchExportService {
 
     do {
       try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+      print("✅ Batch export: Created temp dir at \(tempDir.path)")
+    } catch {
+      print("❌ Batch export: Failed to create temp dir: \(error)")
+      errorMessage = "Failed to create temp directory"
+      isExporting = false
+      return nil
+    }
 
-      // Process each capture
-      for (index, capture) in captures.enumerated() {
-        currentItem = capture.displayName
-        progress = Double(index) / Double(captures.count)
+    // Process each capture
+    var exportedCount = 0
+    for (index, capture) in captures.enumerated() {
+      currentItem = capture.displayName
+      progress = Double(index) / Double(captures.count)
 
-        guard let image = NSImage(contentsOfFile: capture.filePath) else { continue }
+      guard let image = NSImage(contentsOfFile: capture.filePath) else {
+        print("⚠️ Batch export: Skipping \(capture.filename) — could not load image")
+        continue
+      }
 
-        let processedImage: NSImage
-        if options.resizeEnabled {
-          processedImage = resizeImage(image, options: options)
-        } else {
-          processedImage = image
-        }
+      let processedImage: NSImage
+      if options.resizeEnabled {
+        processedImage = resizeImage(image, options: options)
+      } else {
+        processedImage = image
+      }
 
-        let baseName = (capture.filename as NSString).deletingPathExtension
-        let filename = "\(baseName).\(options.format.fileExtension)"
-        let fileURL = tempDir.appendingPathComponent(filename)
+      let baseName = (capture.filename as NSString).deletingPathExtension
+      let filename = "\(baseName).\(options.format.fileExtension)"
+      let fileURL = tempDir.appendingPathComponent(filename)
 
+      do {
         try exportService.exportImage(
           processedImage,
           format: options.format,
           quality: options.quality,
           to: fileURL
         )
-
-        // Yield to keep UI responsive
-        await Task.yield()
+        exportedCount += 1
+        print("✅ Batch export: Exported \(filename)")
+      } catch {
+        print("❌ Batch export: Failed to export \(filename): \(error)")
       }
 
-      progress = 0.95
-      currentItem = "Creating ZIP…"
+      // Yield to keep UI responsive
+      await Task.yield()
+    }
 
-      // Create ZIP using NSFileCoordinator (sandbox-safe)
-      let zipURL = try await createZip(from: tempDir)
-
-      // Clean up temp directory
-      try? FileManager.default.removeItem(at: tempDir)
-
-      progress = 1.0
-      currentItem = "Done"
-      isExporting = false
-
-      return zipURL
-
-    } catch {
-      print("❌ Batch export failed: \(error)")
+    guard exportedCount > 0 else {
+      print("❌ Batch export: No images were exported")
+      errorMessage = "Failed to export any images"
       try? FileManager.default.removeItem(at: tempDir)
       isExporting = false
       return nil
     }
-  }
 
-  /// Create ZIP from a directory using NSFileCoordinator (sandbox-safe).
-  private func createZip(from sourceDir: URL) async throws -> URL {
-    try await withCheckedThrowingContinuation { continuation in
-      let coordinator = NSFileCoordinator()
-      var error: NSError?
+    progress = 0.9
+    currentItem = "Creating ZIP…"
 
-      // .forUploading on a directory automatically creates a temporary ZIP
-      coordinator.coordinate(
-        readingItemAt: sourceDir,
-        options: .forUploading,
-        error: &error
-      ) { zipTempURL in
-        let destURL = FileManager.default.temporaryDirectory
+    // Create ZIP using NSFileCoordinator (sandbox-safe)
+    let coordinator = NSFileCoordinator()
+    var coordError: NSError?
+    var zipResult: URL?
+
+    coordinator.coordinate(
+      readingItemAt: tempDir,
+      options: .forUploading,
+      error: &coordError
+    ) { tempZipURL in
+      do {
+        let destZipURL = FileManager.default.temporaryDirectory
           .appendingPathComponent("SnapForge_Export_\(UUID().uuidString).zip")
-        do {
-          try? FileManager.default.removeItem(at: destURL)
-          try FileManager.default.copyItem(at: zipTempURL, to: destURL)
-          print("✅ Batch export ZIP created: \(destURL.path)")
-          continuation.resume(returning: destURL)
-        } catch {
-          continuation.resume(throwing: error)
-        }
-      }
-
-      if let error {
-        continuation.resume(throwing: error)
+        try? FileManager.default.removeItem(at: destZipURL)
+        try FileManager.default.copyItem(at: tempZipURL, to: destZipURL)
+        zipResult = destZipURL
+        print("✅ Batch export: ZIP created at \(destZipURL.path)")
+      } catch {
+        print("❌ Batch export: Failed to copy ZIP: \(error)")
       }
     }
+
+    // Clean up temp directory
+    try? FileManager.default.removeItem(at: tempDir)
+
+    if let coordError {
+      print("❌ Batch export: NSFileCoordinator error: \(coordError)")
+      errorMessage = "Failed to create ZIP: \(coordError.localizedDescription)"
+      isExporting = false
+      return nil
+    }
+
+    guard let finalURL = zipResult else {
+      errorMessage = "Failed to create ZIP archive"
+      isExporting = false
+      return nil
+    }
+
+    progress = 1.0
+    currentItem = "Done"
+    isExporting = false
+
+    return finalURL
   }
 
   /// Show save panel and move ZIP to user-chosen location.
   func saveWithPanel(zipURL: URL) {
+    // Bring app to front so NSSavePanel is visible
+    NSApp.activate(ignoringOtherApps: true)
+
     let panel = NSSavePanel()
     panel.nameFieldStringValue = "SnapForge_Export.zip"
     panel.allowedContentTypes = [.zip]
-    panel.begin { response in
-      guard response == .OK, let saveURL = panel.url else { return }
-      do {
-        try? FileManager.default.removeItem(at: saveURL)
-        try FileManager.default.moveItem(at: zipURL, to: saveURL)
-        NSWorkspace.shared.activateFileViewerSelecting([saveURL])
-        print("✅ Batch export saved to: \(saveURL.path)")
-      } catch {
-        print("❌ Failed to save ZIP: \(error)")
-      }
+    panel.canCreateDirectories = true
+
+    let response = panel.runModal()
+    guard response == .OK, let saveURL = panel.url else {
+      // User cancelled — clean up temp ZIP
+      try? FileManager.default.removeItem(at: zipURL)
+      return
+    }
+
+    do {
+      try? FileManager.default.removeItem(at: saveURL)
+      try FileManager.default.moveItem(at: zipURL, to: saveURL)
+      NSWorkspace.shared.activateFileViewerSelecting([saveURL])
+      print("✅ Batch export saved to: \(saveURL.path)")
+    } catch {
+      print("❌ Failed to save ZIP: \(error)")
     }
   }
 

@@ -9,6 +9,7 @@ struct BatchExportView: View {
   @State private var currentItem: String = ""
   @State private var exportComplete = false
   @State private var resultURL: URL?
+  @State private var errorMessage: String?
   @Environment(\.dismiss) private var dismiss
 
   var body: some View {
@@ -165,8 +166,19 @@ struct BatchExportView: View {
         }
       }
 
+      if let errorMessage {
+        HStack(spacing: 4) {
+          Image(systemName: "exclamationmark.triangle.fill")
+            .foregroundStyle(.orange)
+          Text(errorMessage)
+            .font(.system(size: 11))
+            .foregroundStyle(.orange)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+      }
+
       HStack {
-        if exportComplete, let url = resultURL {
+        if exportComplete {
           Image(systemName: "checkmark.circle.fill")
             .foregroundStyle(.green)
           Text("Export complete!")
@@ -174,10 +186,6 @@ struct BatchExportView: View {
             .foregroundStyle(.green)
 
           Spacer()
-
-          Button("Show in Finder") {
-            NSWorkspace.shared.activateFileViewerSelecting([url])
-          }
 
           Button("Done") { dismiss() }
             .buttonStyle(.borderedProminent)
@@ -213,6 +221,7 @@ struct BatchExportView: View {
     isExporting = true
     progress = 0
     currentItem = "Starting…"
+    errorMessage = nil
 
     Task {
       let service = BatchExportService.shared
@@ -236,6 +245,9 @@ struct BatchExportView: View {
         resultURL = url
         exportComplete = true
         service.saveWithPanel(zipURL: url)
+      } else {
+        // Show error from service
+        errorMessage = service.errorMessage ?? "Export failed — check console for details"
       }
     }
   }
