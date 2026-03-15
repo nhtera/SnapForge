@@ -156,7 +156,7 @@ final class CaptureSessionManager {
         SoundService.playTink()
     }
 
-    /// Window capture with clear background + window highlight (CleanShot X style)
+    /// Window capture with clear background + window highlight
     private func showWindowOverlayWithBlur() {
         guard let screen = NSScreen.main else { return }
         let screenFrame = screen.frame
@@ -249,7 +249,7 @@ final class CaptureSessionManager {
                 if text.isEmpty {
                     // No text found
                     print("⚠️ OCR: No text found in selection")
-                    env.menuBarIconName = "hammer.fill"
+                    env.menuBarIconName = "viewfinder"
                     SoundService.playError()
                 } else {
                     // Step 4: Copy to clipboard
@@ -263,11 +263,11 @@ final class CaptureSessionManager {
 
                     // Brief green checkmark, then restore normal icon
                     try? await Task.sleep(for: .seconds(1.5))
-                    env.menuBarIconName = "hammer.fill"
+                    env.menuBarIconName = "viewfinder"
                 }
             } catch {
                 print("❌ OCR capture failed: \(error)")
-                env.menuBarIconName = "hammer.fill"
+                env.menuBarIconName = "viewfinder"
                 SoundService.playError()
             }
         }
@@ -412,7 +412,7 @@ final class CaptureSessionManager {
     private var countdownWindow: NSWindow?
 
     private func startTimedCapture() {
-        // CleanShot X flow: select area first → then countdown → then capture
+        // Capture flow: select area first → then countdown → then capture
         showOverlay(mode: .timedArea)
     }
 

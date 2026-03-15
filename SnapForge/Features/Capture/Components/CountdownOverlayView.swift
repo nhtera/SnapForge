@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Full-screen countdown overlay for Self-Timer Capture — CleanShot X style.
+/// Full-screen countdown overlay for Self-Timer Capture.
 /// Shows the selected area with a thin border, dimmed surroundings, and a compact
 /// countdown badge at the top-center of the selection.
 /// Hover over the badge to reveal Cancel; click to dismiss.
@@ -89,7 +89,7 @@ struct CountdownOverlayView: View {
         }
     }
 
-    // MARK: - Countdown Badge (CleanShot X style)
+    // MARK: - Countdown Badge
 
     private var countdownBadge: some View {
         Button(action: onCancel) {

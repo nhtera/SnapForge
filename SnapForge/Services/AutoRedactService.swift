@@ -77,6 +77,7 @@ final class AutoRedactService: Sendable {
     let width = image.size.width
     let height = image.size.height
 
+    // Detached to avoid blocking @MainActor with CPU-intensive Vision detection
     return await Task.detached(priority: .userInitiated) {
       var regions: [RedactRegion] = []
 

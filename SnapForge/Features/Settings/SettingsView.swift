@@ -1,7 +1,7 @@
 import SwiftUI
 import ServiceManagement
 
-/// Settings window — CleanShot X-inspired layout adapted for SnapForge.
+/// Settings window with tabbed layout for SnapForge preferences.
 /// Tabs: General, Screenshots, Recording, Quick Access, Shortcuts, Permissions, About
 struct SettingsView: View {
     var body: some View {
@@ -642,7 +642,7 @@ struct AboutSettingsTab: View {
         VStack(spacing: 16) {
             Spacer()
 
-            Image(systemName: "hammer.fill")
+            Image(systemName: "viewfinder")
                 .font(.system(size: 64))
                 .foregroundStyle(
                     LinearGradient(

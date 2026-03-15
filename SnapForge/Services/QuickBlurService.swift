@@ -22,7 +22,7 @@ final class QuickBlurService: Sendable {
     let imageWidth = image.size.width
     let imageHeight = image.size.height
 
-    // Run entire pipeline (detection + rendering) off main thread
+    // Detached to avoid blocking @MainActor with CPU-intensive image processing
     let resultData: Data? = await Task.detached(priority: .userInitiated) {
       var regions: [CGRect] = []
 

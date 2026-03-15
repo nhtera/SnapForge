@@ -27,13 +27,18 @@ enum DiffMode: String, CaseIterable, Identifiable {
 
 /// Screen Diff view — compare two screenshots with multiple visualization modes.
 struct ScreenDiffView: View {
-  @State var imageA: NSImage?
-  @State var imageB: NSImage?
+  @State private var imageA: NSImage?
+  @State private var imageB: NSImage?
   @State private var diffMode: DiffMode = .sideBySide
   @State private var overlayOpacity: Double = 0.5
   @State private var sliderPosition: CGFloat = 0.5
   @State private var diffImage: NSImage?
   @State private var diffPercentage: Double = 0
+
+  init(imageA: NSImage? = nil, imageB: NSImage? = nil) {
+    _imageA = State(initialValue: imageA)
+    _imageB = State(initialValue: imageB)
+  }
 
   var body: some View {
     VStack(spacing: 0) {
@@ -61,7 +66,7 @@ struct ScreenDiffView: View {
         dropZonesView
       }
     }
-    .onAppear { generateDiff() }
+    .task { generateDiff() }
     .onChange(of: diffMode) { generateDiff() }
   }
 

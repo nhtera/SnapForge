@@ -288,7 +288,7 @@ final class DrawingCanvasNSView: NSView {
       }
     }
 
-    // Commit and finalize current text editing (CleanShotX style).
+    // Commit and finalize current text editing.
     // TextEditOverlay live-syncs editingText → annotation on every keystroke,
     // so the annotation already has the latest text. We just need to:
     // 1. Clear the editing state

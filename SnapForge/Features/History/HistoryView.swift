@@ -155,7 +155,7 @@ struct HistoryView: View {
         }
         .searchable(text: $viewModel.searchText, prompt: "Search captures, tags, text…")
         .navigationTitle("Capture History")
-        .onAppear { viewModel.loadCaptures() }
+        .task { viewModel.loadCaptures() }
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Button(action: {

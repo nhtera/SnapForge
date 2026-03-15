@@ -1,7 +1,7 @@
 import SwiftUI
 import AVFoundation
 
-// MARK: - Onboarding Flow (4 steps, adapted from Snapzy)
+// MARK: - Onboarding Flow (4 steps)
 
 struct OnboardingView: View {
     @State private var currentStep = 0
@@ -554,7 +554,7 @@ private struct OnboardingPrimaryButton: ButtonStyle {
                 Capsule()
                     .fill(.white.opacity(0.18))
             )
-            .overlay(Capsule().stroke(.white.opacity(0.25), lineWidth: 1))
+            .overlay { Capsule().stroke(.white.opacity(0.25), lineWidth: 1) }
             .opacity(configuration.isPressed ? 0.8 : 1.0)
     }
 }
@@ -570,7 +570,7 @@ private struct OnboardingSecondaryButton: ButtonStyle {
                 Capsule()
                     .fill(.white.opacity(0.08))
             )
-            .overlay(Capsule().stroke(.white.opacity(0.15), lineWidth: 1))
+            .overlay { Capsule().stroke(.white.opacity(0.15), lineWidth: 1) }
             .opacity(configuration.isPressed ? 0.7 : 1.0)
     }
 }
@@ -586,7 +586,7 @@ private struct OnboardingSuccessButton: ButtonStyle {
                 Capsule()
                     .fill(Color.green.opacity(0.3))
             )
-            .overlay(Capsule().stroke(.green.opacity(0.5), lineWidth: 1))
+            .overlay { Capsule().stroke(.green.opacity(0.5), lineWidth: 1) }
             .opacity(configuration.isPressed ? 0.8 : 1.0)
     }
 }

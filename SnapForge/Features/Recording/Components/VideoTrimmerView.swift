@@ -130,7 +130,7 @@ struct VideoTrimmerView: View {
             .padding()
         }
         .frame(minWidth: 600, minHeight: 450)
-        .onAppear { loadVideo() }
+        .task { loadVideo() }
     }
 
     // MARK: - Helpers
@@ -144,10 +144,8 @@ struct VideoTrimmerView: View {
                 let asset = AVURLAsset(url: videoURL)
                 let dur = try await asset.load(.duration)
                 let seconds = CMTimeGetSeconds(dur)
-                await MainActor.run {
-                    duration = seconds
-                    trimEnd = seconds
-                }
+                duration = seconds
+                trimEnd = seconds
             } catch {
                 print("⚠️ Failed to load video duration: \(error)")
             }
@@ -181,12 +179,12 @@ struct VideoTrimmerView: View {
 
         Task {
             let asset = AVURLAsset(url: videoURL)
-            let storage = StorageService()
+            let storage = AppEnvironment.shared.storageService
             let outputFilename = storage.generateVideoFilename(format: "mp4")
             let outputURL = storage.snapForgeDirectory.appendingPathComponent(outputFilename)
 
             guard let exportSession = AVAssetExportSession(asset: asset, presetName: AVAssetExportPresetHighestQuality) else {
-                await MainActor.run { isExporting = false }
+                isExporting = false
                 return
             }
 
@@ -199,17 +197,13 @@ struct VideoTrimmerView: View {
 
             do {
                 try await exportSession.export(to: outputURL, as: .mp4)
-                await MainActor.run {
-                    isExporting = false
-                    print("✅ Trimmed video exported: \(outputURL.lastPathComponent)")
-                    NSWorkspace.shared.activateFileViewerSelecting([outputURL])
-                    dismiss()
-                }
+                isExporting = false
+                print("✅ Trimmed video exported: \(outputURL.lastPathComponent)")
+                NSWorkspace.shared.activateFileViewerSelecting([outputURL])
+                dismiss()
             } catch {
-                await MainActor.run {
-                    isExporting = false
-                    print("❌ Export failed: \(error)")
-                }
+                isExporting = false
+                print("❌ Export failed: \(error)")
             }
         }
     }

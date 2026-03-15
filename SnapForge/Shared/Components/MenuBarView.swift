@@ -10,7 +10,7 @@ struct MenuBarView: View {
         VStack(spacing: 0) {
             // Header
             HStack {
-                Image(systemName: "hammer.fill")
+                Image(systemName: "viewfinder")
                     .font(.title2)
                     .foregroundStyle(Color.accentColor)
                 Text(String(localized: "menu.title"))

@@ -1,7 +1,7 @@
 import SwiftUI
 import AppKit
 
-/// Floating preview panel — CleanShotX-style scroll capture preview.
+/// Floating preview panel for scroll capture progress.
 struct ScrollCapturePreviewView: View {
     let image: NSImage?
     let frameCount: Int

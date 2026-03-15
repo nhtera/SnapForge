@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// Overlay view for crop tool showing crop region, dimming, handles, and grid.
-/// Ported from Snapzy's CropOverlayView.
+/// Crop overlay with draggable handles for adjusting the crop region.
 struct CropOverlayView: View {
   var state: AnnotateState
   let scale: CGFloat

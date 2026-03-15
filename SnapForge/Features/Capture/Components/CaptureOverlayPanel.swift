@@ -93,7 +93,7 @@ class CaptureOverlayNSView: NSView {
         }
     }
 
-    // MARK: - Window Mode Drawing (CleanShot X style)
+    // MARK: - Window Mode Drawing
 
     private func drawWindowMode(context: CGContext) {
         // Very subtle dim on entire screen (barely visible, just to show overlay is active)

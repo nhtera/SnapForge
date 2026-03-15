@@ -56,7 +56,7 @@ final class PermissionService {
         }
     }
 
-    /// Request screen recording permission using a 3-step approach (adapted from Snapzy):
+    /// Request screen recording permission using a 3-step approach:
     /// 1. Fast-path if already granted via CGPreflightScreenCaptureAccess
     /// 2. Try SCShareableContent.current — auto-adds app on macOS 13-14
     /// 3. Fallback: CGRequestScreenCaptureAccess → opens System Settings (macOS 15+)

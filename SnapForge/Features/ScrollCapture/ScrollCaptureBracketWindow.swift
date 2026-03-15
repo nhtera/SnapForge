@@ -1,7 +1,7 @@
 import AppKit
 
 /// Full-screen dim overlay with a clear cutout for the capture zone.
-/// CleanShotX-style: dark overlay outside, clear inside with subtle border and corner brackets.
+/// Scroll capture bracket: dark overlay outside, clear inside with subtle border and corner brackets.
 final class ScrollCaptureBracketWindow: NSPanel {
 
     private let captureRect: CGRect  // NS coordinates (bottom-left origin)

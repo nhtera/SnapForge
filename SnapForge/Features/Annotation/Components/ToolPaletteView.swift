@@ -84,7 +84,7 @@ struct ToolPaletteView: View {
             Circle()
               .fill(color)
               .frame(width: 18, height: 18)
-              .overlay(Circle().stroke(.secondary.opacity(0.3), lineWidth: 1))
+              .overlay { Circle().stroke(.secondary.opacity(0.3), lineWidth: 1) }
               .onTapGesture {
                 state.strokeColor = color
                 // Also update selected annotation in real-time

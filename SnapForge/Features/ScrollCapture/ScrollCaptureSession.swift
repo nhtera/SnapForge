@@ -342,7 +342,7 @@ final class ScrollCaptureSession {
     private func showHelp() {
         print("📖 showHelp() called from toolbar")
 
-        // Hide all UI panels (CleanShotX-style: clean screen while showing help)
+        // Hide all UI panels for a clean screen while showing help
         bracketWindow?.orderOut(nil)
         toolbarPanel?.dismiss()
         previewPanel?.dismiss()

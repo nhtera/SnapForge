@@ -2,13 +2,18 @@ import SwiftUI
 
 /// Stitcher view — arrange multiple screenshots and stitch them into a single image.
 struct StitcherView: View {
-  @State var images: [NSImage]
+  @State private var images: [NSImage]
   @State private var config = StitchConfiguration()
   @State private var previewImage: NSImage?
   @State private var showExportPicker = false
   @State private var exportFormat: ImageExportFormat = .png
   @State private var exportQuality: CGFloat = 0.9
   @State private var zoomScale: CGFloat = 1.0
+  @State private var localBackgroundColor = Color(nsColor: .windowBackgroundColor)
+
+  init(images: [NSImage]) {
+    _images = State(initialValue: images)
+  }
 
   private let zoomRange: ClosedRange<CGFloat> = 0.1...3.0
 
@@ -290,14 +295,12 @@ struct StitcherView: View {
 
             Spacer()
 
-            ColorPicker("", selection: Binding(
-              get: { Color(nsColor: config.backgroundColor) },
-              set: { newColor in
-                config.backgroundColor = NSColor(newColor)
+            ColorPicker("", selection: $localBackgroundColor)
+              .labelsHidden()
+              .onChange(of: localBackgroundColor) { _, newValue in
+                config.backgroundColor = NSColor(newValue)
                 updatePreview()
               }
-            ))
-            .labelsHidden()
           }
         }
 
@@ -347,7 +350,7 @@ struct StitcherView: View {
       HStack(spacing: 12) {
         Button("Copy") {
           if let preview = previewImage {
-            ClipboardService().copyImage(preview)
+            AppEnvironment.shared.clipboardService.copyImage(preview)
           }
           showExportPicker = false
         }
@@ -411,8 +414,8 @@ struct StitcherView: View {
 
   private func saveStitchedImage() {
     guard let preview = previewImage else { return }
-    let exportService = ExportService()
-    let storage = StorageService()
+    let exportService = AppEnvironment.shared.exportService
+    let storage = AppEnvironment.shared.storageService
     let filename = exportService.generateFilename(format: exportFormat)
     let url = storage.snapForgeDirectory.appendingPathComponent(filename)
 

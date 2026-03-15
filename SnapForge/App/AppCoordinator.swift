@@ -15,7 +15,7 @@ private class FirstMouseView: NSView {
 }
 
 /// Central coordinator for window management, z-ordering, and navigation.
-/// Follows Snapzy's Coordinator Pattern — single source of truth for all window operations.
+/// Single source of truth for all window operations (Coordinator Pattern).
 @MainActor
 @Observable
 final class AppCoordinator {

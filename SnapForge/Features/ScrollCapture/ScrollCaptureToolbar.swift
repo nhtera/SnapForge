@@ -9,7 +9,7 @@ enum ScrollCaptureState: Equatable {
     case done
 }
 
-/// Floating toolbar for scroll capture — CleanShotX-style design.
+/// Floating toolbar for scroll capture with start/done/cancel actions.
 struct ScrollCaptureToolbarView: View {
     let state: ScrollCaptureState
     let frameCount: Int

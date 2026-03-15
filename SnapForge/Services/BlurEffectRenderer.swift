@@ -99,7 +99,7 @@ struct BlurEffectRenderer {
   }
 
   /// Draw pixelated version by sampling pixel colors and filling blocks
-  /// Uses direct dataProvider access (matching Snapzy's approach)
+  /// Uses direct dataProvider access for pixel-level manipulation
   private static func drawPixelated(
     croppedImage: CGImage,
     in context: CGContext,
@@ -113,7 +113,7 @@ struct BlurEffectRenderer {
     let imageWidth = croppedImage.width
     let imageHeight = croppedImage.height
 
-    // Read pixel data directly from dataProvider (Snapzy approach)
+    // Read pixel data directly from dataProvider
     guard let dataProvider = croppedImage.dataProvider,
           let data = dataProvider.data,
           let bytes = CFDataGetBytePtr(data) else {

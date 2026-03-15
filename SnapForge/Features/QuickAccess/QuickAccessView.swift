@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// Quick Access Overlay — appears after every capture with quick actions.
-/// Redesigned with a clean, modern toolbar-style layout inspired by CleanShotX.
+/// Post-capture quick access toolbar with a clean, modern layout.
 struct QuickAccessView: View {
   let capturedImage: NSImage
   @State private var isHovering = false
