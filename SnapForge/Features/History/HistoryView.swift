@@ -4,6 +4,10 @@ import SwiftUI
 struct HistoryView: View {
     @State private var viewModel = HistoryViewModel()
     @State private var showBatchExport = false
+    // Drag selection state
+    @State private var dragSelectionRect: CGRect?
+    @State private var dragStart: CGPoint?
+    @State private var itemFrames: [UUID: CGRect] = [:]
 
     var body: some View {
         VStack(spacing: 0) {
@@ -40,6 +44,14 @@ struct HistoryView: View {
                                     viewModel: viewModel,
                                     isMultiSelectMode: viewModel.isMultiSelectMode,
                                     isSelected: viewModel.selectedCaptureIds.contains(capture.id)
+                                )
+                                .background(
+                                    GeometryReader { geo in
+                                        Color.clear.preference(
+                                            key: ItemFramePreferenceKey.self,
+                                            value: [capture.id: geo.frame(in: .named("historyGrid"))]
+                                        )
+                                    }
                                 )
                                 .onTapGesture {
                                     if viewModel.isMultiSelectMode {
@@ -87,6 +99,48 @@ struct HistoryView: View {
                         }
                         .padding(16)
                         .padding(.bottom, viewModel.isMultiSelectMode ? 70 : 0)
+                    }
+                    .coordinateSpace(name: "historyGrid")
+                    .onPreferenceChange(ItemFramePreferenceKey.self) { frames in
+                        itemFrames.merge(frames) { _, new in new }
+                    }
+                    .gesture(
+                        DragGesture(minimumDistance: 15, coordinateSpace: .named("historyGrid"))
+                            .onChanged { value in
+                                // Auto-enter multi-select mode on drag
+                                if !viewModel.isMultiSelectMode {
+                                    withAnimation(.easeInOut(duration: 0.15)) {
+                                        viewModel.isMultiSelectMode = true
+                                    }
+                                }
+
+                                if dragStart == nil {
+                                    dragStart = value.startLocation
+                                    viewModel.selectedCaptureIds.removeAll()
+                                }
+
+                                let origin = CGPoint(
+                                    x: min(value.startLocation.x, value.location.x),
+                                    y: min(value.startLocation.y, value.location.y)
+                                )
+                                let size = CGSize(
+                                    width: abs(value.location.x - value.startLocation.x),
+                                    height: abs(value.location.y - value.startLocation.y)
+                                )
+                                let selRect = CGRect(origin: origin, size: size)
+                                dragSelectionRect = selRect
+
+                                updateDragSelection(rect: selRect)
+                            }
+                            .onEnded { _ in
+                                withAnimation(.easeOut(duration: 0.2)) {
+                                    dragSelectionRect = nil
+                                }
+                                dragStart = nil
+                            }
+                    )
+                    .overlay {
+                        dragSelectionOverlay
                     }
 
                     // Multi-select floating action bar
@@ -139,6 +193,36 @@ struct HistoryView: View {
         .sheet(isPresented: $showBatchExport) {
             BatchExportView(captures: viewModel.selectedItems)
         }
+    }
+
+    // MARK: - Drag Selection Overlay
+
+    @ViewBuilder
+    private var dragSelectionOverlay: some View {
+        // The rubber-band selection rectangle (visual only, doesn't block clicks)
+        GeometryReader { _ in
+            if let rect = dragSelectionRect {
+                Rectangle()
+                    .fill(Color.accentColor.opacity(0.12))
+                    .overlay {
+                        Rectangle()
+                            .strokeBorder(Color.accentColor.opacity(0.6), lineWidth: 1)
+                    }
+                    .frame(width: rect.width, height: rect.height)
+                    .position(x: rect.midX, y: rect.midY)
+            }
+        }
+        .allowsHitTesting(false)
+    }
+
+    private func updateDragSelection(rect: CGRect) {
+        var newSelection = Set<UUID>()
+        for capture in viewModel.filteredCaptures {
+            if let frame = itemFrames[capture.id], frame.intersects(rect) {
+                newSelection.insert(capture.id)
+            }
+        }
+        viewModel.selectedCaptureIds = newSelection
     }
 
     // MARK: - Multi-Select Action Bar
@@ -724,5 +808,15 @@ struct HistoryCapture: Identifiable {
             case .gif: "GIF"
             }
         }
+    }
+}
+
+// MARK: - Item Frame Preference Key
+
+/// Collects each grid item's frame for drag-selection intersection testing.
+struct ItemFramePreferenceKey: PreferenceKey {
+    nonisolated(unsafe) static var defaultValue: [UUID: CGRect] = [:]
+    static func reduce(value: inout [UUID: CGRect], nextValue: () -> [UUID: CGRect]) {
+        value.merge(nextValue()) { _, new in new }
     }
 }
