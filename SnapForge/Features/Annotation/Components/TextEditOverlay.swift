@@ -55,11 +55,13 @@ struct TextEditOverlay: View {
             x: displayBounds.minX + max(displayBounds.width, minTextFieldWidth) / 2,
             y: displayBounds.minY + displayBounds.height / 2
           )
-          .task {
+          .onAppear {
             editingText = currentText
             // Delay focus to ensure view is ready
-            try? await Task.sleep(for: .milliseconds(50))
-            isFocused = true
+            Task { @MainActor in
+              try? await Task.sleep(for: .milliseconds(50))
+              isFocused = true
+            }
           }
           .onSubmit {
             commitEdit(id: editingId)
