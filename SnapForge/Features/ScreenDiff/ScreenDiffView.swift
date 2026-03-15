@@ -81,12 +81,12 @@ struct ScreenDiffView: View {
 
       if diffMode == .overlay {
         HStack(spacing: 6) {
-          Text("Opacity")
+          Text("Slider")
             .font(.caption)
             .foregroundStyle(.secondary)
-          Slider(value: $overlayOpacity, in: 0...1)
+          Slider(value: $sliderPosition, in: 0...1)
             .frame(width: 120)
-          Text("\(Int(overlayOpacity * 100))%")
+          Text("\(Int(sliderPosition * 100))%")
             .font(.system(size: 10, design: .monospaced))
             .foregroundStyle(.secondary)
             .frame(width: 30)
@@ -145,30 +145,87 @@ struct ScreenDiffView: View {
     }
   }
 
-  // MARK: - Overlay
+  // MARK: - Overlay (Before/After Wipe Slider)
 
   private func overlayView(imageA: NSImage, imageB: NSImage) -> some View {
     GeometryReader { geo in
-      ZStack {
-        Image(nsImage: imageA)
-          .resizable()
-          .aspectRatio(contentMode: .fit)
+      let imageSize = fitSize(for: imageA.size, in: geo.size, padding: 40)
+      let imageOrigin = CGPoint(
+        x: (geo.size.width - imageSize.width) / 2,
+        y: (geo.size.height - imageSize.height) / 2
+      )
+      let clipX = imageOrigin.x + imageSize.width * sliderPosition
 
+      ZStack {
+        // Image B (right/after) — full
         Image(nsImage: imageB)
           .resizable()
           .aspectRatio(contentMode: .fit)
-          .opacity(overlayOpacity)
-          .blendMode(.difference)
+          .frame(width: imageSize.width, height: imageSize.height)
+          .position(x: geo.size.width / 2, y: geo.size.height / 2)
+
+        // Image A (left/before) — clipped to slider position
+        Image(nsImage: imageA)
+          .resizable()
+          .aspectRatio(contentMode: .fit)
+          .frame(width: imageSize.width, height: imageSize.height)
+          .position(x: geo.size.width / 2, y: geo.size.height / 2)
+          .clipShape(
+            HalfClip(splitX: clipX, geo: geo.size)
+          )
+
+        // Divider line
+        Rectangle()
+          .fill(Color.white)
+          .frame(width: 2, height: imageSize.height)
+          .position(x: clipX, y: geo.size.height / 2)
+          .shadow(color: .black.opacity(0.5), radius: 2)
+
+        // Slider handle
+        ZStack {
+          Circle()
+            .fill(Color.white)
+            .frame(width: 28, height: 28)
+            .shadow(color: .black.opacity(0.3), radius: 3)
+          Image(systemName: "arrow.left.and.right")
+            .font(.system(size: 11, weight: .bold))
+            .foregroundStyle(.secondary)
+        }
+        .position(x: clipX, y: geo.size.height / 2)
+
+        // Labels
+        Text("Before")
+          .font(.system(size: 10, weight: .semibold))
+          .foregroundStyle(.white)
+          .padding(.horizontal, 6)
+          .padding(.vertical, 2)
+          .background(Color.black.opacity(0.5), in: Capsule())
+          .position(x: imageOrigin.x + 40, y: imageOrigin.y + 16)
+
+        Text("After")
+          .font(.system(size: 10, weight: .semibold))
+          .foregroundStyle(.white)
+          .padding(.horizontal, 6)
+          .padding(.vertical, 2)
+          .background(Color.black.opacity(0.5), in: Capsule())
+          .position(x: imageOrigin.x + imageSize.width - 36, y: imageOrigin.y + 16)
       }
-      .frame(maxWidth: .infinity, maxHeight: .infinity)
-      .padding(20)
       .gesture(
         DragGesture(minimumDistance: 0)
           .onChanged { value in
-            overlayOpacity = min(1, max(0, value.location.x / geo.size.width))
+            let relativeX = (value.location.x - imageOrigin.x) / imageSize.width
+            sliderPosition = min(1, max(0, relativeX))
           }
       )
     }
+  }
+
+  /// Calculate fitted image size with padding
+  private func fitSize(for imageSize: NSSize, in containerSize: CGSize, padding: CGFloat) -> CGSize {
+    let availableWidth = containerSize.width - padding * 2
+    let availableHeight = containerSize.height - padding * 2
+    let scale = min(availableWidth / imageSize.width, availableHeight / imageSize.height, 1)
+    return CGSize(width: imageSize.width * scale, height: imageSize.height * scale)
   }
 
   // MARK: - Difference
@@ -325,4 +382,18 @@ private func estimateDiffPercentage(diffOutput: CIImage, context: CIContext) -> 
   }
 
   return Double(diffCount) / Double(totalPixels) * 100
+}
+
+// MARK: - Half Clip Shape
+
+/// Clips content to show only the left portion up to splitX.
+struct HalfClip: Shape {
+  var splitX: CGFloat
+  var geo: CGSize
+
+  func path(in rect: CGRect) -> Path {
+    var path = Path()
+    path.addRect(CGRect(x: rect.minX, y: rect.minY, width: splitX, height: rect.height))
+    return path
+  }
 }

@@ -12,6 +12,7 @@ struct AnnotationView: View {
   @State private var showExportPicker = false
   @State private var exportFormat: ImageExportFormat = .png
   @State private var exportQuality: CGFloat = 0.9
+  @State private var showTemplates = false
 
   var body: some View {
     HSplitView {
@@ -110,6 +111,16 @@ struct AnnotationView: View {
           Image(systemName: state.isStickerLibraryVisible ? "face.smiling.inverse" : "face.smiling")
         }
         .help(state.isStickerLibraryVisible ? "Hide Stickers" : "Show Stickers")
+
+        Divider()
+
+        Button(action: { showTemplates.toggle() }) {
+          Image(systemName: "doc.on.doc")
+        }
+        .help("Templates")
+        .popover(isPresented: $showTemplates) {
+          TemplatePopoverView(state: state)
+        }
 
         Divider()
 
