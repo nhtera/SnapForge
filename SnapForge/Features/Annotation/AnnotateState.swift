@@ -316,6 +316,11 @@ final class AnnotateState: ObservableObject {
       annotations[index].type = .path(points.map { CGPoint(x: $0.x + dx, y: $0.y + dy) })
     case .highlight(let points):
       annotations[index].type = .highlight(points.map { CGPoint(x: $0.x + dx, y: $0.y + dy) })
+    case .ruler(let start, let end):
+      annotations[index].type = .ruler(
+        start: CGPoint(x: start.x + dx, y: start.y + dy),
+        end: CGPoint(x: end.x + dx, y: end.y + dy)
+      )
     default:
       break
     }
@@ -437,6 +442,11 @@ final class AnnotateState: ObservableObject {
       annotations[index].type = .path(points.map { CGPoint(x: $0.x + dx, y: $0.y + dy) })
     case .highlight(let points):
       annotations[index].type = .highlight(points.map { CGPoint(x: $0.x + dx, y: $0.y + dy) })
+    case .ruler(let start, let end):
+      annotations[index].type = .ruler(
+        start: CGPoint(x: start.x + dx, y: start.y + dy),
+        end: CGPoint(x: end.x + dx, y: end.y + dy)
+      )
     default:
       break
     }

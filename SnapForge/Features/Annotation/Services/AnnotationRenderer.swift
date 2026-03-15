@@ -72,6 +72,9 @@ struct AnnotationRenderer {
 
     case .sticker(let sticker):
       drawSticker(sticker, in: annotation.bounds, color: annotation.properties.strokeColor)
+
+    case .ruler(let start, let end):
+      drawRuler(from: start, to: end)
     }
   }
 
@@ -128,6 +131,10 @@ struct AnnotationRenderer {
       let currentPoint = currentPath.last ?? start
       drawArrow(from: start, to: currentPoint)
 
+    case .ruler:
+      let currentPoint = currentPath.last ?? start
+      drawRuler(from: start, to: currentPoint)
+
     default:
       break
     }
@@ -172,6 +179,68 @@ struct AnnotationRenderer {
     context.move(to: end)
     context.addLine(to: point2)
     context.strokePath()
+  }
+
+  private func drawRuler(from start: CGPoint, to end: CGPoint) {
+    let dx = end.x - start.x
+    let dy = end.y - start.y
+    let length = sqrt(dx * dx + dy * dy)
+    guard length > 0 else { return }
+
+    // Main line
+    context.move(to: start)
+    context.addLine(to: end)
+    context.strokePath()
+
+    // Perpendicular direction for tick marks
+    let perpX = -dy / length
+    let perpY = dx / length
+    let tickSize: CGFloat = 6
+
+    // Start tick
+    context.move(to: CGPoint(x: start.x + perpX * tickSize, y: start.y + perpY * tickSize))
+    context.addLine(to: CGPoint(x: start.x - perpX * tickSize, y: start.y - perpY * tickSize))
+    context.strokePath()
+
+    // End tick
+    context.move(to: CGPoint(x: end.x + perpX * tickSize, y: end.y + perpY * tickSize))
+    context.addLine(to: CGPoint(x: end.x - perpX * tickSize, y: end.y - perpY * tickSize))
+    context.strokePath()
+
+    // Distance label
+    let distanceText = "\(Int(round(length))) px" as NSString
+    let midX = (start.x + end.x) / 2
+    let midY = (start.y + end.y) / 2
+
+    let fontSize: CGFloat = 11
+    let attributes: [NSAttributedString.Key: Any] = [
+      .font: NSFont.systemFont(ofSize: fontSize, weight: .semibold),
+      .foregroundColor: NSColor.white,
+    ]
+    let textSize = distanceText.size(withAttributes: attributes)
+
+    // Background pill behind the text
+    let pillPadding: CGFloat = 4
+    let pillRect = CGRect(
+      x: midX - textSize.width / 2 - pillPadding,
+      y: midY - textSize.height / 2 - pillPadding + perpY * 14,
+      width: textSize.width + pillPadding * 2,
+      height: textSize.height + pillPadding * 2
+    )
+
+    context.saveGState()
+    context.setFillColor(NSColor.black.withAlphaComponent(0.75).cgColor)
+    let pillPath = CGPath(roundedRect: pillRect, cornerWidth: 4, cornerHeight: 4, transform: nil)
+    context.addPath(pillPath)
+    context.fillPath()
+    context.restoreGState()
+
+    // Draw the distance text
+    let textPoint = CGPoint(
+      x: midX - textSize.width / 2,
+      y: midY - textSize.height / 2 + perpY * 14
+    )
+    distanceText.draw(at: textPoint, withAttributes: attributes)
   }
 
   private func drawCounter(value: Int, at point: CGPoint, color: Color) {

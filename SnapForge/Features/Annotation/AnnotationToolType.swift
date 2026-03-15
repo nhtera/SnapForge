@@ -15,6 +15,7 @@ enum AnnotationToolType: String, CaseIterable, Identifiable {
   case counter
   case pencil
   case redact
+  case ruler
 
   var id: String { rawValue }
 
@@ -33,6 +34,7 @@ enum AnnotationToolType: String, CaseIterable, Identifiable {
     case .counter: return "list.number"
     case .pencil: return "pencil"
     case .redact: return "eye.slash.fill"
+    case .ruler: return "ruler"
     }
   }
 
@@ -52,6 +54,7 @@ enum AnnotationToolType: String, CaseIterable, Identifiable {
     case .counter: return "n"
     case .pencil: return "p"
     case .redact: return "d"
+    case .ruler: return "m"
     }
   }
 
@@ -71,6 +74,7 @@ enum AnnotationToolType: String, CaseIterable, Identifiable {
     case .counter: return "Counter"
     case .pencil: return "Pencil"
     case .redact: return "Redact"
+    case .ruler: return "Ruler"
     }
   }
 }

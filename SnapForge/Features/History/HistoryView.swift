@@ -136,6 +136,9 @@ struct HistoryView: View {
         .sheet(isPresented: $viewModel.showingTagInput) {
             TagInputSheet(viewModel: viewModel)
         }
+        .sheet(isPresented: $showBatchExport) {
+            BatchExportView(captures: viewModel.selectedItems)
+        }
     }
 
     // MARK: - Multi-Select Action Bar

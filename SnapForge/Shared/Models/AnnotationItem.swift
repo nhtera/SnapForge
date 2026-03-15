@@ -56,6 +56,7 @@ enum AnnotationType: Equatable {
   case blur(BlurType)
   case counter(Int)
   case sticker(StickerItem)
+  case ruler(start: CGPoint, end: CGPoint)
 }
 
 /// Visual properties for an annotation
@@ -99,7 +100,7 @@ extension AnnotationItem {
     case .oval:
       return pointInEllipse(point, in: bounds)
 
-    case .arrow(let start, let end), .line(let start, let end):
+    case .arrow(let start, let end), .line(let start, let end), .ruler(let start, let end):
       return distanceToSegment(point, from: start, to: end) <= tolerance
 
     case .path(let points), .highlight(let points):
@@ -191,6 +192,11 @@ extension AnnotationType {
     case .blur(let blurType): return "Blur (\(blurType.displayName))"
     case .counter(let number): return "Counter #\(number)"
     case .sticker(let item): return "Sticker: \(item.name)"
+    case .ruler(let start, let end):
+      let dx = end.x - start.x
+      let dy = end.y - start.y
+      let dist = Int(sqrt(dx * dx + dy * dy))
+      return "Ruler (\(dist) px)"
     }
   }
 
@@ -208,6 +214,7 @@ extension AnnotationType {
     case .blur: return "eye.slash"
     case .counter: return "list.number"
     case .sticker(let item): return item.symbol
+    case .ruler: return "ruler"
     }
   }
 }
