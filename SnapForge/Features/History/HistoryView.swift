@@ -8,6 +8,7 @@ struct HistoryView: View {
     @State private var dragSelectionRect: CGRect?
     @State private var dragStart: CGPoint?
     @State private var itemFrames: [UUID: CGRect] = [:]
+    @State private var preDragSelection: Set<UUID> = []
 
     var body: some View {
         VStack(spacing: 0) {
@@ -116,7 +117,8 @@ struct HistoryView: View {
 
                                 if dragStart == nil {
                                     dragStart = value.startLocation
-                                    viewModel.selectedCaptureIds.removeAll()
+                                    // Preserve existing selection
+                                    preDragSelection = viewModel.selectedCaptureIds
                                 }
 
                                 let origin = CGPoint(
@@ -216,7 +218,7 @@ struct HistoryView: View {
     }
 
     private func updateDragSelection(rect: CGRect) {
-        var newSelection = Set<UUID>()
+        var newSelection = preDragSelection
         for capture in viewModel.filteredCaptures {
             if let frame = itemFrames[capture.id], frame.intersects(rect) {
                 newSelection.insert(capture.id)
