@@ -268,6 +268,9 @@ final class DrawingCanvasNSView: NSView {
   // MARK: - Mouse Events
 
   override func mouseDown(with event: NSEvent) {
+    // Ensure canvas is first responder (may have lost focus to tool palette buttons)
+    window?.makeFirstResponder(self)
+
     let displayPoint = convert(event.locationInWindow, from: nil)
     let rawImagePoint = displayToImage(displayPoint)
     let imagePoint = clampToImageBounds(rawImagePoint)
@@ -306,8 +309,9 @@ final class DrawingCanvasNSView: NSView {
       needsDisplay = true
     }
 
-    // Check resize handles on selected annotation
-    if let selectedId = state.selectedAnnotationId,
+    // Check resize handles on selected annotation (only in selection mode)
+    if state.selectedTool == .selection,
+       let selectedId = state.selectedAnnotationId,
        let annotation = state.annotations.first(where: { $0.id == selectedId })
     {
       let displayBounds = imageToDisplay(annotation.bounds)

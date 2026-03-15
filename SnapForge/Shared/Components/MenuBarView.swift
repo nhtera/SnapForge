@@ -17,9 +17,9 @@ struct MenuBarView: View {
                     .font(.headline)
                 Spacer()
             }
-            .padding(.horizontal, 16)
-            .padding(.top, 12)
-            .padding(.bottom, 8)
+            .padding(.horizontal, DesignTokens.Spacing.lg)
+            .padding(.top, DesignTokens.Spacing.md)
+            .padding(.bottom, DesignTokens.Spacing.sm)
 
             Divider()
 
@@ -224,7 +224,7 @@ struct MenuBarActionRow: View {
             .padding(.horizontal, 8)
             .padding(.vertical, 6)
             .background(
-                RoundedRectangle(cornerRadius: 4)
+                RoundedRectangle(cornerRadius: DesignTokens.Radius.sm)
                     .fill(isHovered ? Self.selectionBlue : .clear)
             )
             .contentShape(Rectangle())

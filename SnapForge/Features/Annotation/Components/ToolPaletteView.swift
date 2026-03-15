@@ -7,6 +7,7 @@ struct ToolPaletteView: View {
 
   /// Keep KVO observation alive — static so it persists across view rebuilds
   @State private var colorPanelObservation: NSKeyValueObservation?
+  @State private var localFontSize: CGFloat = 16
 
   var body: some View {
     VStack(spacing: 0) {
@@ -126,10 +127,25 @@ struct ToolPaletteView: View {
         // Font size slider (when text tool selected or text annotation selected)
         if state.selectedTool == .text || state.selectedTextAnnotation != nil {
           VStack(alignment: .leading, spacing: 4) {
-            Text("Font Size: \(Int(fontSizeValue))pt")
+            Text("Font Size: \(Int(localFontSize))pt")
               .font(.caption)
               .foregroundStyle(.secondary)
-            Slider(value: fontSizeBinding, in: 12...72, step: 1)
+            Slider(value: $localFontSize, in: 12...72, step: 1)
+              .onChange(of: localFontSize) { _, newSize in
+                if let id = state.selectedAnnotationId {
+                  state.updateAnnotationProperties(id: id, fontSize: newSize)
+                }
+              }
+          }
+          .onChange(of: state.selectedAnnotationId) {
+            if let annotation = state.selectedTextAnnotation {
+              localFontSize = annotation.properties.fontSize
+            }
+          }
+          .onAppear {
+            if let annotation = state.selectedTextAnnotation {
+              localFontSize = annotation.properties.fontSize
+            }
           }
         }
       }
@@ -158,25 +174,7 @@ struct ToolPaletteView: View {
     .background(.background)
   }
 
-  // MARK: - Font Size
-
-  private var fontSizeValue: CGFloat {
-    if let annotation = state.selectedTextAnnotation {
-      return annotation.properties.fontSize
-    }
-    return 16
-  }
-
-  private var fontSizeBinding: Binding<CGFloat> {
-    Binding(
-      get: { fontSizeValue },
-      set: { newSize in
-        if let id = state.selectedAnnotationId {
-          state.updateAnnotationProperties(id: id, fontSize: newSize)
-        }
-      }
-    )
-  }
+  // MARK: - Font Size (managed via @State localFontSize + onChange)
 
   // MARK: - Text Styling Section
 

@@ -135,10 +135,14 @@ final class ExportService {
 
   // MARK: - Filename
 
+  private static let timestampFormatter: DateFormatter = {
+    let f = DateFormatter()
+    f.dateFormat = "yyyy-MM-dd_HH-mm-ss"
+    return f
+  }()
+
   func generateFilename(prefix: String = "SnapForge", format: ImageExportFormat) -> String {
-    let dateFormatter = DateFormatter()
-    dateFormatter.dateFormat = "yyyy-MM-dd_HH-mm-ss"
-    let timestamp = dateFormatter.string(from: Date())
+    let timestamp = Self.timestampFormatter.string(from: Date())
     return "\(prefix)_\(timestamp).\(format.fileExtension)"
   }
 }

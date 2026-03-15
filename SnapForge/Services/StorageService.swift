@@ -90,17 +90,19 @@ final class StorageService {
 
     // MARK: - Auto-name
 
+    private static let timestampFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "yyyy-MM-dd_HH-mm-ss"
+        return f
+    }()
+
     func generateImageFilename(format: String = "png") -> String {
-        let dateFormatter = DateFormatter()
-        dateFormatter.dateFormat = "yyyy-MM-dd_HH-mm-ss"
-        let timestamp = dateFormatter.string(from: Date())
+        let timestamp = Self.timestampFormatter.string(from: Date())
         return "SnapForge_\(timestamp).\(format)"
     }
 
     func generateVideoFilename(format: String = "mp4") -> String {
-        let dateFormatter = DateFormatter()
-        dateFormatter.dateFormat = "yyyy-MM-dd_HH-mm-ss"
-        let timestamp = dateFormatter.string(from: Date())
+        let timestamp = Self.timestampFormatter.string(from: Date())
         return "SnapForge_Recording_\(timestamp).\(format)"
     }
 

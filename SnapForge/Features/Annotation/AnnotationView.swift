@@ -34,6 +34,7 @@ struct AnnotationView: View {
       GeometryReader { geo in
          ZStack {
           Color(nsColor: .windowBackgroundColor)
+            .allowsHitTesting(false)
 
           canvasContent(geo: geo)
 
@@ -171,12 +172,13 @@ struct AnnotationView: View {
     let scale = calcDisplayScale(availableSize: geo.size, imageSize: imgSize)
 
     ZStack {
-      // Image layer
+      // Image layer (non-interactive — events pass through to canvas)
       Image(nsImage: image)
         .resizable()
         .aspectRatio(contentMode: .fit)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(20)
+        .allowsHitTesting(false)
         .onAppear {
           canvasSize = geo.size
           imageRect = calcImageRect(canvasSize: geo.size, imageSize: image.size)
@@ -437,24 +439,23 @@ struct AnnotationView: View {
   // MARK: - Export
 
   private func exportImage(copyOnly: Bool = false) {
-    let exportService = ExportService()
+    let env = AppEnvironment.shared
     // Filter out hidden annotations so they don't appear in the export
     let visibleAnnotations = state.annotations.filter { !state.hiddenAnnotationIds.contains($0.id) }
-    guard let rendered = exportService.renderAnnotatedImage(
+    guard let rendered = env.exportService.renderAnnotatedImage(
       baseImage: image,
       annotations: visibleAnnotations,
       imageSize: image.size
     ) else { return }
 
-    ClipboardService().copyImage(rendered)
+    env.clipboardService.copyImage(rendered)
 
     if !copyOnly {
-      let storage = StorageService()
-      let filename = exportService.generateFilename(format: exportFormat)
-      let url = storage.snapForgeDirectory.appendingPathComponent(filename)
+      let filename = env.exportService.generateFilename(format: exportFormat)
+      let url = env.storageService.snapForgeDirectory.appendingPathComponent(filename)
 
       do {
-        try exportService.exportImage(rendered, format: exportFormat, quality: exportQuality, to: url)
+        try env.exportService.exportImage(rendered, format: exportFormat, quality: exportQuality, to: url)
         NSWorkspace.shared.activateFileViewerSelecting([url])
       } catch {
         print("❌ Export failed: \(error)")

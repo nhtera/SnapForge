@@ -376,7 +376,7 @@ private struct OnboardingPermissionRow: View {
                 .foregroundStyle(.white)
                 .frame(width: 44, height: 44)
                 .background(
-                    RoundedRectangle(cornerRadius: 10)
+                    RoundedRectangle(cornerRadius: DesignTokens.Radius.lg)
                         .fill(.white.opacity(0.08))
                 )
 
@@ -397,7 +397,7 @@ private struct OnboardingPermissionRow: View {
                                 : Color.white.opacity(0.08)
                         )
                         .foregroundStyle(isRequired ? .orange : .white.opacity(0.5))
-                        .clipShape(RoundedRectangle(cornerRadius: 4))
+                        .clipShape(RoundedRectangle(cornerRadius: DesignTokens.Radius.sm))
                 }
 
                 Text(description)
@@ -420,7 +420,7 @@ private struct OnboardingPermissionRow: View {
                 .padding(.horizontal, 8)
                 .padding(.vertical, 4)
                 .background(.green.opacity(0.15))
-                .clipShape(RoundedRectangle(cornerRadius: 6))
+                .clipShape(RoundedRectangle(cornerRadius: DesignTokens.Radius.md))
             } else {
                 Button("Grant Access") {
                     onGrant()
@@ -431,11 +431,7 @@ private struct OnboardingPermissionRow: View {
         }
         .padding(16)
         .background(
-            RoundedRectangle(cornerRadius: 12)
-                .fill(.white.opacity(0.05))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 12)
+            RoundedRectangle(cornerRadius: DesignTokens.Radius.lg)
                 .stroke(.white.opacity(0.08), lineWidth: 1)
         )
     }
@@ -469,11 +465,11 @@ private struct ShortcutGroupCard: View {
                             .padding(.vertical, 5)
                             .padding(.horizontal, 6)
                             .background(
-                                RoundedRectangle(cornerRadius: 6)
+                                RoundedRectangle(cornerRadius: DesignTokens.Radius.md)
                                     .fill(.white.opacity(0.08))
                             )
                             .overlay(
-                                RoundedRectangle(cornerRadius: 6)
+                                RoundedRectangle(cornerRadius: DesignTokens.Radius.md)
                                     .stroke(.white.opacity(0.1), lineWidth: 1)
                             )
 
@@ -495,11 +491,11 @@ private struct ShortcutGroupCard: View {
                 }
             }
             .background(
-                RoundedRectangle(cornerRadius: 10)
-                    .fill(.white.opacity(0.05))
+            RoundedRectangle(cornerRadius: DesignTokens.Radius.lg)
+                .fill(.white.opacity(0.05))
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 10)
+                RoundedRectangle(cornerRadius: DesignTokens.Radius.lg)
                     .stroke(.white.opacity(0.08), lineWidth: 1)
             )
         }
@@ -535,11 +531,11 @@ private struct CompletionHintCard: View {
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
         .background(
-            RoundedRectangle(cornerRadius: 8)
+            RoundedRectangle(cornerRadius: DesignTokens.Radius.md)
                 .fill(.white.opacity(0.05))
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 8)
+            RoundedRectangle(cornerRadius: DesignTokens.Radius.md)
                 .stroke(.white.opacity(0.08), lineWidth: 1)
         )
     }

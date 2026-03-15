@@ -298,12 +298,12 @@ struct ScreenDiffView: View {
     guard diffMode == .difference,
           let imageA, let imageB else { return }
 
-    Task.detached(priority: .userInitiated) {
-      let result = computePixelDiff(imageA: imageA, imageB: imageB)
-      await MainActor.run {
-        self.diffImage = result.image
-        self.diffPercentage = result.percentage
-      }
+    Task {
+      let result = await Task.detached(priority: .userInitiated) {
+        computePixelDiff(imageA: imageA, imageB: imageB)
+      }.value
+      self.diffImage = result.image
+      self.diffPercentage = result.percentage
     }
   }
 }

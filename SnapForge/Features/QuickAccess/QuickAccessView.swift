@@ -17,9 +17,9 @@ struct QuickAccessView: View {
       actionToolbar
     }
     .background(.ultraThinMaterial)
-    .clipShape(RoundedRectangle(cornerRadius: 12))
+    .clipShape(RoundedRectangle(cornerRadius: DesignTokens.Radius.lg))
     .overlay(
-      RoundedRectangle(cornerRadius: 12)
+      RoundedRectangle(cornerRadius: DesignTokens.Radius.lg)
         .strokeBorder(.white.opacity(0.1), lineWidth: 0.5)
     )
     .shadow(color: .black.opacity(0.25), radius: 16, y: 6)
@@ -46,7 +46,7 @@ struct QuickAccessView: View {
       .resizable()
       .aspectRatio(contentMode: .fit)
       .frame(maxHeight: 140)
-      .clipShape(RoundedRectangle(cornerRadius: 6))
+      .clipShape(RoundedRectangle(cornerRadius: DesignTokens.Radius.md))
       .padding(.horizontal, 10)
       .padding(.vertical, 8)
       .onDrag {
@@ -108,7 +108,7 @@ struct QuickAccessView: View {
         hoveredAction == action ? Color.accentColor : .primary.opacity(0.75)
       )
       .background(
-        RoundedRectangle(cornerRadius: 6)
+        RoundedRectangle(cornerRadius: DesignTokens.Radius.md)
           .fill(hoveredAction == action ? Color.accentColor.opacity(0.12) : .clear)
       )
       .contentShape(Rectangle())
