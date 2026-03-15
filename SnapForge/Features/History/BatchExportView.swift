@@ -37,6 +37,12 @@ struct BatchExportView: View {
         .padding(16)
     }
     .frame(width: 400, height: 480)
+    .onChange(of: options.format) { _, _ in resetCompletion() }
+    .onChange(of: options.quality) { _, _ in resetCompletion() }
+    .onChange(of: options.resizeEnabled) { _, _ in resetCompletion() }
+    .onChange(of: options.resizeWidth) { _, _ in resetCompletion() }
+    .onChange(of: options.resizeHeight) { _, _ in resetCompletion() }
+    .onChange(of: options.maintainAspectRatio) { _, _ in resetCompletion() }
   }
 
   // MARK: - Header
@@ -250,5 +256,11 @@ struct BatchExportView: View {
         errorMessage = service.errorMessage ?? "Export failed — check console for details"
       }
     }
+  }
+
+  private func resetCompletion() {
+    exportComplete = false
+    resultURL = nil
+    errorMessage = nil
   }
 }
