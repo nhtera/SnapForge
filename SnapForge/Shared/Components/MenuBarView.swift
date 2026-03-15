@@ -97,6 +97,15 @@ struct MenuBarView: View {
                 }
 
                 MenuBarActionRow(
+                    icon: "rectangle.expand.vertical",
+                    label: String(localized: "menu.scroll_capture"),
+                    shortcut: "⌘⇧S",
+                    dismiss: dismiss
+                ) {
+                    CaptureSessionManager.shared.startCapture(mode: .scrollCapture)
+                }
+
+                MenuBarActionRow(
                     icon: "eyedropper",
                     label: String(localized: "menu.pick_color"),
                     shortcut: "⌘⇧C",

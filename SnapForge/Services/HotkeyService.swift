@@ -76,6 +76,13 @@ final class HotkeyService {
             modifiers: [.maskCommand, .maskShift],
             label: "Pick Color (⌘⇧C)"
         )
+
+        static let scrollCapture = Hotkey(
+            id: "scrollCapture",
+            keyCode: UInt16(kVK_ANSI_S),
+            modifiers: [.maskCommand, .maskShift],
+            label: "Scroll Capture (⌘⇧S)"
+        )
     }
 
     private var globalMonitor: Any?
@@ -89,6 +96,7 @@ final class HotkeyService {
         .startRecording,
         .toggleOCR,
         .colorPicker,
+        .scrollCapture,
     ]
 
     var isListening = false

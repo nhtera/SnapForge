@@ -17,6 +17,7 @@ final class CaptureSessionManager {
     private var recordingAreaCallback: ((CGRect) -> Void)?
     private var pendingTimedRect: CGRect?
     private var escKeyMonitor: Any?
+    private var scrollCaptureSession: ScrollCaptureSession?
 
     // MARK: - Start Capture Session
 
@@ -39,6 +40,8 @@ final class CaptureSessionManager {
             startTimedCapture()
         case .ocrCapture:
             showOverlay(mode: .ocrCapture)
+        case .scrollCapture:
+            showOverlay(mode: .scrollCapture)
         }
     }
 
@@ -120,6 +123,10 @@ final class CaptureSessionManager {
                 // OCR: capture area → run OCR → copy text
                 self.dismissOverlay()
                 self.handleOCRAreaSelected(rect)
+            } else if self.currentMode == .scrollCapture {
+                // Scroll capture: area selected → show scroll capture UI
+                self.dismissOverlay()
+                self.handleScrollCaptureAreaSelected(rect)
             } else {
                 self.handleAreaSelected(rect)
             }
@@ -186,6 +193,23 @@ final class CaptureSessionManager {
         overlayPanel = nil
         overlayView = nil
         dismissFreezeWindow()
+    }
+
+    // MARK: - Scroll Capture
+
+    private func handleScrollCaptureAreaSelected(_ screenRect: CGRect) {
+        let session = ScrollCaptureSession(captureRect: screenRect)
+
+        session.onComplete = { [weak self] image in
+            self?.scrollCaptureSession = nil
+            self?.handleCapturedImage(image)
+        }
+        session.onCancel = { [weak self] in
+            self?.scrollCaptureSession = nil
+        }
+
+        scrollCaptureSession = session
+        session.show()
     }
 
     // MARK: - Area Capture

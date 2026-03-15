@@ -9,6 +9,7 @@
 "menu.record_screen" = "Record Screen";
 "menu.stop_recording" = "Stop Recording";
 "menu.ocr_capture" = "OCR Capture";
+"menu.scroll_capture" = "Scroll Capture";
 "menu.pick_color" = "Pick Color";
 "menu.pin_clipboard" = "Pin from Clipboard";
 "menu.capture_history" = "Capture History";

@@ -6,6 +6,7 @@ enum CaptureMode: String, CaseIterable, Identifiable {
     case fullscreen = "Fullscreen"
     case timedArea = "Self-Timer"
     case ocrCapture = "OCR Capture"
+    case scrollCapture = "Scroll Capture"
 
     var id: String { rawValue }
 
@@ -16,6 +17,7 @@ enum CaptureMode: String, CaseIterable, Identifiable {
         case .fullscreen: return "rectangle.inset.filled"
         case .timedArea: return "timer"
         case .ocrCapture: return "doc.text.viewfinder"
+        case .scrollCapture: return "rectangle.expand.vertical"
         }
     }
 
@@ -26,6 +28,7 @@ enum CaptureMode: String, CaseIterable, Identifiable {
         case .fullscreen: return "⌘⇧3"
         case .timedArea: return "⌘⇧5"
         case .ocrCapture: return "⌘⇧O"
+        case .scrollCapture: return "⌘⇧S"
         }
     }
 }

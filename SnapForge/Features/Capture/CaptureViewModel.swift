@@ -27,7 +27,7 @@ final class CaptureViewModel {
         case .window:
             // Window mode: user clicks a window
             break
-        case .area, .timedArea, .ocrCapture:
+        case .area, .timedArea, .ocrCapture, .scrollCapture:
             // Area mode: user drags to select
             break
         }
