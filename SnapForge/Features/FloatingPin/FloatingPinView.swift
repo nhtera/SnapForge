@@ -13,12 +13,18 @@ struct FloatingPinView: View {
 
     var body: some View {
         ZStack(alignment: .top) {
-            // Image
+            // Image — draggable to other apps
             Image(nsImage: image)
                 .resizable()
                 .aspectRatio(contentMode: .fit)
                 .clipShape(RoundedRectangle(cornerRadius: 8))
                 .shadow(color: .black.opacity(0.25), radius: 8, y: 4)
+                .onDrag {
+                    let provider = NSItemProvider(object: image)
+                    provider.suggestedName = "SnapForge_Pin"
+                    return provider
+                }
+                .help("Drag to share with other apps")
 
             // Toolbar — appears on hover
             if isHovering {

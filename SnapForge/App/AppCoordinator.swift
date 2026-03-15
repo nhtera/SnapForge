@@ -30,6 +30,8 @@ final class AppCoordinator {
     private var floatingPins: [NSWindow] = []
     private var recordingBorderWindow: NSWindow?   // Click-through: just the border
     private var recordingToolbarPanel: NSPanel?     // Interactive: buttons
+    private var stitcherWindow: NSWindow?
+    private var screenDiffWindow: NSWindow?
 
     private init() {}
 
@@ -558,6 +560,62 @@ final class AppCoordinator {
         historyWindow = window
     }
 
+    // MARK: - Stitcher
+
+    func showStitcher(images: [NSImage]) {
+        if let existing = stitcherWindow, existing.isVisible {
+            existing.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+            return
+        }
+
+        let stitcherView = NavigationStack { StitcherView(images: images) }
+        let hostingView = NSHostingView(rootView: stitcherView)
+
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 900, height: 600),
+            styleMask: [.titled, .closable, .resizable, .miniaturizable],
+            backing: .buffered,
+            defer: false
+        )
+        window.contentView = hostingView
+        window.title = "Stitch Screenshots"
+        window.center()
+        window.isReleasedWhenClosed = false
+        window.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+
+        stitcherWindow = window
+    }
+
+    // MARK: - Screen Diff
+
+    func showScreenDiff(imageA: NSImage?, imageB: NSImage?) {
+        if let existing = screenDiffWindow, existing.isVisible {
+            existing.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+            return
+        }
+
+        let diffView = ScreenDiffView(imageA: imageA, imageB: imageB)
+        let hostingView = NSHostingView(rootView: diffView)
+
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 900, height: 600),
+            styleMask: [.titled, .closable, .resizable, .miniaturizable],
+            backing: .buffered,
+            defer: false
+        )
+        window.contentView = hostingView
+        window.title = "Screen Diff"
+        window.center()
+        window.isReleasedWhenClosed = false
+        window.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+
+        screenDiffWindow = window
+    }
+
     // MARK: - Cleanup
 
     func cleanup() {
@@ -566,6 +624,8 @@ final class AppCoordinator {
         annotationWindow?.close()
         onboardingWindow?.close()
         historyWindow?.close()
+        stitcherWindow?.close()
+        screenDiffWindow?.close()
         recordingBorderWindow?.close()
         recordingToolbarPanel?.close()
         floatingPins.forEach { $0.close() }

@@ -3,6 +3,7 @@ import SwiftUI
 /// Capture history — smart folders, tags, OCR-powered search, grid with filters.
 struct HistoryView: View {
     @State private var viewModel = HistoryViewModel()
+    @State private var showBatchExport = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -30,10 +31,21 @@ struct HistoryView: View {
                 )
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
-                ScrollView {
-                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 200), spacing: 16)], spacing: 16) {
-                        ForEach(viewModel.filteredCaptures) { capture in
-                            HistoryItemView(capture: capture, viewModel: viewModel)
+                ZStack(alignment: .bottom) {
+                    ScrollView {
+                        LazyVGrid(columns: [GridItem(.adaptive(minimum: 200), spacing: 16)], spacing: 16) {
+                            ForEach(viewModel.filteredCaptures) { capture in
+                                HistoryItemView(
+                                    capture: capture,
+                                    viewModel: viewModel,
+                                    isMultiSelectMode: viewModel.isMultiSelectMode,
+                                    isSelected: viewModel.selectedCaptureIds.contains(capture.id)
+                                )
+                                .onTapGesture {
+                                    if viewModel.isMultiSelectMode {
+                                        viewModel.toggleSelection(capture)
+                                    }
+                                }
                                 .contextMenu {
                                     Button("Open") { viewModel.open(capture) }
                                     Button("Copy") { viewModel.copy(capture) }
@@ -71,9 +83,17 @@ struct HistoryView: View {
                                     Divider()
                                     Button("Delete", role: .destructive) { viewModel.delete(capture) }
                                 }
+                            }
                         }
+                        .padding(16)
+                        .padding(.bottom, viewModel.isMultiSelectMode ? 70 : 0)
                     }
-                    .padding(16)
+
+                    // Multi-select floating action bar
+                    if viewModel.isMultiSelectMode && !viewModel.selectedCaptureIds.isEmpty {
+                        multiSelectActionBar
+                            .transition(.move(edge: .bottom).combined(with: .opacity))
+                    }
                 }
             }
         }
@@ -81,6 +101,19 @@ struct HistoryView: View {
         .navigationTitle("Capture History")
         .onAppear { viewModel.loadCaptures() }
         .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button(action: {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        viewModel.isMultiSelectMode.toggle()
+                        if !viewModel.isMultiSelectMode {
+                            viewModel.selectedCaptureIds.removeAll()
+                        }
+                    }
+                }) {
+                    Image(systemName: viewModel.isMultiSelectMode ? "checkmark.circle.fill" : "checkmark.circle")
+                }
+                .help(viewModel.isMultiSelectMode ? "Exit Multi-Select" : "Multi-Select")
+            }
             ToolbarItem(placement: .primaryAction) {
                 Button(action: { viewModel.indexAllCaptures() }) {
                     Image(systemName: "text.viewfinder")
@@ -103,6 +136,65 @@ struct HistoryView: View {
         .sheet(isPresented: $viewModel.showingTagInput) {
             TagInputSheet(viewModel: viewModel)
         }
+    }
+
+    // MARK: - Multi-Select Action Bar
+
+    private var multiSelectActionBar: some View {
+        HStack(spacing: 12) {
+            Text("\(viewModel.selectedCaptureIds.count) selected")
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(.secondary)
+
+            Divider().frame(height: 20)
+
+            let selectedScreenshots = viewModel.selectedScreenshots
+
+            if selectedScreenshots.count >= 2 {
+                Button(action: { viewModel.stitchSelected() }) {
+                    Label("Stitch", systemImage: "rectangle.split.3x1")
+                        .font(.system(size: 12, weight: .medium))
+                }
+                .buttonStyle(.plain)
+            }
+
+            if selectedScreenshots.count == 2 {
+                Button(action: { viewModel.compareSelected() }) {
+                    Label("Compare", systemImage: "square.split.2x1")
+                        .font(.system(size: 12, weight: .medium))
+                }
+                .buttonStyle(.plain)
+            }
+
+            Button(action: { showBatchExport = true }) {
+                Label("Export", systemImage: "square.and.arrow.up")
+                    .font(.system(size: 12, weight: .medium))
+            }
+            .buttonStyle(.plain)
+
+            Button(action: {
+                viewModel.deleteSelected()
+            }) {
+                Label("Delete", systemImage: "trash")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(.red)
+            }
+            .buttonStyle(.plain)
+
+            Divider().frame(height: 20)
+
+            Button("Select All") {
+                viewModel.selectAll()
+            }
+            .font(.system(size: 11))
+            .buttonStyle(.plain)
+            .foregroundStyle(.secondary)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12))
+        .shadow(color: .black.opacity(0.2), radius: 8, y: 2)
+        .padding(.bottom, 12)
     }
 
     // MARK: - Smart Folder Bar
@@ -241,6 +333,8 @@ struct TagInputSheet: View {
 struct HistoryItemView: View {
     let capture: HistoryCapture
     @ObservedObject var viewModel: HistoryViewModel
+    var isMultiSelectMode: Bool = false
+    var isSelected: Bool = false
     @State private var isHovered = false
 
     private var tags: [String] {
@@ -256,6 +350,16 @@ struct HistoryItemView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                 .overlay(alignment: .topTrailing) {
                     typeBadge.padding(6)
+                }
+                .overlay(alignment: .topLeading) {
+                    if isMultiSelectMode {
+                        Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                            .font(.system(size: 20))
+                            .foregroundStyle(isSelected ? Color.accentColor : .white.opacity(0.7))
+                            .shadow(color: .black.opacity(0.4), radius: 2)
+                            .padding(6)
+                            .transition(.scale.combined(with: .opacity))
+                    }
                 }
 
             // Info section
@@ -299,8 +403,8 @@ struct HistoryItemView: View {
         .overlay {
             RoundedRectangle(cornerRadius: 10, style: .continuous)
                 .stroke(
-                    isHovered ? Color.accentColor.opacity(0.5) : Color.white.opacity(0.06),
-                    lineWidth: 1
+                    isSelected ? Color.accentColor : (isHovered ? Color.accentColor.opacity(0.5) : Color.white.opacity(0.06)),
+                    lineWidth: isSelected ? 2 : 1
                 )
         }
         .shadow(color: .black.opacity(isHovered ? 0.25 : 0.1), radius: isHovered ? 8 : 4, y: 2)
@@ -351,6 +455,10 @@ final class HistoryViewModel: ObservableObject {
     var selectedTag: String?
     var showingTagInput = false
     var tagInputCapture: HistoryCapture?
+
+    // Multi-select state
+    var isMultiSelectMode = false
+    var selectedCaptureIds: Set<UUID> = []
 
     var filteredCaptures: [HistoryCapture] {
         var result = captures
@@ -512,6 +620,55 @@ final class HistoryViewModel: ObservableObject {
                 await MetadataService.shared.indexCapture(capture)
             }
         }
+    }
+
+    // MARK: - Multi-Select
+
+    func toggleSelection(_ capture: HistoryCapture) {
+        if selectedCaptureIds.contains(capture.id) {
+            selectedCaptureIds.remove(capture.id)
+        } else {
+            selectedCaptureIds.insert(capture.id)
+        }
+    }
+
+    func selectAll() {
+        selectedCaptureIds = Set(filteredCaptures.map(\.id))
+    }
+
+    /// Screenshots currently selected (for stitch/compare)
+    var selectedScreenshots: [HistoryCapture] {
+        filteredCaptures.filter { capture in
+            selectedCaptureIds.contains(capture.id) && capture.type == .screenshot
+        }
+    }
+
+    /// All selected captures (for export/delete)
+    var selectedItems: [HistoryCapture] {
+        filteredCaptures.filter { selectedCaptureIds.contains($0.id) }
+    }
+
+    func stitchSelected() {
+        let images = selectedScreenshots.compactMap { NSImage(contentsOfFile: $0.filePath) }
+        guard images.count >= 2 else { return }
+        AppCoordinator.shared.showStitcher(images: images)
+    }
+
+    func compareSelected() {
+        let screenshots = selectedScreenshots
+        guard screenshots.count == 2 else { return }
+        let imageA = NSImage(contentsOfFile: screenshots[0].filePath)
+        let imageB = NSImage(contentsOfFile: screenshots[1].filePath)
+        AppCoordinator.shared.showScreenDiff(imageA: imageA, imageB: imageB)
+    }
+
+    func deleteSelected() {
+        for capture in selectedItems {
+            try? FileManager.default.removeItem(atPath: capture.filePath)
+            MetadataService.shared.deleteMetadata(for: capture.filename)
+        }
+        captures.removeAll { selectedCaptureIds.contains($0.id) }
+        selectedCaptureIds.removeAll()
     }
 }
 
