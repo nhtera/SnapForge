@@ -114,8 +114,12 @@ final class BatchExportService {
       error: &coordError
     ) { tempZipURL in
       do {
+        // Use timestamp for a meaningful name
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "yyyy-MM-dd_HH-mm-ss"
+        let timestamp = dateFormatter.string(from: Date())
         let destZipURL = FileManager.default.temporaryDirectory
-          .appendingPathComponent("SnapForge_Export_\(UUID().uuidString).zip")
+          .appendingPathComponent("SnapForge_Export_\(timestamp).zip")
         try? FileManager.default.removeItem(at: destZipURL)
         try FileManager.default.copyItem(at: tempZipURL, to: destZipURL)
         zipResult = destZipURL
@@ -154,7 +158,7 @@ final class BatchExportService {
     NSApp.activate(ignoringOtherApps: true)
 
     let panel = NSSavePanel()
-    panel.nameFieldStringValue = "SnapForge_Export.zip"
+    panel.nameFieldStringValue = zipURL.lastPathComponent
     panel.allowedContentTypes = [.zip]
     panel.canCreateDirectories = true
 

@@ -58,20 +58,40 @@ final class ExportService {
     guard let cgImage = bitmapRep.cgImage else { return nil }
 
     let data = NSMutableData()
-    guard let destination = CGImageDestinationCreateWithData(
-      data as CFMutableData,
-      UTType.webP.identifier as CFString,
-      1,
-      nil
-    ) else { return nil }
+
+    // Try multiple WebP UTI identifiers for compatibility
+    let webpIdentifiers = ["org.webmproject.webp", "public.webp"]
+    var destination: CGImageDestination?
+
+    for identifier in webpIdentifiers {
+      destination = CGImageDestinationCreateWithData(
+        data as CFMutableData,
+        identifier as CFString,
+        1,
+        nil
+      )
+      if destination != nil {
+        print("✅ WebP: Using identifier '\(identifier)'")
+        break
+      }
+    }
+
+    guard let dest = destination else {
+      print("⚠️ WebP encoding not supported on this system — falling back to PNG")
+      // Fallback: return PNG data instead
+      return bitmapRep.representation(using: .png, properties: [:])
+    }
 
     let options: [CFString: Any] = [
       kCGImageDestinationLossyCompressionQuality: quality
     ]
 
-    CGImageDestinationAddImage(destination, cgImage, options as CFDictionary)
+    CGImageDestinationAddImage(dest, cgImage, options as CFDictionary)
 
-    guard CGImageDestinationFinalize(destination) else { return nil }
+    guard CGImageDestinationFinalize(dest) else {
+      print("⚠️ WebP finalize failed — falling back to PNG")
+      return bitmapRep.representation(using: .png, properties: [:])
+    }
 
     return data as Data
   }
