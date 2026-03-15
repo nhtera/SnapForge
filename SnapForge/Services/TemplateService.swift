@@ -97,7 +97,6 @@ final class TemplateService {
   // MARK: - Built-in Templates
 
   private func insertBuiltInTemplates() {
-    let builtInNames = Set(["Bug Report", "Tutorial Steps", "Social Callout"])
     let existingNames = Set(templates.map(\.name))
 
     if !existingNames.contains("Bug Report") {

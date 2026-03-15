@@ -5,6 +5,11 @@ import SwiftUI
 @MainActor
 enum AnnotationFactory {
 
+  /// Minimum drag distance (in image points) to create an annotation.
+  /// Prevents accidental dot/zero-size annotations from a simple click.
+  private static let minimumDragDistance: CGFloat = 3
+  private static let minimumBoundsSize: CGFloat = 3
+
   static func createAnnotation(
     tool: AnnotationToolType,
     from start: CGPoint,
@@ -30,6 +35,18 @@ enum AnnotationFactory {
       width: abs(end.x - start.x),
       height: abs(end.y - start.y)
     )
+
+    // Reject shapes with insufficient size (prevents dot on click)
+    switch tool {
+    case .rectangle, .filledRectangle, .oval, .blur:
+      guard bounds.width >= minimumBoundsSize,
+            bounds.height >= minimumBoundsSize else { return nil }
+    case .arrow, .line, .ruler:
+      let distance = hypot(end.x - start.x, end.y - start.y)
+      guard distance >= minimumDragDistance else { return nil }
+    default:
+      break
+    }
 
     let type: AnnotationType?
 

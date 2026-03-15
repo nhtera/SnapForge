@@ -59,6 +59,27 @@ final class AnnotateState {
 
   var isStickerLibraryVisible = false
 
+  // MARK: - Zoom State
+
+  var zoomLevel: CGFloat = 1.0
+  let zoomRange: ClosedRange<CGFloat> = 0.25...4.0
+  private let zoomStep: CGFloat = 0.1
+
+  func zoomIn() {
+    zoomLevel = min(zoomLevel + zoomStep, zoomRange.upperBound)
+    bumpRevision()
+  }
+
+  func zoomOut() {
+    zoomLevel = max(zoomLevel - zoomStep, zoomRange.lowerBound)
+    bumpRevision()
+  }
+
+  func resetZoom() {
+    zoomLevel = 1.0
+    bumpRevision()
+  }
+
   // MARK: - Revision Counter (triggers NSView redraws)
 
   /// Incremented on every state mutation to force NSViewRepresentable `updateNSView` calls.
@@ -380,12 +401,18 @@ final class AnnotateState {
   /// Calculate text bounds based on content and font size
   private func calculateTextBounds(text: String, fontSize: CGFloat, origin: CGPoint) -> CGRect {
     let clampedFontSize = min(max(fontSize, 8), 144)
+    let font = NSFont.systemFont(ofSize: clampedFontSize)
     let attributes: [NSAttributedString.Key: Any] = [
-      .font: NSFont.systemFont(ofSize: clampedFontSize)
+      .font: font
     ]
     let displayText = text.isEmpty ? "Text" : text
-    let size = (displayText as NSString).size(withAttributes: attributes)
+    let textSize = (displayText as NSString).size(withAttributes: attributes)
     let padding: CGFloat = 4
+
+    // Use font metrics for height to match the visual rendering
+    // NSString.size returns a tight bounding box that's too small for display
+    let fontHeight = font.ascender - font.descender + font.leading
+    let height = max(fontHeight, textSize.height) + padding * 2
 
     let maxWidth: CGFloat = 2000
     let maxHeight: CGFloat = 500
@@ -393,8 +420,8 @@ final class AnnotateState {
     return CGRect(
       x: origin.x,
       y: origin.y,
-      width: min(size.width + padding * 2, maxWidth),
-      height: min(size.height + padding * 2, maxHeight)
+      width: min(textSize.width + padding * 2, maxWidth),
+      height: min(height, maxHeight)
     )
   }
 

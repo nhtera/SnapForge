@@ -94,6 +94,25 @@ final class DrawingCanvasNSView: NSView {
     addTrackingArea(trackingArea)
   }
 
+  // MARK: - Scroll-to-Zoom
+
+  override func scrollWheel(with event: NSEvent) {
+    // Use vertical scroll delta to zoom in/out
+    let delta = event.scrollingDeltaY
+    guard abs(delta) > 0.1 else { return }
+
+    let zoomFactor: CGFloat = 0.02
+    let newZoom = state.zoomLevel + delta * zoomFactor
+    state.zoomLevel = min(max(newZoom, state.zoomRange.lowerBound), state.zoomRange.upperBound)
+    state.bumpRevision()
+  }
+
+  override func magnify(with event: NSEvent) {
+    let newZoom = state.zoomLevel * (1.0 + event.magnification)
+    state.zoomLevel = min(max(newZoom, state.zoomRange.lowerBound), state.zoomRange.upperBound)
+    state.bumpRevision()
+  }
+
   // MARK: - First Responder
 
   override var acceptsFirstResponder: Bool { true }
@@ -532,12 +551,25 @@ final class DrawingCanvasNSView: NSView {
   }
 
   private func createTextAnnotation(at point: CGPoint) {
-    let bounds = CGRect(x: point.x, y: point.y - 24, width: 100, height: 28)
+    // Scale-aware font size: ensure text appears at ~16pt on screen
+    // regardless of the image-to-canvas scale factor
+    let desiredScreenSize: CGFloat = 16
+    let fontSize = max(desiredScreenSize / displayScale, desiredScreenSize)
+
+    // Calculate proper height from font metrics
+    let font = NSFont.systemFont(ofSize: fontSize)
+    let textHeight = font.ascender - font.descender + font.leading
+    let padding: CGFloat = 4
+    let totalHeight = textHeight + padding * 2
+    let initialWidth = max(150 / displayScale, 150)
+
+    // Position bounds so text appears at the click point
+    let bounds = CGRect(x: point.x, y: point.y - padding, width: initialWidth, height: totalHeight)
     let properties = AnnotationProperties(
       strokeColor: state.strokeColor,
       fillColor: .clear,
       strokeWidth: state.strokeWidth,
-      fontSize: 16,
+      fontSize: fontSize,
       fontName: "SF Pro"
     )
     let item = AnnotationItem(type: .text(""), bounds: bounds, properties: properties)

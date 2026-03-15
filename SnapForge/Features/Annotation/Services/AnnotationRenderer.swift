@@ -294,7 +294,11 @@ struct AnnotationRenderer {
   }
 
   private func drawBlur(bounds: CGRect, annotationId: UUID, blurType: BlurType, pixelSize: CGFloat) {
+    // Skip zero-size regions
+    guard bounds.width > 0, bounds.height > 0 else { return }
+
     guard let sourceImage else {
+      print("⚠️ Blur fallback: sourceImage is nil for annotation \(annotationId) — content will appear lost")
       BlurEffectRenderer.drawFallback(in: context, region: bounds)
       return
     }

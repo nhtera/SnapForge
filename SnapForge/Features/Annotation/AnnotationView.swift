@@ -140,6 +140,33 @@ struct AnnotationView: View {
     }
     // Tool keyboard shortcuts (work regardless of focus)
     .background { toolShortcutButtons }
+    // ⌘C — Copy annotated image and close editor
+    .background {
+      Button("") { copyAndClose() }
+        .keyboardShortcut("c", modifiers: .command)
+        .hidden()
+    }
+    // ⌘V — Paste image from clipboard
+    .background {
+      Button("") { pasteImageFromClipboard() }
+        .keyboardShortcut("v", modifiers: .command)
+        .hidden()
+    }
+    // Zoom shortcuts: ⌘+ / ⌘- / ⌘0
+    .background {
+      Button("") { state.zoomIn() }
+        .keyboardShortcut("+", modifiers: .command)
+        .hidden()
+      Button("") { state.zoomIn() }
+        .keyboardShortcut("=", modifiers: .command)
+        .hidden()
+      Button("") { state.zoomOut() }
+        .keyboardShortcut("-", modifiers: .command)
+        .hidden()
+      Button("") { state.resetZoom() }
+        .keyboardShortcut("0", modifiers: .command)
+        .hidden()
+    }
   }
 
   /// Hidden buttons that register keyboard shortcuts for each tool
@@ -169,20 +196,18 @@ struct AnnotationView: View {
   @ViewBuilder
   private func canvasContent(geo: GeometryProxy) -> some View {
     let imgSize = image.size
-    let scale = calcDisplayScale(availableSize: geo.size, imageSize: imgSize)
+    let baseScale = calcBaseScale(availableSize: geo.size, imageSize: imgSize)
+    let scale = baseScale * state.zoomLevel
 
     ZStack {
       // Image layer (non-interactive — events pass through to canvas)
       Image(nsImage: image)
         .resizable()
-        .aspectRatio(contentMode: .fit)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding(20)
+        .frame(
+          width: imgSize.width * scale,
+          height: imgSize.height * scale
+        )
         .allowsHitTesting(false)
-        .onAppear {
-          canvasSize = geo.size
-          imageRect = calcImageRect(canvasSize: geo.size, imageSize: image.size)
-        }
 
       // Drawing canvas overlay (NSViewRepresentable)
       CanvasDrawingView(state: state, displayScale: scale, revision: state.revision)
@@ -217,11 +242,16 @@ struct AnnotationView: View {
         )
       }
     }
+    .onAppear {
+      canvasSize = geo.size
+      imageRect = calcImageRect(canvasSize: geo.size, imageSize: image.size)
+    }
   }
 
   // MARK: - Display Scale Calculation
 
-  private func calcDisplayScale(availableSize: CGSize, imageSize: NSSize) -> CGFloat {
+  /// Base scale to fit image in available space (before zoom)
+  private func calcBaseScale(availableSize: CGSize, imageSize: NSSize) -> CGFloat {
     let padding: CGFloat = 20
     let availableWidth = availableSize.width - padding * 2
     let availableHeight = availableSize.height - padding * 2
@@ -434,6 +464,56 @@ struct AnnotationView: View {
     }
     state.bumpRevision()
     imageRect = calcImageRect(canvasSize: canvasSize, imageSize: image.size)
+  }
+
+  // MARK: - Copy & Close
+
+  /// ⌘C — Render annotated image, copy to clipboard, and close the editor
+  private func copyAndClose() {
+    // Skip if user is typing in a text annotation
+    guard state.editingTextAnnotationId == nil else { return }
+    let env = AppEnvironment.shared
+    let visibleAnnotations = state.annotations.filter { !state.hiddenAnnotationIds.contains($0.id) }
+    guard let rendered = env.exportService.renderAnnotatedImage(
+      baseImage: image,
+      annotations: visibleAnnotations,
+      imageSize: image.size
+    ) else { return }
+    env.clipboardService.copyImage(rendered)
+    print("✅ Annotated image copied to clipboard")
+    // Close the annotation editor window
+    NSApp.keyWindow?.close()
+  }
+
+  // MARK: - Paste Image
+
+  /// ⌘V — Load image from clipboard into the annotation editor
+  private func pasteImageFromClipboard() {
+    guard state.editingTextAnnotationId == nil else { return }
+    guard let pastedImage = NSImage(pasteboard: .general) else {
+      print("⚠️ No image found on clipboard")
+      return
+    }
+
+    // Save undo state before paste
+    state.saveState()
+
+    // Update image — set sourceImage directly to preserve existing annotations
+    image = pastedImage
+    state.sourceImage = pastedImage
+
+    // Cancel any active crop (coordinates are invalid for the new image)
+    state.resetCrop()
+
+    // Reset zoom since the image dimensions changed
+    state.resetZoom()
+
+    // Recalculate layout for the new image size
+    imageRect = calcImageRect(canvasSize: canvasSize, imageSize: pastedImage.size)
+    state.hasUnsavedChanges = true
+    state.bumpRevision()
+
+    print("✅ Pasted image from clipboard (\(Int(pastedImage.size.width))×\(Int(pastedImage.size.height)))")
   }
 
   // MARK: - Export
