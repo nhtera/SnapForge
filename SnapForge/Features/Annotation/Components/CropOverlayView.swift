@@ -3,7 +3,7 @@ import SwiftUI
 /// Overlay view for crop tool showing crop region, dimming, handles, and grid.
 /// Ported from Snapzy's CropOverlayView.
 struct CropOverlayView: View {
-  @ObservedObject var state: AnnotateState
+  var state: AnnotateState
   let scale: CGFloat
   let imageSize: CGSize
 
@@ -212,12 +212,12 @@ struct CropDimensionLabel: View {
       Text("\(width)")
         .fontWeight(.medium)
       Text("×")
-        .foregroundColor(.secondary)
+        .foregroundStyle(.secondary)
       Text("\(height)")
         .fontWeight(.medium)
     }
     .font(.system(size: 11, weight: .regular, design: .monospaced))
-    .foregroundColor(.white)
+    .foregroundStyle(.white)
     .padding(.horizontal, 8)
     .padding(.vertical, 4)
     .background(

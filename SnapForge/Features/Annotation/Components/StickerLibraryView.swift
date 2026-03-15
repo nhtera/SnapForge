@@ -3,7 +3,7 @@ import SwiftUI
 /// Sticker library panel — searchable grid of built-in stickers organized by category.
 /// Click a sticker to place it at the center of the canvas.
 struct StickerLibraryView: View {
-  @ObservedObject var state: AnnotateState
+  var state: AnnotateState
   @State private var searchText = ""
   @State private var selectedCategory: StickerCategory?
 

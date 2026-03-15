@@ -4,7 +4,7 @@ import SwiftUI
 /// Handles coordinate conversion (AppKit bottom-left → SwiftUI top-left)
 /// and focus management for reliable text input.
 struct TextEditOverlay: View {
-  @ObservedObject var state: AnnotateState
+  var state: AnnotateState
   let scale: CGFloat
   let imageSize: CGSize
 
@@ -25,11 +25,15 @@ struct TextEditOverlay: View {
         let displayBounds = calculateDisplayBounds(annotation.bounds)
         let fontSize = max(annotation.properties.fontSize * scale, 10)
 
-        // Text input field positioned exactly at annotation bounds
+        // Text input field positioned exactly at annotation bounds.
+        // .id(editingId) forces SwiftUI to RECREATE the TextField when
+        // editingId changes, resetting @State editingText and re-triggering
+        // onAppear. Without this, switching from one text to another in a
+        // single mouseDown reuses the view and @State retains old text.
         TextField("", text: $editingText)
           .textFieldStyle(.plain)
           .font(.system(size: fontSize))
-          .foregroundColor(annotation.properties.strokeColor)
+          .foregroundStyle(annotation.properties.strokeColor)
           .multilineTextAlignment(.leading)
           .frame(
             width: max(displayBounds.width, minTextFieldWidth),
@@ -54,7 +58,8 @@ struct TextEditOverlay: View {
           .onAppear {
             editingText = currentText
             // Delay focus to ensure view is ready
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+            Task { @MainActor in
+              try? await Task.sleep(for: .milliseconds(50))
               isFocused = true
             }
           }
@@ -69,6 +74,15 @@ struct TextEditOverlay: View {
               commitEdit(id: editingId)
             }
           }
+          // Live-sync text to annotation model on every keystroke.
+          // This ensures the annotation always has the latest text,
+          // so DrawingCanvasNSView can safely clear editingTextAnnotationId
+          // (e.g. when clicking elsewhere to create a new text annotation)
+          // without losing uncommitted text.
+          .onChange(of: editingText) { _, newValue in
+            state.updateAnnotationText(id: editingId, text: newValue)
+          }
+          .id(editingId)
       }
     }
   }
@@ -99,13 +113,13 @@ struct TextEditOverlay: View {
     if trimmedText.isEmpty {
       // Delete annotation if text is empty
       state.saveState()
-      state.annotations.removeAll { $0.id == id }
-      state.selectedAnnotationId = nil
+      state.removeAnnotation(id: id)
     } else {
       state.saveState()
       state.updateAnnotationText(id: id, text: trimmedText)
     }
     state.editingTextAnnotationId = nil
+    state.bumpRevision()
   }
 
   private func cancelEdit() {
@@ -115,9 +129,9 @@ struct TextEditOverlay: View {
        case .text(let text) = annotation.type,
        text.isEmpty
     {
-      state.annotations.removeAll { $0.id == editingId }
-      state.selectedAnnotationId = nil
+      state.removeAnnotation(id: editingId)
     }
     state.editingTextAnnotationId = nil
+    state.bumpRevision()
   }
 }

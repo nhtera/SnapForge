@@ -93,8 +93,25 @@ final class AppCoordinator {
             hostingView.trailingAnchor.constraint(equalTo: containerView.trailingAnchor),
         ])
 
+        // Size the panel to fit all action buttons without clipping
+        let panelWidth: CGFloat = 380
+        let panelHeight: CGFloat = 220
+
+        // Smart positioning: place the panel so the bottom-left corner
+        // (Copy button) is nearest to the mouse for quick action.
+        let toolbarHeight: CGFloat = 48
+        let leftPadding: CGFloat = 10  // Small offset so cursor is near Copy button
+        let idealX = point.x - leftPadding
+        let idealY = point.y - toolbarHeight
+
+        // Clamp to keep the panel fully on-screen
+        let screen = NSScreen.main ?? NSScreen.screens.first
+        let screenFrame = screen?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1920, height: 1080)
+        let clampedX = min(max(idealX, screenFrame.minX), screenFrame.maxX - panelWidth)
+        let clampedY = min(max(idealY, screenFrame.minY), screenFrame.maxY - panelHeight)
+
         let panel = QuickAccessPanel(
-            contentRect: NSRect(x: point.x, y: point.y, width: 320, height: 200),
+            contentRect: NSRect(x: clampedX, y: clampedY, width: panelWidth, height: panelHeight),
             styleMask: [.titled, .closable, .nonactivatingPanel, .hudWindow],
             backing: .buffered,
             defer: false

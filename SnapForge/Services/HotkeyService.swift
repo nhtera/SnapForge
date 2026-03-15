@@ -114,14 +114,21 @@ final class HotkeyService {
 
         // Global monitor — catches events when app is NOT focused (sandbox-safe)
         globalMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
-            self?.handleKeyEvent(event)
+            Task { @MainActor in
+                self?.handleKeyEvent(event)
+            }
         }
 
         // Local monitor — catches events when app IS focused
         localMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
             guard let self = self else { return event }
-            let consumed = self.handleKeyEvent(event)
-            return consumed ? nil : event
+            // Local monitors run on main thread, but we still need explicit MainActor isolation
+            // for Swift 6 strict concurrency. Since local monitors are synchronous, we fire-and-forget
+            // the action and always return the event (cannot consume synchronously from async context).
+            Task { @MainActor in
+                self.handleKeyEvent(event)
+            }
+            return event
         }
 
         isListening = true

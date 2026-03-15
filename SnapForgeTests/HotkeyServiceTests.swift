@@ -43,7 +43,7 @@ struct HotkeyServiceTests {
             // no-op for test
         }
 
-        #expect(service.registeredHotkeys.count == 6, "Should have 6 default hotkeys")
+        #expect(service.registeredHotkeys.count == 7, "Should have 7 default hotkeys")
     }
 
     @Test func startListeningSetsIsListening() {

@@ -3,7 +3,7 @@ import SwiftUI
 /// Layers panel sidebar for the annotation editor.
 /// Shows all annotations as reorderable layers with visibility and lock controls.
 struct LayersPanelView: View {
-  @ObservedObject var state: AnnotateState
+  var state: AnnotateState
 
   var body: some View {
     VStack(spacing: 0) {
@@ -72,10 +72,7 @@ struct LayersPanelView: View {
           },
           onDelete: {
             state.saveState()
-            state.annotations.removeAll { $0.id == annotation.id }
-            if state.selectedAnnotationId == annotation.id {
-              state.selectedAnnotationId = nil
-            }
+            state.removeAnnotation(id: annotation.id)
           }
         )
       }

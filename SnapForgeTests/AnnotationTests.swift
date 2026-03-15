@@ -682,6 +682,7 @@ struct AnnotationItemModelTests {
 
 // MARK: - Export Service Tests
 
+@MainActor
 struct ExportServiceAnnotationTests {
 
   private func makeTestImage() -> NSImage {

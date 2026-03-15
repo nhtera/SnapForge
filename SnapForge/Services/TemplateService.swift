@@ -13,7 +13,10 @@ final class TemplateService {
   private let decoder = JSONDecoder()
 
   private var templatesDirectory: URL {
-    let appSupport = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+    guard let appSupport = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else {
+      // Fallback to temporary directory if app support is unavailable
+      return fileManager.temporaryDirectory.appendingPathComponent("SnapForge/Templates", isDirectory: true)
+    }
     return appSupport.appendingPathComponent("SnapForge/Templates", isDirectory: true)
   }
 

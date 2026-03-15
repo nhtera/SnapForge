@@ -6,6 +6,20 @@ import AppKit
 @Observable
 final class StorageService {
 
+    enum StorageError: LocalizedError {
+        case imageConversionFailed
+        case encodingFailed(String)
+
+        var errorDescription: String? {
+            switch self {
+            case .imageConversionFailed:
+                return "Failed to convert image"
+            case .encodingFailed(let format):
+                return "Failed to encode image as \(format)"
+            }
+        }
+    }
+
     var defaultSaveURL: URL {
         let path = UserDefaults.standard.string(forKey: SettingsKey.saveLocation)
             ?? NSSearchPathForDirectoriesInDomains(.picturesDirectory, .userDomainMask, true).first
@@ -37,7 +51,7 @@ final class StorageService {
 
         guard let tiffData = image.tiffRepresentation,
               let bitmapRep = NSBitmapImageRep(data: tiffData) else {
-            throw NSError(domain: "SnapForge", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to convert image"])
+            throw StorageError.imageConversionFailed
         }
 
         let imageData: Data?
@@ -59,7 +73,7 @@ final class StorageService {
         }
 
         guard let data = imageData else {
-            throw NSError(domain: "SnapForge", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to encode image as \(format)"])
+            throw StorageError.encodingFailed(format)
         }
 
         try data.write(to: url)

@@ -3,7 +3,7 @@ import SwiftUI
 /// Overlay shown when the Redact tool is active.
 /// Displays detected sensitive regions for user review before applying.
 struct RedactOverlayView: View {
-  @ObservedObject var state: AnnotateState
+  @Bindable var state: AnnotateState
   let scale: CGFloat
   let imageSize: CGSize
 

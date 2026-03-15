@@ -488,7 +488,7 @@ struct PermissionsSettingsTab: View {
             Section("Permissions") {
                 Text("SnapForge requires certain permissions to capture your screen and audio.")
                     .font(.caption)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
 
                 permissionRow(
                     icon: "rectangle.inset.filled.and.person.filled",
@@ -569,7 +569,7 @@ struct PermissionsSettingsTab: View {
         HStack(spacing: 12) {
             Image(systemName: icon)
                 .font(.title2)
-                .foregroundColor(.secondary)
+                .foregroundStyle(.secondary)
                 .frame(width: 28)
 
             VStack(alignment: .leading, spacing: 2) {
@@ -582,13 +582,13 @@ struct PermissionsSettingsTab: View {
                             .padding(.horizontal, 6)
                             .padding(.vertical, 2)
                             .background(Color.orange.opacity(0.2))
-                            .foregroundColor(.orange)
-                            .cornerRadius(4)
+                            .foregroundStyle(.orange)
+                            .clipShape(.rect(cornerRadius: 4))
                     }
                 }
                 Text(description)
                     .font(.caption)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
             }
 
             Spacer()
@@ -598,11 +598,11 @@ struct PermissionsSettingsTab: View {
                 Text(status == .granted ? "Granted" : "Not Granted")
                     .font(.caption)
             }
-            .foregroundColor(status == .granted ? .green : .orange)
+            .foregroundStyle(status == .granted ? .green : .orange)
             .padding(.horizontal, 8)
             .padding(.vertical, 4)
             .background((status == .granted ? Color.green : Color.orange).opacity(0.1))
-            .cornerRadius(6)
+            .clipShape(.rect(cornerRadius: 6))
 
             Button("Open Settings") {
                 if let url = URL(string: settingsURL) {

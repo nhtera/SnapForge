@@ -2,6 +2,7 @@ import Foundation
 import AppKit
 
 /// Clipboard (pasteboard) integration service.
+@MainActor
 final class ClipboardService {
 
     /// Copy image to system clipboard.

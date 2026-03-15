@@ -2,7 +2,7 @@ import SwiftUI
 
 /// Popover for browsing, applying, and saving annotation templates.
 struct TemplatePopoverView: View {
-  @ObservedObject var state: AnnotateState
+  var state: AnnotateState
   @State private var templateService = TemplateService.shared
   @State private var showSaveSheet = false
   @State private var newTemplateName = ""
@@ -164,6 +164,7 @@ struct TemplatePopoverView: View {
     let items = templateService.applyTemplate(template)
     state.saveState()
     state.annotations.append(contentsOf: items)
+    state.bumpRevision()
     print("✅ Applied template: \(template.name) (\(items.count) annotations)")
   }
 

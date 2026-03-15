@@ -3,6 +3,7 @@ import Foundation
 import UniformTypeIdentifiers
 
 /// Handles exporting captured images to various formats.
+@MainActor
 final class ExportService {
 
   enum ExportError: Error, LocalizedError {

@@ -153,7 +153,7 @@ struct StitcherView: View {
           }
         }
       }
-      .onChange(of: geo.size) { _, _ in
+      .onChange(of: geo.size) {
         if zoomScale == 1.0 { fitToView() }
       }
     }
@@ -222,7 +222,7 @@ struct StitcherView: View {
           }
           .pickerStyle(.segmented)
           .labelsHidden()
-          .onChange(of: config.layout) { _, _ in updatePreview() }
+          .onChange(of: config.layout) { updatePreview() }
         }
 
         // Alignment picker
@@ -239,7 +239,7 @@ struct StitcherView: View {
           }
           .pickerStyle(.segmented)
           .labelsHidden()
-          .onChange(of: config.alignment) { _, _ in updatePreview() }
+          .onChange(of: config.alignment) { updatePreview() }
         }
 
         Divider()
@@ -250,7 +250,7 @@ struct StitcherView: View {
             .font(.system(size: 11))
             .foregroundStyle(.secondary)
           Slider(value: $config.spacing, in: 0...64, step: 2)
-            .onChange(of: config.spacing) { _, _ in updatePreview() }
+            .onChange(of: config.spacing) { updatePreview() }
         }
 
         // Corner radius
@@ -259,7 +259,7 @@ struct StitcherView: View {
             .font(.system(size: 11))
             .foregroundStyle(.secondary)
           Slider(value: $config.cornerRadius, in: 0...32, step: 2)
-            .onChange(of: config.cornerRadius) { _, _ in updatePreview() }
+            .onChange(of: config.cornerRadius) { updatePreview() }
         }
 
         Divider()

@@ -31,14 +31,14 @@ struct ScrollCapturePreviewView: View {
             // Preview content
             if let image {
                 ScrollViewReader { proxy in
-                    ScrollView(.vertical, showsIndicators: true) {
+                    ScrollView(.vertical) {
                         Image(nsImage: image)
                             .resizable()
                             .aspectRatio(contentMode: .fit)
                             .frame(width: 178)  // Fixed width minus padding
                             .id("previewImage")
                     }
-                    .onChange(of: frameCount) { _ in
+                    .onChange(of: frameCount) {
                         withAnimation {
                             proxy.scrollTo("previewImage", anchor: .bottom)
                         }
@@ -151,7 +151,7 @@ final class ScrollCapturePreviewPanel {
         // Resize panel to fit updated content
         if let hosting = hostingView, let panel {
             // Give the hosting view a moment to recalculate
-            DispatchQueue.main.async {
+            Task { @MainActor in
                 let fittingSize = hosting.fittingSize
                 var frame = panel.frame
                 // Grow downward from the top anchor

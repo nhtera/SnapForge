@@ -2,8 +2,8 @@ import SwiftUI
 
 /// Annotation editor view — canvas with tool palette for marking up captured images.
 struct AnnotationView: View {
-  @State var image: NSImage
-  @StateObject private var state = AnnotateState()
+  @State private var image: NSImage
+  @State private var state = AnnotateState()
   @State private var canvasSize: CGSize = .zero
   @State private var imageRect: CGRect = .zero
   // Crop undo history — stores (image, annotations) snapshots before each crop
@@ -13,6 +13,10 @@ struct AnnotationView: View {
   @State private var exportFormat: ImageExportFormat = .png
   @State private var exportQuality: CGFloat = 0.9
   @State private var showTemplates = false
+
+  init(image: NSImage) {
+    _image = State(initialValue: image)
+  }
 
   var body: some View {
     HSplitView {
@@ -179,7 +183,7 @@ struct AnnotationView: View {
         }
 
       // Drawing canvas overlay (NSViewRepresentable)
-      CanvasDrawingView(state: state, displayScale: scale)
+      CanvasDrawingView(state: state, displayScale: scale, revision: state.revision)
         .frame(
           width: imgSize.width * scale,
           height: imgSize.height * scale
@@ -405,6 +409,7 @@ struct AnnotationView: View {
 
     // Clear undo/redo since we changed the coordinate system
     state.clearUndoHistory()
+    state.bumpRevision()
 
     imageRect = calcImageRect(canvasSize: canvasSize, imageSize: croppedImage.size)
   }
@@ -425,6 +430,7 @@ struct AnnotationView: View {
     for annotation in previous.annotations {
       state.annotations.append(annotation)
     }
+    state.bumpRevision()
     imageRect = calcImageRect(canvasSize: canvasSize, imageSize: image.size)
   }
 
@@ -432,9 +438,11 @@ struct AnnotationView: View {
 
   private func exportImage(copyOnly: Bool = false) {
     let exportService = ExportService()
+    // Filter out hidden annotations so they don't appear in the export
+    let visibleAnnotations = state.annotations.filter { !state.hiddenAnnotationIds.contains($0.id) }
     guard let rendered = exportService.renderAnnotatedImage(
       baseImage: image,
-      annotations: state.annotations,
+      annotations: visibleAnnotations,
       imageSize: image.size
     ) else { return }
 
@@ -452,267 +460,5 @@ struct AnnotationView: View {
         print("❌ Export failed: \(error)")
       }
     }
-  }
-}
-
-// MARK: - Tool Palette
-
-struct ToolPaletteView: View {
-  @ObservedObject var state: AnnotateState
-
-  var body: some View {
-    VStack(spacing: 0) {
-      // Tool grid
-      LazyVGrid(columns: [GridItem(.adaptive(minimum: 56))], spacing: 6) {
-        ForEach(AnnotationToolType.allCases) { tool in
-          ToolButton(
-            tool: tool,
-            isSelected: state.selectedTool == tool
-          ) {
-            state.selectedTool = tool
-
-            // Auto-initialize crop when crop tool is selected
-            if tool == .crop && state.hasImage {
-              if state.cropRect == nil {
-                state.initializeCrop()
-              } else {
-                state.isCropActive = true
-              }
-            }
-
-            // Auto-scan when redact tool is selected
-            if tool == .redact && state.hasImage {
-              state.startRedact()
-            }
-          }
-        }
-      }
-      .padding()
-
-      Divider()
-
-      // Tool settings
-      VStack(alignment: .leading, spacing: 12) {
-        // Color picker
-        HStack {
-          Text("Color")
-            .font(.caption)
-            .foregroundStyle(.secondary)
-          Spacer()
-          ColorPicker("", selection: $state.strokeColor)
-            .labelsHidden()
-        }
-
-        // Quick colors
-        HStack(spacing: 6) {
-          ForEach([Color.red, .orange, .yellow, .green, .blue, .purple, .white, .black], id: \.self) { color in
-            Circle()
-              .fill(color)
-              .frame(width: 18, height: 18)
-              .overlay(Circle().stroke(.secondary.opacity(0.3), lineWidth: 1))
-              .onTapGesture { state.strokeColor = color }
-          }
-        }
-
-        // Stroke width
-        VStack(alignment: .leading, spacing: 4) {
-          Text("Thickness: \(Int(state.strokeWidth))")
-            .font(.caption)
-            .foregroundStyle(.secondary)
-          Slider(value: $state.strokeWidth, in: 1...20, step: 1)
-        }
-
-        // Blur type picker (when blur tool selected)
-        if state.selectedTool == .blur {
-          VStack(alignment: .leading, spacing: 4) {
-            Text("Blur Type")
-              .font(.caption)
-              .foregroundStyle(.secondary)
-            Picker("", selection: $state.blurType) {
-              ForEach(BlurType.allCases) { type in
-                Label(type.displayName, systemImage: type.icon)
-                  .tag(type)
-              }
-            }
-            .pickerStyle(.segmented)
-          }
-        }
-
-        // Font size slider (when text tool selected or text annotation selected)
-        if state.selectedTool == .text || state.selectedTextAnnotation != nil {
-          VStack(alignment: .leading, spacing: 4) {
-            Text("Font Size: \(Int(fontSizeValue))pt")
-              .font(.caption)
-              .foregroundStyle(.secondary)
-            Slider(value: fontSizeBinding, in: 12...72, step: 1)
-          }
-        }
-      }
-      .padding()
-
-      // Text styling section (when text annotation is selected)
-      if state.selectedTextAnnotation != nil {
-        Divider()
-        textStylingSection
-          .padding()
-      }
-
-      Spacer()
-
-      // Bottom actions
-      VStack(spacing: 8) {
-        Button(action: { state.clearAll() }) {
-          Label("Clear All", systemImage: "trash")
-            .frame(maxWidth: .infinity)
-        }
-        .buttonStyle(.bordered)
-        .controlSize(.small)
-      }
-      .padding()
-    }
-    .background(.background)
-  }
-
-  // MARK: - Font Size
-
-  private var fontSizeValue: CGFloat {
-    if let annotation = state.selectedTextAnnotation {
-      return annotation.properties.fontSize
-    }
-    return 16
-  }
-
-  private var fontSizeBinding: Binding<CGFloat> {
-    Binding(
-      get: { fontSizeValue },
-      set: { newSize in
-        if let id = state.selectedAnnotationId {
-          state.updateAnnotationProperties(id: id, fontSize: newSize)
-        }
-      }
-    )
-  }
-
-  // MARK: - Text Styling Section
-
-  private var textStylingSection: some View {
-    VStack(alignment: .leading, spacing: 10) {
-      Text("Text Style")
-        .font(.caption)
-        .fontWeight(.semibold)
-        .foregroundStyle(.secondary)
-
-      // Text color
-      VStack(alignment: .leading, spacing: 4) {
-        Text("Text Color")
-          .font(.caption2)
-          .foregroundStyle(.secondary)
-
-        HStack(spacing: 4) {
-          ForEach([Color.white, .black, .red, .orange, .yellow, .green, .blue], id: \.self) { color in
-            Button {
-              if let id = state.selectedAnnotationId {
-                state.updateAnnotationProperties(id: id, strokeColor: color)
-              }
-            } label: {
-              Circle()
-                .fill(color)
-                .frame(width: 22, height: 22)
-                .overlay(
-                  Circle().stroke(
-                    isColorSelected(color, for: \.strokeColor) ? Color.accentColor : Color.secondary.opacity(0.4),
-                    lineWidth: isColorSelected(color, for: \.strokeColor) ? 2 : 1
-                  )
-                )
-            }
-            .buttonStyle(.plain)
-          }
-        }
-      }
-
-      // Background color
-      VStack(alignment: .leading, spacing: 4) {
-        Text("Background")
-          .font(.caption2)
-          .foregroundStyle(.secondary)
-
-        HStack(spacing: 4) {
-          // None button
-          Button {
-            if let id = state.selectedAnnotationId {
-              state.updateAnnotationProperties(id: id, fillColor: .clear)
-            }
-          } label: {
-            Text("None")
-              .font(.system(size: 9))
-              .foregroundColor(.primary)
-              .frame(width: 36, height: 22)
-              .background(
-                RoundedRectangle(cornerRadius: 4)
-                  .fill(state.selectedTextAnnotation?.properties.fillColor == .clear
-                    ? Color.accentColor.opacity(0.3)
-                    : Color.primary.opacity(0.1))
-              )
-          }
-          .buttonStyle(.plain)
-
-          ForEach([Color.white, .black, .yellow, .blue], id: \.self) { color in
-            Button {
-              if let id = state.selectedAnnotationId {
-                state.updateAnnotationProperties(id: id, fillColor: color)
-              }
-            } label: {
-              Circle()
-                .fill(color)
-                .frame(width: 22, height: 22)
-                .overlay(
-                  Circle().stroke(
-                    isColorSelected(color, for: \.fillColor) ? Color.accentColor : Color.secondary.opacity(0.4),
-                    lineWidth: isColorSelected(color, for: \.fillColor) ? 2 : 1
-                  )
-                )
-            }
-            .buttonStyle(.plain)
-          }
-        }
-      }
-    }
-  }
-
-  private func isColorSelected(_ color: Color, for keyPath: KeyPath<AnnotationProperties, Color>) -> Bool {
-    guard let annotation = state.selectedTextAnnotation else { return false }
-    return annotation.properties[keyPath: keyPath] == color
-  }
-}
-
-// MARK: - Tool Button
-
-struct ToolButton: View {
-  let tool: AnnotationToolType
-  let isSelected: Bool
-  let action: () -> Void
-
-  var body: some View {
-    VStack(spacing: 3) {
-      Image(systemName: tool.icon)
-        .font(.system(size: 20))
-      Text(tool.displayName)
-        .font(.system(size: 9))
-        .lineLimit(1)
-    }
-    .frame(maxWidth: .infinity, minHeight: 48)
-    .foregroundStyle(isSelected ? Color.accentColor : .primary)
-    .background(isSelected ? Color.accentColor.opacity(0.2) : .clear, in: RoundedRectangle(cornerRadius: 8))
-    .overlay(
-      RoundedRectangle(cornerRadius: 8)
-        .stroke(isSelected ? Color.accentColor : .clear, lineWidth: 1.5)
-    )
-    .contentShape(Rectangle())
-    .onTapGesture {
-      // Resign first responder from canvas so the tap registers immediately
-      NSApp.keyWindow?.makeFirstResponder(nil)
-      action()
-    }
-    .help(tool.displayName)
   }
 }

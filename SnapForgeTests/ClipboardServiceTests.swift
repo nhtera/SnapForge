@@ -5,7 +5,7 @@ import AppKit
 /// Tests for ClipboardService — copy image to pasteboard
 struct ClipboardServiceTests {
 
-    @Test func copyImageSetsClipboard() {
+    @Test @MainActor func copyImageSetsClipboard() {
         let clipboard = ClipboardService()
         let image = NSImage(size: NSSize(width: 50, height: 50))
         image.lockFocus()

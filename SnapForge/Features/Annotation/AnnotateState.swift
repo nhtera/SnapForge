@@ -1,16 +1,15 @@
 import AppKit
-import Combine
 import SwiftUI
 
 /// Central state management for annotation window
-/// Follows Snapzy's AnnotateState pattern with centralized ObservableObject
 @MainActor
-final class AnnotateState: ObservableObject {
+@Observable
+final class AnnotateState {
 
   // MARK: - Source Image
 
-  @Published var sourceImage: NSImage?
-  @Published var sourceURL: URL?
+  var sourceImage: NSImage?
+  var sourceURL: URL?
 
   /// Whether an image is loaded
   var hasImage: Bool { sourceImage != nil }
@@ -21,50 +20,59 @@ final class AnnotateState: ObservableObject {
 
   // MARK: - Tool State
 
-  @Published var selectedTool: AnnotationToolType = .selection
-  @Published var strokeWidth: CGFloat = 3
-  @Published var strokeColor: Color = .red
-  @Published var fillColor: Color = .clear
-  @Published var blurType: BlurType = .pixelated
+  var selectedTool: AnnotationToolType = .selection
+  var strokeWidth: CGFloat = 3
+  var strokeColor: Color = .red
+  var fillColor: Color = .clear
+  var blurType: BlurType = .pixelated
 
   // MARK: - Annotation Storage
 
-  @Published var annotations: [AnnotationItem] = []
+  var annotations: [AnnotationItem] = []
 
   // MARK: - Selection State
 
-  @Published var selectedAnnotationId: UUID?
-  @Published var editingTextAnnotationId: UUID?
+  var selectedAnnotationId: UUID?
+  var editingTextAnnotationId: UUID?
 
   // MARK: - Crop State
 
-  @Published var cropRect: CGRect?
-  @Published var isCropActive = false
-  @Published var cropAspectRatio: CropAspectRatio = .free
-  @Published var isCropResizing = false
-  @Published var isCropShiftLocked = false
+  var cropRect: CGRect?
+  var isCropActive = false
+  var cropAspectRatio: CropAspectRatio = .free
+  var isCropResizing = false
+  var isCropShiftLocked = false
   var originalCropRect: CGRect?
 
   // MARK: - Layers Panel State
 
-  @Published var isLayersPanelVisible = false
-  @Published var hiddenAnnotationIds: Set<UUID> = []
-  @Published var lockedAnnotationIds: Set<UUID> = []
+  var isLayersPanelVisible = false
+  var hiddenAnnotationIds: Set<UUID> = []
+  var lockedAnnotationIds: Set<UUID> = []
 
   // MARK: - Redact State
 
-  @Published var redactRegions: [RedactRegion] = []
-  @Published var isRedactScanning = false
+  var redactRegions: [RedactRegion] = []
+  var isRedactScanning = false
 
   // MARK: - Sticker State
 
-  @Published var isStickerLibraryVisible = false
+  var isStickerLibraryVisible = false
+
+  // MARK: - Revision Counter (triggers NSView redraws)
+
+  /// Incremented on every state mutation to force NSViewRepresentable `updateNSView` calls.
+  /// Without this, SwiftUI may skip `updateNSView` because the struct reference hasn't changed.
+  var revision: UInt = 0
+
+  /// Bump the revision counter to signal a visual change
+  func bumpRevision() { revision &+= 1 }
 
   // MARK: - Undo/Redo
 
-  @Published var canUndo = false
-  @Published var canRedo = false
-  @Published var hasUnsavedChanges = false
+  var canUndo = false
+  var canRedo = false
+  var hasUnsavedChanges = false
   private var undoStack: [[AnnotationItem]] = []
   private var redoStack: [[AnnotationItem]] = []
 
@@ -77,21 +85,16 @@ final class AnnotateState: ObservableObject {
   func loadImage(from url: URL) {
     sourceURL = url
     sourceImage = Self.loadImageWithCorrectScale(from: url)
-    annotations.removeAll()
-    undoStack.removeAll()
-    redoStack.removeAll()
-    canUndo = false
-    canRedo = false
-    selectedAnnotationId = nil
-    editingTextAnnotationId = nil
-    cropRect = nil
-    isCropActive = false
-    hasUnsavedChanges = false
+    resetState()
   }
 
   func loadImage(_ image: NSImage, url: URL? = nil) {
     sourceURL = url
     sourceImage = image
+    resetState()
+  }
+
+  private func resetState() {
     annotations.removeAll()
     undoStack.removeAll()
     redoStack.removeAll()
@@ -150,6 +153,7 @@ final class AnnotateState: ObservableObject {
     annotations = previous
     canUndo = !undoStack.isEmpty
     canRedo = true
+    bumpRevision()
   }
 
   func redo() {
@@ -158,6 +162,7 @@ final class AnnotateState: ObservableObject {
     annotations = next
     canUndo = true
     canRedo = !redoStack.isEmpty
+    bumpRevision()
   }
 
   /// Clear undo/redo history (e.g. after crop changes coordinates)
@@ -324,6 +329,7 @@ final class AnnotateState: ObservableObject {
     default:
       break
     }
+    bumpRevision()
   }
 
   func updateAnnotationText(id: UUID, text: String) {
@@ -335,6 +341,7 @@ final class AnnotateState: ObservableObject {
         origin: annotations[index].bounds.origin
       )
       annotations[index].bounds = newBounds
+      bumpRevision()
     }
   }
 
@@ -367,6 +374,7 @@ final class AnnotateState: ObservableObject {
     if let fillColor {
       annotations[index].properties.fillColor = fillColor
     }
+    bumpRevision()
   }
 
   /// Calculate text bounds based on content and font size
@@ -411,6 +419,14 @@ final class AnnotateState: ObservableObject {
     saveState()
     annotations.removeAll { $0.id == selectedId }
     selectedAnnotationId = nil
+    bumpRevision()
+  }
+
+  /// Remove a specific annotation by ID
+  func removeAnnotation(id: UUID) {
+    annotations.removeAll { $0.id == id }
+    if selectedAnnotationId == id { selectedAnnotationId = nil }
+    bumpRevision()
   }
 
   func deselectAnnotation() {
@@ -450,6 +466,7 @@ final class AnnotateState: ObservableObject {
     default:
       break
     }
+    bumpRevision()
   }
 
   /// Mark as saved (reset unsaved changes flag)
@@ -466,6 +483,7 @@ final class AnnotateState: ObservableObject {
     editingTextAnnotationId = nil
     hiddenAnnotationIds.removeAll()
     lockedAnnotationIds.removeAll()
+    bumpRevision()
   }
 
   // MARK: - Layer Management
@@ -481,6 +499,7 @@ final class AnnotateState: ObservableObject {
         selectedAnnotationId = nil
       }
     }
+    bumpRevision()
   }
 
   /// Toggle lock state of an annotation
@@ -494,12 +513,14 @@ final class AnnotateState: ObservableObject {
         selectedAnnotationId = nil
       }
     }
+    bumpRevision()
   }
 
   /// Move annotation from one index to another (for reordering layers)
   func moveAnnotation(from source: IndexSet, to destination: Int) {
     saveState()
     annotations.move(fromOffsets: source, toOffset: destination)
+    bumpRevision()
   }
 
   /// Check if an annotation is visible
@@ -522,10 +543,8 @@ final class AnnotateState: ObservableObject {
 
     Task {
       let regions = await AutoRedactService.shared.detectSensitiveRegions(in: image)
-      await MainActor.run {
-        self.redactRegions = regions
-        self.isRedactScanning = false
-      }
+      self.redactRegions = regions
+      self.isRedactScanning = false
     }
   }
 
@@ -569,6 +588,7 @@ final class AnnotateState: ObservableObject {
     }
     redactRegions = []
     selectedTool = .selection
+    bumpRevision()
   }
 
   // MARK: - Sticker Placement
@@ -584,48 +604,10 @@ final class AnnotateState: ObservableObject {
     let annotation = AnnotationItem(
       type: .sticker(sticker),
       bounds: bounds,
-      properties: AnnotationProperties(strokeColor: state.strokeColor)
+      properties: AnnotationProperties(strokeColor: self.strokeColor)
     )
     annotations.append(annotation)
     selectedAnnotationId = annotation.id
-  }
-
-  /// Reference to self for sticker color access
-  private var state: AnnotateState { self }
-}
-
-// MARK: - Crop Aspect Ratio
-
-enum CropAspectRatio: String, CaseIterable, Identifiable {
-  case free
-  case ratio1x1
-  case ratio4x3
-  case ratio16x9
-  case ratio3x2
-  case ratio9x16
-
-  var id: String { rawValue }
-
-  var displayName: String {
-    switch self {
-    case .free: return "Free"
-    case .ratio1x1: return "1:1"
-    case .ratio4x3: return "4:3"
-    case .ratio16x9: return "16:9"
-    case .ratio3x2: return "3:2"
-    case .ratio9x16: return "9:16"
-    }
-  }
-
-  /// Target ratio (width / height)
-  var ratio: CGFloat {
-    switch self {
-    case .free: return 0
-    case .ratio1x1: return 1
-    case .ratio4x3: return 4.0 / 3.0
-    case .ratio16x9: return 16.0 / 9.0
-    case .ratio3x2: return 3.0 / 2.0
-    case .ratio9x16: return 9.0 / 16.0
-    }
+    bumpRevision()
   }
 }

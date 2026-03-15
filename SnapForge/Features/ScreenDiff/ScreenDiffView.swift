@@ -62,7 +62,7 @@ struct ScreenDiffView: View {
       }
     }
     .onAppear { generateDiff() }
-    .onChange(of: diffMode) { _, _ in generateDiff() }
+    .onChange(of: diffMode) { generateDiff() }
   }
 
   // MARK: - Toolbar
