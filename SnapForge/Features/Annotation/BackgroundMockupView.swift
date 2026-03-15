@@ -68,7 +68,7 @@ struct BackgroundMockupView: View {
                     .foregroundStyle(.secondary)
                     .frame(width: 70, alignment: .leading)
 
-                ScrollView(.horizontal, showsIndicators: false) {
+                ScrollView(.horizontal) {
                     HStack(spacing: 6) {
                         ForEach(GradientPreset.allCases) { preset in
                             Button(action: {
@@ -98,6 +98,7 @@ struct BackgroundMockupView: View {
                             }
                     }
                 }
+                .scrollIndicators(.hidden)
             }
 
             // Padding slider
@@ -147,7 +148,7 @@ struct BackgroundMockupView: View {
 
                 Button("Copy to Clipboard") {
                     let rendered = renderComposite()
-                    ClipboardService().copyImage(rendered)
+                    AppEnvironment.shared.clipboardService.copyImage(rendered)
                     onCancel()
                 }
 

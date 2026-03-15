@@ -21,28 +21,6 @@ struct CanvasDrawingView: NSViewRepresentable {
   }
 }
 
-/// Handle types for resize operations
-enum ResizeHandle: Equatable {
-  case topLeft, topRight, bottomLeft, bottomRight
-  case top, bottom, left, right
-}
-
-/// Handle types for crop operations
-enum CropHandle: String, CaseIterable {
-  case topLeft, top, topRight
-  case left, right
-  case bottomLeft, bottom, bottomRight
-  case body
-
-  static var corners: [CropHandle] {
-    [.topLeft, .topRight, .bottomLeft, .bottomRight]
-  }
-
-  static var edges: [CropHandle] {
-    [.top, .bottom, .left, .right]
-  }
-}
-
 /// NSView subclass handling mouse events and drawing
 @MainActor
 final class DrawingCanvasNSView: NSView {
