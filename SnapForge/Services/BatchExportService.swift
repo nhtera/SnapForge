@@ -65,33 +65,19 @@ final class BatchExportService {
           quality: options.quality,
           to: fileURL
         )
+
+        // Yield to keep UI responsive
+        await Task.yield()
       }
 
       progress = 0.95
       currentItem = "Creating ZIP…"
 
-      // Create ZIP archive
-      let zipURL = tempDir.deletingLastPathComponent()
-        .appendingPathComponent("SnapForge_Export.zip")
-
-      // Remove existing ZIP if any
-      try? FileManager.default.removeItem(at: zipURL)
-
-      // Use ditto to create ZIP (macOS built-in, handles Unicode filenames correctly)
-      let process = Process()
-      process.executableURL = URL(fileURLWithPath: "/usr/bin/ditto")
-      process.arguments = ["-c", "-k", "--sequesterRsrc", tempDir.path, zipURL.path]
-      try process.run()
-      process.waitUntilExit()
+      // Create ZIP using NSFileCoordinator (sandbox-safe)
+      let zipURL = try await createZip(from: tempDir)
 
       // Clean up temp directory
       try? FileManager.default.removeItem(at: tempDir)
-
-      guard process.terminationStatus == 0 else {
-        print("❌ Batch export: ditto failed with status \(process.terminationStatus)")
-        isExporting = false
-        return nil
-      }
 
       progress = 1.0
       currentItem = "Done"
@@ -104,6 +90,36 @@ final class BatchExportService {
       try? FileManager.default.removeItem(at: tempDir)
       isExporting = false
       return nil
+    }
+  }
+
+  /// Create ZIP from a directory using NSFileCoordinator (sandbox-safe).
+  private func createZip(from sourceDir: URL) async throws -> URL {
+    try await withCheckedThrowingContinuation { continuation in
+      let coordinator = NSFileCoordinator()
+      var error: NSError?
+
+      // .forUploading on a directory automatically creates a temporary ZIP
+      coordinator.coordinate(
+        readingItemAt: sourceDir,
+        options: .forUploading,
+        error: &error
+      ) { zipTempURL in
+        let destURL = FileManager.default.temporaryDirectory
+          .appendingPathComponent("SnapForge_Export_\(UUID().uuidString).zip")
+        do {
+          try? FileManager.default.removeItem(at: destURL)
+          try FileManager.default.copyItem(at: zipTempURL, to: destURL)
+          print("✅ Batch export ZIP created: \(destURL.path)")
+          continuation.resume(returning: destURL)
+        } catch {
+          continuation.resume(throwing: error)
+        }
+      }
+
+      if let error {
+        continuation.resume(throwing: error)
+      }
     }
   }
 

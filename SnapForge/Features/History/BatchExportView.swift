@@ -211,21 +211,23 @@ struct BatchExportView: View {
 
   private func startExport() {
     isExporting = true
+    progress = 0
+    currentItem = "Starting…"
+
     Task {
       let service = BatchExportService.shared
 
-      // Start a timer to poll progress
-      let timer = Timer.publish(every: 0.1, on: .main, in: .common).autoconnect()
-      let timerTask = Task {
-        for await _ in timer.values {
+      // Poll progress in background
+      let progressTask = Task {
+        while !Task.isCancelled {
           progress = service.progress
           currentItem = service.currentItem
-          if !service.isExporting && progress >= 1.0 { break }
+          try? await Task.sleep(for: .milliseconds(100))
         }
       }
 
       let url = await service.exportBatch(captures: captures, options: options)
-      timerTask.cancel()
+      progressTask.cancel()
 
       progress = 1.0
       isExporting = false
