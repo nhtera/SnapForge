@@ -54,6 +54,23 @@ final class AppCoordinator {
         NSApp.setActivationPolicy(.regular)
     }
 
+    /// Bring a window to front reliably, even when transitioning from .accessory mode.
+    /// Order matters: elevate policy → activate app → make key → delayed safety net.
+    private func bringWindowToFront(_ window: NSWindow) {
+        elevateActivationPolicy()
+        NSApp.activate(ignoringOtherApps: true)
+        window.makeKeyAndOrderFront(nil)
+
+        // Safety net: if macOS didn't honor the ordering (e.g. during policy transition),
+        // force the window to front after a brief delay.
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(100))
+            if window.isVisible {
+                window.orderFrontRegardless()
+            }
+        }
+    }
+
     /// Revert to `.accessory` (menu-bar-only) when no user-facing windows remain visible.
     private func revertActivationPolicyIfNeeded() {
         let hasVisibleWindows = [
@@ -92,11 +109,9 @@ final class AppCoordinator {
         window.title = "Welcome to SnapForge"
         window.center()
         window.isReleasedWhenClosed = false
-        window.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
 
         onboardingWindow = window
-        elevateActivationPolicy()
+        bringWindowToFront(window)
     }
 
     func dismissOnboarding() {
@@ -192,11 +207,9 @@ final class AppCoordinator {
         window.title = "SnapForge Editor"
         window.center()
         window.isReleasedWhenClosed = false
-        window.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
 
         annotationWindow = window
-        elevateActivationPolicy()
+        bringWindowToFront(window)
     }
 
     func showBackgroundMockup(for image: NSImage) {
@@ -222,12 +235,10 @@ final class AppCoordinator {
         window.title = "Background & Mockup"
         window.center()
         window.isReleasedWhenClosed = false
-        window.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
 
         // Reuse annotationWindow reference for cleanup
         annotationWindow = window
-        elevateActivationPolicy()
+        bringWindowToFront(window)
     }
 
     // MARK: - Floating Pin
@@ -558,6 +569,7 @@ final class AppCoordinator {
             onCancel: { [weak self] in
                 self?.recordingCountdownWindow?.close()
                 self?.recordingCountdownWindow = nil
+                onComplete()  // Must resume continuation so caller doesn't hang
             }
         )
 
@@ -596,8 +608,7 @@ final class AppCoordinator {
     func showHistory() {
         // Re-show if already open
         if let existing = historyWindow, existing.isVisible {
-            existing.makeKeyAndOrderFront(nil)
-            NSApp.activate(ignoringOtherApps: true)
+            bringWindowToFront(existing)
             return
         }
 
@@ -614,19 +625,16 @@ final class AppCoordinator {
         window.title = "Capture History"
         window.center()
         window.isReleasedWhenClosed = false
-        window.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
 
         historyWindow = window
-        elevateActivationPolicy()
+        bringWindowToFront(window)
     }
 
     // MARK: - Stitcher
 
     func showStitcher(images: [NSImage]) {
         if let existing = stitcherWindow, existing.isVisible {
-            existing.makeKeyAndOrderFront(nil)
-            NSApp.activate(ignoringOtherApps: true)
+            bringWindowToFront(existing)
             return
         }
 
@@ -643,19 +651,16 @@ final class AppCoordinator {
         window.title = "Stitch Screenshots"
         window.center()
         window.isReleasedWhenClosed = false
-        window.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
 
         stitcherWindow = window
-        elevateActivationPolicy()
+        bringWindowToFront(window)
     }
 
     // MARK: - Screen Diff
 
     func showScreenDiff(imageA: NSImage?, imageB: NSImage?) {
         if let existing = screenDiffWindow, existing.isVisible {
-            existing.makeKeyAndOrderFront(nil)
-            NSApp.activate(ignoringOtherApps: true)
+            bringWindowToFront(existing)
             return
         }
 
@@ -672,11 +677,9 @@ final class AppCoordinator {
         window.title = "Screen Diff"
         window.center()
         window.isReleasedWhenClosed = false
-        window.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
 
         screenDiffWindow = window
-        elevateActivationPolicy()
+        bringWindowToFront(window)
     }
 
     // MARK: - Cleanup

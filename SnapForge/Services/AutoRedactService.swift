@@ -113,7 +113,11 @@ final class AutoRedactService: Sendable {
     }
 
     let handler = VNImageRequestHandler(cgImage: cgImage, options: [:])
-    try? handler.perform([request])
+    do {
+      try handler.perform([request])
+    } catch {
+      print("❌ AutoRedactService: Face detection failed: \(error)")
+    }
     return rects
   }
 
@@ -150,7 +154,11 @@ final class AutoRedactService: Sendable {
     request.automaticallyDetectsLanguage = true
 
     let handler = VNImageRequestHandler(cgImage: cgImage, options: [:])
-    try? handler.perform([request])
+    do {
+      try handler.perform([request])
+    } catch {
+      print("❌ AutoRedactService: Text detection failed: \(error)")
+    }
     return regions
   }
 

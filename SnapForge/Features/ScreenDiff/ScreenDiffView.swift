@@ -289,9 +289,9 @@ struct ScreenDiffView: View {
       }
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity)
-    .background(Color(white: 0.12), in: RoundedRectangle(cornerRadius: 12))
+    .background(Color(white: 0.12), in: RoundedRectangle(cornerRadius: DesignTokens.Radius.lg))
     .overlay {
-      RoundedRectangle(cornerRadius: 12)
+      RoundedRectangle(cornerRadius: DesignTokens.Radius.lg)
         .strokeBorder(style: StrokeStyle(lineWidth: 2, dash: [8, 4]))
         .foregroundStyle(Color.secondary.opacity(0.3))
     }

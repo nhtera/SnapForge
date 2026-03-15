@@ -172,11 +172,15 @@ struct TemplatePopoverView: View {
     let name = newTemplateName.trimmingCharacters(in: .whitespaces)
     guard !name.isEmpty else { return }
 
-    try? templateService.save(
-      annotations: state.annotations,
-      name: name,
-      description: newTemplateDescription
-    )
+    do {
+      try templateService.save(
+        annotations: state.annotations,
+        name: name,
+        description: newTemplateDescription
+      )
+    } catch {
+      print("❌ Template save failed: \(error)")
+    }
 
     newTemplateName = ""
     newTemplateDescription = ""
@@ -184,6 +188,10 @@ struct TemplatePopoverView: View {
   }
 
   private func deleteTemplate(_ template: AnnotationTemplate) {
-    try? templateService.delete(id: template.id)
+    do {
+      try templateService.delete(id: template.id)
+    } catch {
+      print("❌ Template delete failed: \(error)")
+    }
   }
 }

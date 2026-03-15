@@ -153,7 +153,7 @@ struct BatchExportView: View {
       }
     }
     .padding(12)
-    .background(Color(white: 0.12), in: RoundedRectangle(cornerRadius: 8))
+    .background(Color(white: 0.12), in: RoundedRectangle(cornerRadius: DesignTokens.Radius.md))
   }
 
   // MARK: - Footer

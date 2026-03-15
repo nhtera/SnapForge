@@ -5,7 +5,7 @@ import AVFoundation
 
 struct OnboardingView: View {
     @State private var currentStep = 0
-    @State private var permissionService = PermissionService()
+    @State private var permissionService = AppEnvironment.shared.permissionService
 
     private let totalSteps = 4
 

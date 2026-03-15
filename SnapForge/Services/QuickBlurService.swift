@@ -87,7 +87,11 @@ final class QuickBlurService: Sendable {
     request.automaticallyDetectsLanguage = true
 
     let handler = VNImageRequestHandler(cgImage: cgImage, options: [:])
-    try? handler.perform([request])
+    do {
+      try handler.perform([request])
+    } catch {
+      print("❌ QuickBlurService: Text detection failed: \(error)")
+    }
     return rects
   }
 
@@ -164,7 +168,11 @@ final class QuickBlurService: Sendable {
     }
 
     let handler = VNImageRequestHandler(cgImage: cgImage, options: [:])
-    try? handler.perform([request])
+    do {
+      try handler.perform([request])
+    } catch {
+      print("❌ QuickBlurService: Face detection failed: \(error)")
+    }
     return rects
   }
 

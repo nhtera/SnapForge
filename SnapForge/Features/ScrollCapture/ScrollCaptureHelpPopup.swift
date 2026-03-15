@@ -65,10 +65,10 @@ struct ScrollCaptureHelpView: View {
         }
         .frame(width: 520, height: 440)
         .background(
-            RoundedRectangle(cornerRadius: 14)
+            RoundedRectangle(cornerRadius: DesignTokens.Radius.xl)
                 .fill(.ultraThickMaterial)
         )
-        .clipShape(RoundedRectangle(cornerRadius: 14))
+        .clipShape(RoundedRectangle(cornerRadius: DesignTokens.Radius.xl))
     }
 
     // MARK: - Page Content
@@ -114,7 +114,7 @@ struct ScrollCaptureHelpView: View {
             ForEach(Array(items.enumerated()), id: \.offset) { _, item in
                 VStack(spacing: 12) {
                     // Illustration card
-                    RoundedRectangle(cornerRadius: 12)
+                    RoundedRectangle(cornerRadius: DesignTokens.Radius.lg)
                         .fill(item.isCorrect ?
                               Color.green.opacity(0.08) :
                               Color.red.opacity(0.08))
@@ -126,7 +126,7 @@ struct ScrollCaptureHelpView: View {
                                     .foregroundStyle(item.isCorrect ? .green.opacity(0.6) : .red.opacity(0.4))
 
                                 // Selection indicator
-                                RoundedRectangle(cornerRadius: 4)
+                                RoundedRectangle(cornerRadius: DesignTokens.Radius.sm)
                                     .stroke(item.isCorrect ? .blue : .blue, style: StrokeStyle(lineWidth: 1.5, dash: [4]))
                                     .frame(width: item.isCorrect ? 60 : 80, height: 50)
                                     .overlay(
@@ -209,7 +209,7 @@ struct ScrollCaptureHelpView: View {
                     .foregroundStyle(.white)
                     .frame(width: 160, height: 36)
                     .background(
-                        RoundedRectangle(cornerRadius: 8)
+                        RoundedRectangle(cornerRadius: DesignTokens.Radius.md)
                             .fill(Color.accentColor)
                     )
             }

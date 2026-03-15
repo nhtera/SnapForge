@@ -80,7 +80,7 @@ struct StitcherView: View {
               .resizable()
               .aspectRatio(contentMode: .fit)
               .frame(width: 48, height: 36)
-              .clipShape(RoundedRectangle(cornerRadius: 4))
+              .clipShape(RoundedRectangle(cornerRadius: DesignTokens.Radius.sm))
 
             VStack(alignment: .leading, spacing: 2) {
               Text("Image \(index + 1)")
@@ -204,7 +204,7 @@ struct StitcherView: View {
     }
     .padding(.horizontal, 10)
     .padding(.vertical, 6)
-    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 8))
+    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: DesignTokens.Radius.md))
     .shadow(color: .black.opacity(0.15), radius: 4, y: 2)
   }
 

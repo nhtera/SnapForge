@@ -41,7 +41,7 @@ struct ScrollCaptureToolbarView: View {
         }
         .frame(height: 40)
         .background(
-            RoundedRectangle(cornerRadius: 10)
+            RoundedRectangle(cornerRadius: DesignTokens.Radius.lg)
                 .fill(.ultraThickMaterial)
                 .shadow(color: .black.opacity(0.35), radius: 12, y: 4)
         )

@@ -202,7 +202,7 @@ struct HistoryView: View {
     @ViewBuilder
     private var dragSelectionOverlay: some View {
         // The rubber-band selection rectangle (visual only, doesn't block clicks)
-        GeometryReader { _ in
+        ZStack {
             if let rect = dragSelectionRect {
                 Rectangle()
                     .fill(Color.accentColor.opacity(0.12))
@@ -214,6 +214,7 @@ struct HistoryView: View {
                     .position(x: rect.midX, y: rect.midY)
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .allowsHitTesting(false)
     }
 
@@ -281,7 +282,7 @@ struct HistoryView: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12))
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: DesignTokens.Radius.lg))
         .shadow(color: .black.opacity(0.2), radius: 8, y: 2)
         .padding(.bottom, 12)
     }
@@ -383,7 +384,7 @@ struct TagChip: View {
 // MARK: - Tag Input Sheet
 
 struct TagInputSheet: View {
-    @ObservedObject var viewModel: HistoryViewModel
+    var viewModel: HistoryViewModel
     @State private var tagText = ""
 
     var body: some View {
@@ -421,7 +422,7 @@ struct TagInputSheet: View {
 
 struct HistoryItemView: View {
     let capture: HistoryCapture
-    @ObservedObject var viewModel: HistoryViewModel
+    var viewModel: HistoryViewModel
     var isMultiSelectMode: Bool = false
     var isSelected: Bool = false
     @State private var isHovered = false
@@ -438,7 +439,7 @@ struct HistoryItemView: View {
                 .frame(height: 140)
                 .clipped()
                 .contentShape(Rectangle())
-                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: DesignTokens.Radius.lg, style: .continuous))
                 .overlay(alignment: .topTrailing) {
                     typeBadge.padding(6)
                 }
@@ -490,9 +491,9 @@ struct HistoryItemView: View {
             .padding(.vertical, 8)
         }
         .background(Color(white: 0.12))
-        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: DesignTokens.Radius.lg, style: .continuous))
         .overlay {
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
+            RoundedRectangle(cornerRadius: DesignTokens.Radius.lg, style: .continuous)
                 .stroke(
                     isSelected ? Color.accentColor : (isHovered ? Color.accentColor.opacity(0.5) : Color.white.opacity(0.06)),
                     lineWidth: isSelected ? 2 : 1
@@ -543,7 +544,7 @@ struct HistoryItemView: View {
 
 @MainActor
 @Observable
-final class HistoryViewModel: ObservableObject {
+final class HistoryViewModel {
     var captures: [HistoryCapture] = []
     var searchText = ""
     var selectedFolder: SmartFolder = .all
