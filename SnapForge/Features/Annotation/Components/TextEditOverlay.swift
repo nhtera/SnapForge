@@ -17,7 +17,7 @@ struct TextEditOverlay: View {
   private let textPadding: CGFloat = 4
 
   var body: some View {
-    GeometryReader { _ in
+    ZStack {
       if let editingId = state.editingTextAnnotationId,
          let annotation = state.annotations.first(where: { $0.id == editingId }),
          case .text(let currentText) = annotation.type

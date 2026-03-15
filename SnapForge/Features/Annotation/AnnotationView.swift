@@ -42,8 +42,11 @@ struct AnnotationView: View {
           if state.selectedTool == .crop && state.isCropActive {
             VStack {
               Spacer()
-              cropToolbar
-                .padding(.bottom, 16)
+              CropToolbar(
+                onCancel: { state.cancelCrop() },
+                onApply: { applyCrop() }
+              )
+              .padding(.bottom, 16)
             }
           }
 
@@ -134,7 +137,18 @@ struct AnnotationView: View {
         }
         .buttonStyle(.borderedProminent)
         .popover(isPresented: $showExportPicker) {
-          exportFormatPicker
+          ExportFormatPicker(
+            exportFormat: $exportFormat,
+            exportQuality: $exportQuality,
+            onCopy: {
+              exportImage(copyOnly: true)
+              showExportPicker = false
+            },
+            onSave: {
+              exportImage(copyOnly: false)
+              showExportPicker = false
+            }
+          )
         }
       }
     }
@@ -263,46 +277,6 @@ struct AnnotationView: View {
     return min(scaleX, scaleY, 1.0)
   }
 
-  // MARK: - Export Format Picker
-
-  private var exportFormatPicker: some View {
-    VStack(spacing: 12) {
-      Text("Export Format")
-        .font(.headline)
-
-      Picker("Format", selection: $exportFormat) {
-        ForEach(ImageExportFormat.allCases) { fmt in
-          Text(fmt.rawValue).tag(fmt)
-        }
-      }
-      .pickerStyle(.segmented)
-
-      if exportFormat != .png {
-        VStack(alignment: .leading, spacing: 4) {
-          Text("Quality: \(Int(exportQuality * 100))%")
-            .font(.caption)
-            .foregroundStyle(.secondary)
-          Slider(value: $exportQuality, in: 0.1...1.0, step: 0.05)
-        }
-      }
-
-      HStack(spacing: 12) {
-        Button("Copy") {
-          exportImage(copyOnly: true)
-          showExportPicker = false
-        }
-
-        Button("Save") {
-          exportImage(copyOnly: false)
-          showExportPicker = false
-        }
-        .buttonStyle(.borderedProminent)
-      }
-    }
-    .padding()
-    .frame(width: 260)
-  }
-
   // MARK: - Image Rect Calculation
 
   private func calcImageRect(canvasSize: CGSize, imageSize: NSSize) -> CGRect {
@@ -332,31 +306,6 @@ struct AnnotationView: View {
   // Text editing is handled by TextEditOverlay component
 
   // MARK: - Crop
-
-  private var cropToolbar: some View {
-    HStack(spacing: 12) {
-      Button(action: { state.cancelCrop() }) {
-        Label("Cancel", systemImage: "xmark")
-          .font(.system(size: 13, weight: .medium))
-          .padding(.horizontal, 14)
-          .padding(.vertical, 8)
-          .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 8))
-      }
-      .buttonStyle(.plain)
-      .keyboardShortcut(.escape, modifiers: [])
-
-      Button(action: { applyCrop() }) {
-        Label("Apply Crop", systemImage: "checkmark")
-          .font(.system(size: 13, weight: .medium))
-          .padding(.horizontal, 14)
-          .padding(.vertical, 8)
-          .background(Color.accentColor, in: RoundedRectangle(cornerRadius: 8))
-          .foregroundStyle(.white)
-      }
-      .buttonStyle(.plain)
-      .keyboardShortcut(.return, modifiers: [])
-    }
-  }
 
   private func applyCrop() {
     guard let cropRect = state.cropRect else { return }

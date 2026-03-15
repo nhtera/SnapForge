@@ -322,7 +322,7 @@ struct AnnotationFactoryTests {
 
   // MARK: - Zero-Size Shape Creation (Click Without Drag)
 
-  @Test func zeroSizeShapeIsStillCreated() {
+  @Test func zeroSizeShapeIsRejected() {
     let state = makeState(tool: .rectangle)
     let point = CGPoint(x: 100, y: 100)
 
@@ -330,9 +330,9 @@ struct AnnotationFactoryTests {
       tool: .rectangle, from: point, to: point, path: [], state: state
     )
 
-    #expect(result != nil, "Factory creates annotation even with zero size")
-    #expect(result?.bounds.width == 0)
-    #expect(result?.bounds.height == 0)
+    // Factory intentionally rejects shapes smaller than minimumBoundsSize (3px)
+    // to prevent accidental dot annotations from a simple click
+    #expect(result == nil, "Zero-size shapes should be rejected by minimumBoundsSize guard")
   }
 
   // MARK: - Bounds Normalization (Drag in Any Direction)
