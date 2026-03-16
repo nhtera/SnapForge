@@ -297,10 +297,34 @@ final class RecordingCoordinator {
         let hostingView = FirstMouseHostingView(rootView: toolbarView)
         let intrinsicSize = hostingView.fittingSize
 
-        // Position toolbar centered below the border
+        // Smart position: use visibleFrame to detect Dock & menu bar safe areas
+        let toolbarGap: CGFloat = 12
+        let visibleFrame = NSScreen.main?.visibleFrame ?? CGRect(x: 0, y: 0, width: 1920, height: 1080)
+        let minSafeY = visibleFrame.origin.y  // Bottom of usable area (above Dock)
+        let maxSafeY = visibleFrame.maxY      // Top of usable area (below menu bar)
+
+        let belowY = cocoaRect.origin.y - intrinsicSize.height - toolbarGap
+        let insideBottomY = max(cocoaRect.origin.y + toolbarGap, minSafeY + toolbarGap)
+        let aboveY = cocoaRect.maxY + toolbarGap
+
+        let toolbarY: CGFloat
+        if belowY >= minSafeY {
+            // Preferred: below the capture area (most common case)
+            toolbarY = belowY
+        } else if insideBottomY + intrinsicSize.height <= cocoaRect.maxY {
+            // Second: inside the capture area near the bottom (mouse is already here)
+            toolbarY = insideBottomY
+        } else if aboveY + intrinsicSize.height <= maxSafeY {
+            // Last resort: above the capture area
+            toolbarY = aboveY
+        } else {
+            // Edge case: center in visible area
+            toolbarY = visibleFrame.midY - intrinsicSize.height / 2
+        }
+
         let toolbarRect = CGRect(
             x: cocoaRect.midX - intrinsicSize.width / 2,
-            y: cocoaRect.origin.y - intrinsicSize.height - 8,
+            y: toolbarY,
             width: intrinsicSize.width,
             height: intrinsicSize.height
         )
