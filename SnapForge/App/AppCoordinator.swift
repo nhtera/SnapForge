@@ -132,11 +132,11 @@ final class AppCoordinator {
 
     // MARK: - Quick Access Overlay
 
-    func showQuickAccess(image: NSImage, at point: NSPoint) {
+    func showQuickAccess(image: NSImage, fileURL: URL?, at point: NSPoint) {
         // Dismiss any existing panel first
         dismissQuickAccess()
 
-        let quickAccessView = QuickAccessView(capturedImage: image)
+        let quickAccessView = QuickAccessView(capturedImage: image, fileURL: fileURL)
         let hostingView = NSHostingView(rootView: quickAccessView)
 
         // Wrap in FirstMouseView so clicks work even when app is inactive

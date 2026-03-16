@@ -232,6 +232,7 @@ final class CaptureSessionManager {
         }
 
         // Auto-save: only go through StorageService if session didn't already save
+        var savedURL = savedURL
         if defaults.bool(forKey: SettingsKey.autoSave), savedURL == nil {
             let storage = env.storageService
             let format = defaults.string(forKey: SettingsKey.imageFormat) ?? "png"
@@ -239,6 +240,7 @@ final class CaptureSessionManager {
             let filename = storage.generateImageFilename(format: format)
             if let saved = try? storage.saveImage(image, filename: filename, format: format, quality: quality) {
                 print("✅ Saved scroll capture to: \(saved.path)")
+                savedURL = saved
             }
         } else if let savedURL {
             print("✅ Scroll capture already saved to: \(savedURL.path)")
@@ -247,7 +249,7 @@ final class CaptureSessionManager {
         // Show Quick Access overlay
         if defaults.bool(forKey: SettingsKey.showQuickAccess) {
             let mouseLocation = NSEvent.mouseLocation
-            AppCoordinator.shared.showQuickAccess(image: image, at: mouseLocation)
+            AppCoordinator.shared.showQuickAccess(image: image, fileURL: savedURL, at: mouseLocation)
         }
 
         // Open Annotate tool after capture
@@ -597,21 +599,20 @@ final class CaptureSessionManager {
             env.clipboardService.copyImage(image)
         }
 
-        // Auto-save (respect the toggle)
-        if defaults.bool(forKey: SettingsKey.autoSave) {
-            let storage = env.storageService
-            let format = defaults.string(forKey: SettingsKey.imageFormat) ?? "png"
-            let quality = defaults.double(forKey: SettingsKey.jpegQuality)
-            let filename = storage.generateImageFilename(format: format)
-            if let saved = try? storage.saveImage(image, filename: filename, format: format, quality: quality) {
-                print("✅ Saved capture to: \(saved.path)")
-            }
+        // Always save the image to a real storage path
+        let storage = env.storageService
+        let format = defaults.string(forKey: SettingsKey.imageFormat) ?? "png"
+        let quality = defaults.double(forKey: SettingsKey.jpegQuality)
+        let filename = storage.generateImageFilename(format: format)
+        let savedURL = try? storage.saveImage(image, filename: filename, format: format, quality: quality)
+        if let savedURL {
+            print("✅ Saved capture to: \(savedURL.path)")
         }
 
         // Show Quick Access overlay
         if defaults.bool(forKey: SettingsKey.showQuickAccess) {
             let mouseLocation = NSEvent.mouseLocation
-            AppCoordinator.shared.showQuickAccess(image: image, at: mouseLocation)
+            AppCoordinator.shared.showQuickAccess(image: image, fileURL: savedURL, at: mouseLocation)
         }
 
         // Open Annotate tool after capture

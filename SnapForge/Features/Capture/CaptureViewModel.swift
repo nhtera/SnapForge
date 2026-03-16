@@ -138,7 +138,7 @@ final class CaptureViewModel {
         // Show Quick Access
         if UserDefaults.standard.bool(forKey: SettingsKey.showQuickAccess) {
             let point = NSEvent.mouseLocation
-            AppCoordinator.shared.showQuickAccess(image: image, at: point)
+            AppCoordinator.shared.showQuickAccess(image: image, fileURL: nil, at: point)
         }
     }
 }

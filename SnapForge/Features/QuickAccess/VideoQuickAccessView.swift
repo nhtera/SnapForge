@@ -11,6 +11,7 @@ struct VideoQuickAccessView: View {
     @State private var hoveredAction: VideoQuickAction?
     @State private var videoDuration: String = ""
     @State private var closeHovered = false
+    @State private var dragHovered = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -62,11 +63,11 @@ struct VideoQuickAccessView: View {
                 AppCoordinator.shared.dismissVideoQuickAccess()
             } label: {
                 Circle()
-                    .fill(closeHovered ? Color.gray.opacity(0.8) : Color.gray.opacity(0.5))
-                    .frame(width: 22, height: 22)
+                    .fill(closeHovered ? Color.gray.opacity(0.5) : Color.gray.opacity(0.3))
+                    .frame(width: 25, height: 25)
                     .overlay {
                         Image(systemName: "xmark")
-                            .font(.system(size: 10, weight: .bold))
+                            .font(.system(size: 11, weight: .bold))
                             .foregroundStyle(.white)
                     }
                     .shadow(color: .black.opacity(0.3), radius: 3, y: 1)
@@ -78,6 +79,7 @@ struct VideoQuickAccessView: View {
             }
             .padding(8)
             .transition(.opacity)
+            .help("Close")
         }
     }
 
@@ -137,21 +139,8 @@ struct VideoQuickAccessView: View {
                                 .padding(8)
                         }
                     }
-                    .onDrag {
-                        // Drag video file to other apps (Finder, Slack, etc.)
-                        let provider = NSItemProvider(contentsOf: videoURL) ?? NSItemProvider()
-                        provider.suggestedName = videoURL.lastPathComponent
-
-                        if UserDefaults.standard.bool(forKey: SettingsKey.quickAccessCloseAfterDrag) {
-                            Task { @MainActor in
-                                try? await Task.sleep(for: .milliseconds(500))
-                                if !NSEvent.modifierFlags.contains(.option) {
-                                    AppCoordinator.shared.dismissVideoQuickAccess()
-                                }
-                            }
-                        }
-
-                        return provider
+                    .overlay(alignment: .topTrailing) {
+                        videoDragHandleOverlay
                     }
             } else {
                 Rectangle()
@@ -162,6 +151,42 @@ struct VideoQuickAccessView: View {
                             .scaleEffect(0.7)
                     }
             }
+        }
+    }
+
+    // MARK: - Drag Handle
+
+    @ViewBuilder
+    private var videoDragHandleOverlay: some View {
+        if isHovering, let thumbnail {
+            FileDragSource(
+                fileURL: videoURL,
+                dragImage: thumbnail,
+                onDragEnded: { success in
+                    if success,
+                       UserDefaults.standard.bool(forKey: SettingsKey.quickAccessCloseAfterDrag)
+                    {
+                        Task { @MainActor in
+                            AppCoordinator.shared.dismissVideoQuickAccess()
+                        }
+                    }
+                }
+            )
+            .frame(width: 25, height: 25)
+            .overlay {
+                Image(systemName: "square.and.arrow.up.on.square")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .allowsHitTesting(false)
+            }
+            .background(.black.opacity(dragHovered ? 0.5 : 0.3), in: RoundedRectangle(cornerRadius: 6))
+            .shadow(color: .black.opacity(0.3), radius: 3, y: 1)
+            .onHover { hovered in
+                dragHovered = hovered
+            }
+            .padding(8)
+            .transition(.opacity)
+            .help("Drag to app")
         }
     }
 

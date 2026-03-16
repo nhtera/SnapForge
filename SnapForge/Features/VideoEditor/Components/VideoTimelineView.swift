@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// Timeline view with frame thumbnails and draggable trim handles.
-/// Inspired by CleanShotX / Snapzy's yellow-bordered trim interface.
+/// Video timeline view with yellow-bordered trim interface.
 struct VideoTimelineView: View {
     @Bindable var state: VideoEditorState
     @State private var isDraggingStart = false

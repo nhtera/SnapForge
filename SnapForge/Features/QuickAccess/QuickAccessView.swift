@@ -4,10 +4,13 @@ import SwiftUI
 /// Post-capture quick access toolbar with a clean, modern layout.
 struct QuickAccessView: View {
     let capturedImage: NSImage
+    let fileURL: URL?
     @State private var isHovering = false
     @State private var autoCloseTask: Task<Void, Never>?
     @State private var hoveredAction: QuickAction?
     @State private var closeHovered = false
+    @State private var dragHovered = false
+    @State private var dragFileURL: URL?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -34,6 +37,7 @@ struct QuickAccessView: View {
         .padding(24)
         .animation(.easeInOut(duration: 0.2), value: isHovering)
         .onAppear {
+            prepareDragFileURL()
             startAutoCloseTimerIfNeeded()
         }
         .onHover { hovering in
@@ -58,11 +62,11 @@ struct QuickAccessView: View {
                 AppCoordinator.shared.dismissQuickAccess()
             } label: {
                 Circle()
-                    .fill(closeHovered ? Color.gray.opacity(0.8) : Color.gray.opacity(0.5))
-                    .frame(width: 22, height: 22)
+                    .fill(closeHovered ? Color.gray.opacity(0.5) : Color.gray.opacity(0.3))
+                    .frame(width: 25, height: 25)
                     .overlay {
                         Image(systemName: "xmark")
-                            .font(.system(size: 10, weight: .bold))
+                            .font(.system(size: 11, weight: .bold))
                             .foregroundStyle(.white)
                     }
                     .shadow(color: .black.opacity(0.3), radius: 3, y: 1)
@@ -74,6 +78,7 @@ struct QuickAccessView: View {
             }
             .padding(8)
             .transition(.opacity)
+            .help("Close")
         }
     }
 
@@ -86,21 +91,63 @@ struct QuickAccessView: View {
             .frame(maxHeight: 140)
             .frame(maxWidth: .infinity)
             .clipped()
-            .onDrag {
-                let provider = NSItemProvider(object: capturedImage)
-                provider.suggestedName = AppEnvironment.shared.storageService.generateImageFilename()
+            .overlay(alignment: .topTrailing) {
+                dragHandleOverlay
+            }
+    }
 
-                if UserDefaults.standard.bool(forKey: SettingsKey.quickAccessCloseAfterDrag) {
-                    Task { @MainActor in
-                        try? await Task.sleep(for: .milliseconds(500))
-                        if !NSEvent.modifierFlags.contains(.option) {
+    // MARK: - Drag Handle
+
+    @ViewBuilder
+    private var dragHandleOverlay: some View {
+        if isHovering, let dragFileURL {
+            FileDragSource(
+                fileURL: dragFileURL,
+                dragImage: capturedImage,
+                onDragEnded: { success in
+                    if success,
+                       UserDefaults.standard.bool(forKey: SettingsKey.quickAccessCloseAfterDrag)
+                    {
+                        Task { @MainActor in
                             AppCoordinator.shared.dismissQuickAccess()
                         }
                     }
                 }
-
-                return provider
+            )
+            .frame(width: 25, height: 25)
+            .overlay {
+                Image(systemName: "square.and.arrow.up.on.square")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .allowsHitTesting(false)
             }
+            .background(.black.opacity(dragHovered ? 0.5 : 0.3), in: RoundedRectangle(cornerRadius: 6))
+            .shadow(color: .black.opacity(0.3), radius: 3, y: 1)
+            .onHover { hovered in
+                dragHovered = hovered
+            }
+            .padding(8)
+            .transition(.opacity)
+            .help("Drag to app")
+        }
+    }
+
+    /// Use the real saved file URL if available; otherwise save via StorageService as fallback.
+    private func prepareDragFileURL() {
+        if let fileURL {
+            dragFileURL = fileURL
+            return
+        }
+
+        // Fallback: save to the real storage location for drag support
+        let storage = AppEnvironment.shared.storageService
+        let format = UserDefaults.standard.string(forKey: SettingsKey.imageFormat) ?? "png"
+        let quality = UserDefaults.standard.double(forKey: SettingsKey.jpegQuality)
+        let filename = storage.generateImageFilename(format: format)
+
+        if let saved = try? storage.saveImage(capturedImage, filename: filename, format: format, quality: quality) {
+            dragFileURL = saved
+        }
     }
 
     // MARK: - Action Toolbar
