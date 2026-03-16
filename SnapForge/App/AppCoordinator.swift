@@ -23,9 +23,11 @@ final class AppCoordinator {
     // MARK: - Window References
     private var captureOverlayWindow: NSWindow?
     private var quickAccessPanel: NSPanel?
+    private var videoQuickAccessPanel: NSPanel?
     private var annotationWindow: NSWindow?
     private var onboardingWindow: NSWindow?
     private var historyWindow: NSWindow?
+    private var videoEditorWindow: NSWindow?
     private var floatingPins: [NSWindow] = []
     private var stitcherWindow: NSWindow?
     private var screenDiffWindow: NSWindow?
@@ -72,7 +74,7 @@ final class AppCoordinator {
     func revertActivationPolicyIfNeeded() {
         let hasVisibleWindows = [
             onboardingWindow, annotationWindow, historyWindow,
-            stitcherWindow, screenDiffWindow
+            videoEditorWindow, stitcherWindow, screenDiffWindow
         ].contains { $0?.isVisible == true }
 
         if !hasVisibleWindows {
@@ -85,6 +87,7 @@ final class AppCoordinator {
         if window === onboardingWindow { onboardingWindow = nil }
         if window === annotationWindow { annotationWindow = nil }
         if window === historyWindow { historyWindow = nil }
+        if window === videoEditorWindow { videoEditorWindow = nil }
         if window === stitcherWindow { stitcherWindow = nil }
         if window === screenDiffWindow { screenDiffWindow = nil }
         revertActivationPolicyIfNeeded()
@@ -138,6 +141,9 @@ final class AppCoordinator {
 
         // Wrap in FirstMouseView so clicks work even when app is inactive
         let containerView = FirstMouseView()
+        containerView.wantsLayer = true
+        containerView.layer?.backgroundColor = .clear
+
         hostingView.translatesAutoresizingMaskIntoConstraints = false
         containerView.addSubview(hostingView)
         NSLayoutConstraint.activate([
@@ -147,16 +153,17 @@ final class AppCoordinator {
             hostingView.trailingAnchor.constraint(equalTo: containerView.trailingAnchor),
         ])
 
-        // Size the panel to fit all action buttons without clipping
-        let panelWidth: CGFloat = 380
-        let panelHeight: CGFloat = 220
+        // Panel size: card content + SwiftUI .padding(24) for shadow clearance
+        let shadowPadding: CGFloat = 24
+        let panelWidth: CGFloat = 380 + shadowPadding * 2
+        let panelHeight: CGFloat = 220 + shadowPadding * 2
 
         // Smart positioning: place the panel so the bottom-left corner
         // (Copy button) is nearest to the mouse for quick action.
         let toolbarHeight: CGFloat = 48
         let leftPadding: CGFloat = 10  // Small offset so cursor is near Copy button
-        let idealX = point.x - leftPadding
-        let idealY = point.y - toolbarHeight
+        let idealX = point.x - leftPadding - shadowPadding
+        let idealY = point.y - toolbarHeight - shadowPadding
 
         // Clamp to keep the panel fully on-screen
         let screen = NSScreen.main ?? NSScreen.screens.first
@@ -166,7 +173,7 @@ final class AppCoordinator {
 
         let panel = QuickAccessPanel(
             contentRect: NSRect(x: clampedX, y: clampedY, width: panelWidth, height: panelHeight),
-            styleMask: [.titled, .closable, .nonactivatingPanel, .hudWindow],
+            styleMask: [.borderless, .nonactivatingPanel],
             backing: .buffered,
             defer: false
         )
@@ -177,6 +184,10 @@ final class AppCoordinator {
         panel.isReleasedWhenClosed = false
         panel.becomesKeyOnlyIfNeeded = true
         panel.acceptsMouseMovedEvents = true
+        panel.isOpaque = false
+        panel.backgroundColor = .clear
+        panel.hasShadow = false
+        panel.isMovableByWindowBackground = true
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         panel.makeKeyAndOrderFront(nil)
 
@@ -186,6 +197,104 @@ final class AppCoordinator {
     func dismissQuickAccess() {
         quickAccessPanel?.close()
         quickAccessPanel = nil
+    }
+
+    // MARK: - Video Quick Access Overlay
+
+    func showVideoQuickAccess(videoURL: URL, at point: NSPoint) {
+        dismissVideoQuickAccess()
+
+        let quickAccessView = VideoQuickAccessView(videoURL: videoURL)
+        let hostingView = NSHostingView(rootView: quickAccessView)
+
+        let containerView = FirstMouseView()
+        containerView.wantsLayer = true
+        containerView.layer?.backgroundColor = .clear
+
+        hostingView.translatesAutoresizingMaskIntoConstraints = false
+        containerView.addSubview(hostingView)
+        NSLayoutConstraint.activate([
+            hostingView.topAnchor.constraint(equalTo: containerView.topAnchor),
+            hostingView.bottomAnchor.constraint(equalTo: containerView.bottomAnchor),
+            hostingView.leadingAnchor.constraint(equalTo: containerView.leadingAnchor),
+            hostingView.trailingAnchor.constraint(equalTo: containerView.trailingAnchor),
+        ])
+
+        // Panel size: card content + SwiftUI .padding(24) for shadow clearance
+        let shadowPadding: CGFloat = 24
+        let panelWidth: CGFloat = 240 + shadowPadding * 2
+        let panelHeight: CGFloat = 210 + shadowPadding * 2
+
+        let toolbarHeight: CGFloat = 48
+        let leftPadding: CGFloat = 10
+        let idealX = point.x - leftPadding - shadowPadding
+        let idealY = point.y - toolbarHeight - shadowPadding
+
+        let screen = NSScreen.main ?? NSScreen.screens.first
+        let screenFrame = screen?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1920, height: 1080)
+        let clampedX = min(max(idealX, screenFrame.minX), screenFrame.maxX - panelWidth)
+        let clampedY = min(max(idealY, screenFrame.minY), screenFrame.maxY - panelHeight)
+
+        // Borderless panel — no title bar, no HUD chrome
+        let panel = QuickAccessPanel(
+            contentRect: NSRect(x: clampedX, y: clampedY, width: panelWidth, height: panelHeight),
+            styleMask: [.borderless, .nonactivatingPanel],
+            backing: .buffered,
+            defer: false
+        )
+        panel.contentView = containerView
+        panel.level = .floating
+        panel.isFloatingPanel = true
+        panel.hidesOnDeactivate = false
+        panel.isReleasedWhenClosed = false
+        panel.becomesKeyOnlyIfNeeded = true
+        panel.acceptsMouseMovedEvents = true
+        panel.isOpaque = false
+        panel.backgroundColor = .clear
+        panel.hasShadow = false
+        panel.isMovableByWindowBackground = true
+        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+        panel.makeKeyAndOrderFront(nil)
+
+        videoQuickAccessPanel = panel
+    }
+
+    func dismissVideoQuickAccess() {
+        videoQuickAccessPanel?.close()
+        videoQuickAccessPanel = nil
+    }
+
+    // MARK: - Video Editor
+
+    func showVideoEditor(for videoURL: URL) {
+        if let existing = videoEditorWindow, existing.isVisible {
+            bringWindowToFront(existing)
+            return
+        }
+
+        let state = VideoEditorState(url: videoURL)
+        let editorView = VideoEditorView(state: state)
+        let hostingView = NSHostingView(rootView: editorView)
+
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 800, height: 600),
+            styleMask: [.titled, .closable, .resizable, .miniaturizable],
+            backing: .buffered,
+            defer: false
+        )
+        window.contentView = hostingView
+        window.title = "Video Editor — \(videoURL.lastPathComponent)"
+        window.center()
+        window.isReleasedWhenClosed = false
+
+        videoEditorWindow = window
+        bringWindowToFront(window)
+    }
+
+    func dismissVideoEditor() {
+        videoEditorWindow?.close()
+        videoEditorWindow = nil
+        revertActivationPolicyIfNeeded()
     }
 
     // MARK: - Annotation Editor
@@ -402,9 +511,11 @@ final class AppCoordinator {
     func cleanup() {
         captureOverlayWindow?.close()
         quickAccessPanel?.close()
+        videoQuickAccessPanel?.close()
         annotationWindow?.close()
         onboardingWindow?.close()
         historyWindow?.close()
+        videoEditorWindow?.close()
         stitcherWindow?.close()
         screenDiffWindow?.close()
         RecordingCoordinator.shared.cleanup()

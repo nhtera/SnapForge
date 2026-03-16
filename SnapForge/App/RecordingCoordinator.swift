@@ -40,13 +40,25 @@ final class RecordingCoordinator {
 
     func stopRecording() async {
         let recorder = ScreenRecordingService.shared
-        if let savedURL = await recorder.stopRecording() {
+        let savedURL = await recorder.stopRecording()
+
+        if let savedURL {
             print("✅ Recording saved: \(savedURL.path)")
 
             if isGIFMode {
                 await convertToGIF(videoURL: savedURL)
+            } else {
+                // Show Video Quick Access overlay if enabled
+                if UserDefaults.standard.bool(forKey: SettingsKey.showQuickAccess) {
+                    let mouseLocation = NSEvent.mouseLocation
+                    AppCoordinator.shared.showVideoQuickAccess(
+                        videoURL: savedURL,
+                        at: mouseLocation
+                    )
+                }
             }
         }
+
         AppEnvironment.shared.isRecording = false
         isGIFMode = false
 
