@@ -69,7 +69,7 @@ final class AppCoordinator {
     }
 
     /// Revert to `.accessory` (menu-bar-only) when no user-facing windows remain visible.
-    private func revertActivationPolicyIfNeeded() {
+    func revertActivationPolicyIfNeeded() {
         let hasVisibleWindows = [
             onboardingWindow, annotationWindow, historyWindow,
             stitcherWindow, screenDiffWindow

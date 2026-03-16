@@ -54,4 +54,8 @@ enum SettingsKey {
 
     // Color Picker
     static let colorPickerCopyFormat = "colorPickerCopyFormat"
+
+    // Hotkeys
+    static let customHotkeysData = "customHotkeysData"
+    static let globalShortcutsEnabled = "globalShortcutsEnabled"
 }

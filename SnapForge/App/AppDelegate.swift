@@ -22,6 +22,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func registerHotkeys() {
         let hotkeys = AppEnvironment.shared.hotkeyService
+        hotkeys.loadCustomHotkeys()
 
         hotkeys.register(hotkey: .captureArea) { @Sendable in
             Task { @MainActor in
@@ -36,6 +37,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         hotkeys.register(hotkey: .captureWindow) { @Sendable in
             Task { @MainActor in
                 CaptureSessionManager.shared.startCapture(mode: .window)
+            }
+        }
+        hotkeys.register(hotkey: .selfTimer) { @Sendable in
+            Task { @MainActor in
+                CaptureSessionManager.shared.startCapture(mode: .timedArea)
             }
         }
         hotkeys.register(hotkey: .startRecording) { @Sendable in

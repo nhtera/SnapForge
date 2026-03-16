@@ -65,6 +65,8 @@ final class AppEnvironment {
             SettingsKey.gifLoopCount: 0,
             // Color Picker
             SettingsKey.colorPickerCopyFormat: "hex",
+            // Hotkeys
+            SettingsKey.globalShortcutsEnabled: true,
         ])
     }
 }

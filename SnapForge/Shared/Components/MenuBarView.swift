@@ -6,6 +6,15 @@ struct MenuBarView: View {
     @Environment(\.openSettings) private var openSettings
     @Environment(\.dismiss) private var dismiss
 
+    /// Look up the display string for a hotkey by its ID.
+    private func shortcut(for id: String) -> String {
+        guard let hotkey = env.hotkeyService.registeredHotkeys.first(where: { $0.id == id }),
+              !hotkey.isUnassigned else {
+            return ""
+        }
+        return HotkeyService.displayString(for: hotkey)
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             // Header
@@ -28,7 +37,7 @@ struct MenuBarView: View {
                 MenuBarActionRow(
                     icon: "rectangle.dashed",
                     label: String(localized: "menu.capture_area"),
-                    shortcut: "⌘⇧4",
+                    shortcut: shortcut(for: "captureArea"),
                     dismiss: dismiss
                 ) {
                     AppCoordinator.shared.showCaptureOverlay(for: .area)
@@ -37,7 +46,7 @@ struct MenuBarView: View {
                 MenuBarActionRow(
                     icon: "macwindow",
                     label: String(localized: "menu.capture_window"),
-                    shortcut: "⌘⇧W",
+                    shortcut: shortcut(for: "captureWindow"),
                     dismiss: dismiss
                 ) {
                     AppCoordinator.shared.showCaptureOverlay(for: .window)
@@ -46,7 +55,7 @@ struct MenuBarView: View {
                 MenuBarActionRow(
                     icon: "rectangle.inset.filled",
                     label: String(localized: "menu.capture_fullscreen"),
-                    shortcut: "⌘⇧3",
+                    shortcut: shortcut(for: "captureFullscreen"),
                     dismiss: dismiss
                 ) {
                     AppCoordinator.shared.showCaptureOverlay(for: .fullscreen)
@@ -55,7 +64,7 @@ struct MenuBarView: View {
                 MenuBarActionRow(
                     icon: "timer",
                     label: String(localized: "menu.self_timer"),
-                    shortcut: "⌘⇧T",
+                    shortcut: shortcut(for: "selfTimer"),
                     dismiss: dismiss
                 ) {
                     AppCoordinator.shared.showCaptureOverlay(for: .timedArea)
@@ -73,7 +82,7 @@ struct MenuBarView: View {
                     label: env.isRecording
                         ? String(localized: "menu.stop_recording")
                         : String(localized: "menu.record_screen"),
-                    shortcut: "⌘⇧5",
+                    shortcut: shortcut(for: "startRecording"),
                     tintColor: env.isRecording ? .red : nil,
                     dismiss: dismiss
                 ) {
@@ -90,7 +99,7 @@ struct MenuBarView: View {
                 MenuBarActionRow(
                     icon: "doc.text.viewfinder",
                     label: String(localized: "menu.ocr_capture"),
-                    shortcut: "⌘⇧O",
+                    shortcut: shortcut(for: "toggleOCR"),
                     dismiss: dismiss
                 ) {
                     AppCoordinator.shared.showCaptureOverlay(for: .ocrCapture)
@@ -99,7 +108,7 @@ struct MenuBarView: View {
                 MenuBarActionRow(
                     icon: "rectangle.expand.vertical",
                     label: String(localized: "menu.scroll_capture"),
-                    shortcut: "⌘⇧S",
+                    shortcut: shortcut(for: "scrollCapture"),
                     dismiss: dismiss
                 ) {
                     CaptureSessionManager.shared.startCapture(mode: .scrollCapture)
@@ -108,7 +117,7 @@ struct MenuBarView: View {
                 MenuBarActionRow(
                     icon: "eyedropper",
                     label: String(localized: "menu.pick_color"),
-                    shortcut: "⌘⇧C",
+                    shortcut: shortcut(for: "colorPicker"),
                     dismiss: dismiss
                 ) {
                     Task {
@@ -119,7 +128,7 @@ struct MenuBarView: View {
                 MenuBarActionRow(
                     icon: "pin.fill",
                     label: String(localized: "menu.pin_clipboard"),
-                    shortcut: "",
+                    shortcut: shortcut(for: "pinFromClipboard"),
                     dismiss: dismiss
                 ) {
                     if let image = NSPasteboard.general.readObjects(forClasses: [NSImage.self], options: nil)?.first as? NSImage {
@@ -139,7 +148,7 @@ struct MenuBarView: View {
                 MenuBarActionRow(
                     icon: "clock.arrow.circlepath",
                     label: String(localized: "menu.capture_history"),
-                    shortcut: "",
+                    shortcut: shortcut(for: "captureHistory"),
                     dismiss: dismiss
                 ) {
                     AppCoordinator.shared.showHistory()
@@ -154,6 +163,7 @@ struct MenuBarView: View {
             HStack(spacing: 12) {
                 Button(action: {
                     dismiss()
+                    NSApp.setActivationPolicy(.regular)
                     NSApp.activate(ignoringOtherApps: true)
                     Task { @MainActor in
                         try? await Task.sleep(for: .milliseconds(100))
