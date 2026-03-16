@@ -6,6 +6,7 @@ enum ScrollCaptureState: Equatable {
     case ready
     case capturing
     case autoScrolling
+    case paused
     case done
 }
 
@@ -13,6 +14,7 @@ enum ScrollCaptureState: Equatable {
 struct ScrollCaptureToolbarView: View {
     let state: ScrollCaptureState
     let frameCount: Int
+    let showHeightWarning: Bool
     let onStartCapture: () -> Void
     let onCaptureFrame: () -> Void
     let onAutoScroll: () -> Void
@@ -34,6 +36,9 @@ struct ScrollCaptureToolbarView: View {
 
             case .autoScrolling:
                 autoScrollingContent
+
+            case .paused:
+                pausedContent
 
             case .done:
                 doneContent
@@ -128,10 +133,80 @@ struct ScrollCaptureToolbarView: View {
         }
     }
 
+    // MARK: - Paused State (Auto-scroll was paused)
+
+    private var pausedContent: some View {
+        HStack(spacing: 0) {
+            // Frame counter
+            HStack(spacing: 4) {
+                Image(systemName: "photo.stack")
+                    .font(.system(size: 11, weight: .medium))
+                Text("\(frameCount)")
+                    .font(.system(size: 13, weight: .bold, design: .monospaced))
+            }
+            .foregroundStyle(.blue)
+            .padding(.horizontal, 14)
+
+            toolSeparator
+
+            // Paused indicator
+            HStack(spacing: 4) {
+                Image(systemName: "pause.fill")
+                    .font(.system(size: 10, weight: .semibold))
+                Text("Paused")
+                    .font(.system(size: 11, weight: .medium))
+            }
+            .foregroundStyle(.orange)
+            .padding(.horizontal, 8)
+
+            toolSeparator
+
+            // Resume button
+            toolButton(
+                title: "Resume",
+                icon: "play.fill",
+                color: .orange,
+                action: onAutoScroll
+            )
+
+            toolSeparator
+
+            toolButton(
+                title: "Done",
+                icon: "checkmark.circle.fill",
+                color: .green,
+                action: onDone
+            )
+
+            toolSeparator
+
+            toolButton(
+                title: "Cancel",
+                icon: "xmark",
+                color: .secondary,
+                action: onCancel
+            )
+        }
+    }
+
     // MARK: - Auto-Scrolling State
 
     private var autoScrollingContent: some View {
         HStack(spacing: 0) {
+            // Height warning badge
+            if showHeightWarning {
+                HStack(spacing: 4) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.system(size: 10, weight: .semibold))
+                    Text("Too tall")
+                        .font(.system(size: 11, weight: .medium))
+                }
+                .foregroundStyle(.yellow)
+                .padding(.horizontal, 10)
+
+                toolSeparator
+            }
+
             // Frame counter
             HStack(spacing: 4) {
                 Image(systemName: "photo.stack")
@@ -162,12 +237,11 @@ struct ScrollCaptureToolbarView: View {
 
             toolSeparator
 
-            toolButton(
-                title: "Pause",
-                icon: "pause.fill",
-                color: .orange,
-                action: onPauseAutoScroll
-            )
+            // Click-to-pause hint
+            Text("Click to pause")
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(.secondary.opacity(0.7))
+                .padding(.horizontal, 10)
 
             toolSeparator
 
@@ -278,6 +352,7 @@ final class ScrollCaptureToolbarPanel {
         below captureRect: CGRect,
         state: ScrollCaptureState,
         frameCount: Int,
+        showHeightWarning: Bool = false,
         onStartCapture: @escaping () -> Void,
         onCaptureFrame: @escaping () -> Void,
         onAutoScroll: @escaping () -> Void,
@@ -289,6 +364,7 @@ final class ScrollCaptureToolbarPanel {
         let toolbarView = ScrollCaptureToolbarView(
             state: state,
             frameCount: frameCount,
+            showHeightWarning: showHeightWarning,
             onStartCapture: onStartCapture,
             onCaptureFrame: onCaptureFrame,
             onAutoScroll: onAutoScroll,
@@ -302,13 +378,12 @@ final class ScrollCaptureToolbarPanel {
         if isShowing, let hostingView {
             hostingView.rootView = toolbarView
 
-            // Resize panel to fit new content size
+            // Resize panel to fit new content size, re-center below capture rect
             let fittingSize = hostingView.fittingSize
             if let panel {
                 var frame = panel.frame
-                let oldMidX = frame.midX
                 frame.size = fittingSize
-                frame.origin.x = oldMidX - fittingSize.width / 2  // Keep centered
+                frame.origin.x = captureRect.midX - fittingSize.width / 2  // Center to capture area
                 panel.setFrame(frame, display: true)
             }
             return

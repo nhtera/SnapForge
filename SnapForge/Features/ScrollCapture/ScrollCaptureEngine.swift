@@ -69,6 +69,36 @@ final class ScrollCaptureEngine {
         return context.makeImage()
     }
 
+    // MARK: - Frame Downscaling
+
+    /// Downscale a CGImage by the given factor (e.g., 2.0 = halve both dimensions, 75% fewer pixels).
+    /// Used to reduce Retina 2x frames to 1x for scroll captures.
+    static func downscale(_ image: CGImage, by factor: CGFloat) -> CGImage? {
+        guard factor > 1.0 else { return image }
+
+        let newWidth = Int(CGFloat(image.width) / factor)
+        let newHeight = Int(CGFloat(image.height) / factor)
+        guard newWidth > 0, newHeight > 0 else { return nil }
+
+        let colorSpace = CGColorSpaceCreateDeviceRGB()
+        let bitmapInfo = CGImageAlphaInfo.premultipliedFirst.rawValue |
+                         CGBitmapInfo.byteOrder32Little.rawValue
+
+        guard let context = CGContext(
+            data: nil,
+            width: newWidth,
+            height: newHeight,
+            bitsPerComponent: 8,
+            bytesPerRow: 0,
+            space: colorSpace,
+            bitmapInfo: bitmapInfo
+        ) else { return nil }
+
+        context.interpolationQuality = .high
+        context.draw(image, in: CGRect(x: 0, y: 0, width: newWidth, height: newHeight))
+        return context.makeImage()
+    }
+
     // MARK: - Scroll Simulation
 
     /// Simulate a mouse scroll event at the given screen position.
@@ -85,6 +115,36 @@ final class ScrollCaptureEngine {
         ) {
             lineEvent.location = point
             lineEvent.post(tap: .cghidEventTap)
+        }
+    }
+
+    /// Smooth scrolling — posts many small line-based scroll events in rapid succession.
+    /// Uses `units: .line` with amount=-1 for universal compatibility across all apps.
+    /// - Parameters:
+    ///   - lines: Number of line-scroll events to post (each scrolls ~1 line down)
+    ///   - point: Screen position to scroll at
+    ///   - stepDelay: Nanoseconds between each event (default ~25ms for smooth feel)
+    func simulateSmoothScroll(
+        lines: Int = 8,
+        at point: CGPoint,
+        stepDelay: UInt64 = 25_000_000
+    ) async {
+        for i in 0..<lines {
+            if let event = CGEvent(
+                scrollWheelEvent2Source: nil,
+                units: .line,
+                wheelCount: 1,
+                wheel1: -1,  // 1 line down per step
+                wheel2: 0,
+                wheel3: 0
+            ) {
+                event.location = point
+                event.post(tap: .cghidEventTap)
+            }
+
+            if i < lines - 1 {
+                try? await Task.sleep(nanoseconds: stepDelay)
+            }
         }
     }
 
@@ -253,9 +313,12 @@ final class ScrollCaptureEngine {
 
     // MARK: - Stitching
 
-    /// Stitch multiple frames vertically with alpha blending in overlap zones.
-    /// Returns the final composited NSImage.
-    func stitchFrames(_ frames: [CGImage], overlaps: [Int]) -> NSImage? {
+    /// Maximum output buffer size (200MB) to prevent OOM crashes on extremely long captures.
+    private static let maxBufferBytes = 200 * 1024 * 1024
+
+    /// Stitch multiple frames vertically with seam-cut in overlap zones.
+    /// Returns a raw CGImage — use this for direct PNG save via CGImageDestination.
+    func stitchFramesToCGImage(_ frames: [CGImage], overlaps: [Int]) -> CGImage? {
         guard !frames.isEmpty else { return nil }
         guard frames.count == overlaps.count + 1 else { return nil }
 
@@ -267,10 +330,18 @@ final class ScrollCaptureEngine {
             totalHeight += frames[i].height - overlaps[i - 1]
         }
 
-        // Create output pixel buffer
+        // Safety cap: prevent OOM on extremely long captures
         let bytesPerRow = width * 4
         let totalBytes = bytesPerRow * totalHeight
-        var outputData = [UInt8](repeating: 0, count: totalBytes)
+        if totalBytes > Self.maxBufferBytes {
+            print("⚠️ Stitching: output buffer would be \(totalBytes / 1_048_576)MB — exceeds 200MB cap")
+            let maxHeight = Self.maxBufferBytes / bytesPerRow
+            totalHeight = min(totalHeight, maxHeight)
+            print("⚠️ Stitching: capping output height to \(totalHeight)px")
+        }
+
+        let finalBytes = bytesPerRow * totalHeight
+        var outputData = [UInt8](repeating: 0, count: finalBytes)
 
         // Extract pixel data for all frames
         var frameDataList: [[UInt8]] = []
@@ -280,11 +351,11 @@ final class ScrollCaptureEngine {
         }
 
         // Draw first frame at the top (pixel row 0 = top of output)
-        let firstHeight = frames[0].height
+        let firstHeight = min(frames[0].height, totalHeight)
         for row in 0..<firstHeight {
             let srcOffset = row * bytesPerRow
             let dstOffset = row * bytesPerRow
-            let count = min(bytesPerRow, frameDataList[0].count - srcOffset, totalBytes - dstOffset)
+            let count = min(bytesPerRow, frameDataList[0].count - srcOffset, finalBytes - dstOffset)
             guard count > 0 else { continue }
             outputData.replaceSubrange(dstOffset..<(dstOffset + count),
                                        with: frameDataList[0][srcOffset..<(srcOffset + count)])
@@ -300,11 +371,9 @@ final class ScrollCaptureEngine {
             let newContentStart = nextFrameTop - overlap
 
             // Find the best seam row within the overlap zone
-            // (the row where previous and current frame match most closely)
-            var bestSeamRow = overlap / 2  // default: middle of overlap
+            var bestSeamRow = overlap / 2
             if overlap > 4 {
                 var bestSAD = Int.max
-                // Sample every 2nd row for performance, skip edges
                 let margin = max(overlap / 10, 2)
                 for row in stride(from: margin, to: overlap - margin, by: 1) {
                     let outputRow = newContentStart + row
@@ -314,12 +383,11 @@ final class ScrollCaptureEngine {
                     let currOffset = row * bytesPerRow
                     var sad = 0
 
-                    // Sample ~30 columns for speed
                     let colStep = max(width / 30, 1)
                     for x in stride(from: colStep, to: width - colStep, by: colStep) {
                         let pi = prevOffset + x * 4
                         let ci = currOffset + x * 4
-                        guard pi + 2 < totalBytes, ci + 2 < frameDataList[i].count else { continue }
+                        guard pi + 2 < finalBytes, ci + 2 < frameDataList[i].count else { continue }
 
                         sad += abs(Int(outputData[pi]) - Int(frameDataList[i][ci]))
                         sad += abs(Int(outputData[pi + 1]) - Int(frameDataList[i][ci + 1]))
@@ -341,13 +409,16 @@ final class ScrollCaptureEngine {
 
                 let srcOffset = row * bytesPerRow
                 let dstOffset = outputRow * bytesPerRow
-                let count = min(bytesPerRow, frameDataList[i].count - srcOffset, totalBytes - dstOffset)
+                let count = min(bytesPerRow, frameDataList[i].count - srcOffset, finalBytes - dstOffset)
                 guard count > 0 else { continue }
                 outputData.replaceSubrange(dstOffset..<(dstOffset + count),
                                            with: frameDataList[i][srcOffset..<(srcOffset + count)])
             }
 
             nextFrameTop = newContentStart + frameHeight
+
+            // Stop if we've filled the output (height-capped)
+            if nextFrameTop >= totalHeight { break }
         }
 
         // Create CGImage from pixel buffer
@@ -370,12 +441,19 @@ final class ScrollCaptureEngine {
                 intent: .defaultIntent
               ) else { return nil }
 
-        let scaleFactor = NSScreen.main?.backingScaleFactor ?? 2.0
+        return stitchedImage
+    }
+
+    /// Stitch multiple frames vertically, returning an NSImage.
+    /// Delegates to `stitchFramesToCGImage()` and wraps the result.
+    func stitchFrames(_ frames: [CGImage], overlaps: [Int]) -> NSImage? {
+        guard let cgImage = stitchFramesToCGImage(frames, overlaps: overlaps) else { return nil }
+
         return NSImage(
-            cgImage: stitchedImage,
+            cgImage: cgImage,
             size: NSSize(
-                width: Double(width) / scaleFactor,
-                height: Double(totalHeight) / scaleFactor
+                width: CGFloat(cgImage.width),
+                height: CGFloat(cgImage.height)
             )
         )
     }

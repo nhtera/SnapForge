@@ -1,5 +1,7 @@
 import Foundation
 import AppKit
+import ImageIO
+import UniformTypeIdentifiers
 
 /// Manages file storage, save locations, and Security-Scoped Bookmarks.
 @MainActor
@@ -77,6 +79,41 @@ final class StorageService {
         }
 
         try data.write(to: url)
+        return url
+    }
+
+    // MARK: - Save CGImage (Direct — No TIFF Intermediary)
+
+    /// Save a CGImage directly to disk using CGImageDestination.
+    /// Bypasses NSImage.tiffRepresentation — ideal for large scroll captures.
+    func saveCGImage(_ cgImage: CGImage, filename: String, format: String = "png", quality: Double = 0.9) throws -> URL {
+        let url = snapForgeDirectory.appendingPathComponent(filename)
+
+        let utType: CFString
+        switch format.lowercased() {
+        case "jpg", "jpeg":
+            utType = UTType.jpeg.identifier as CFString
+        case "heic":
+            utType = "public.heic" as CFString
+        default:
+            utType = UTType.png.identifier as CFString
+        }
+
+        guard let destination = CGImageDestinationCreateWithURL(url as CFURL, utType, 1, nil) else {
+            throw StorageError.encodingFailed(format)
+        }
+
+        var options: [CFString: Any] = [:]
+        if format.lowercased() != "png" {
+            options[kCGImageDestinationLossyCompressionQuality] = quality
+        }
+
+        CGImageDestinationAddImage(destination, cgImage, options as CFDictionary)
+
+        guard CGImageDestinationFinalize(destination) else {
+            throw StorageError.encodingFailed(format)
+        }
+
         return url
     }
 

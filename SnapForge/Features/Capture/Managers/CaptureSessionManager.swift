@@ -200,9 +200,9 @@ final class CaptureSessionManager {
     private func handleScrollCaptureAreaSelected(_ screenRect: CGRect) {
         let session = ScrollCaptureSession(captureRect: screenRect)
 
-        session.onComplete = { [weak self] image in
+        session.onComplete = { [weak self] image, savedURL in
             self?.scrollCaptureSession = nil
-            self?.handleCapturedImage(image)
+            self?.handleScrollCapturedImage(image, savedURL: savedURL)
         }
         session.onCancel = { [weak self] in
             self?.scrollCaptureSession = nil
@@ -210,6 +210,65 @@ final class CaptureSessionManager {
 
         scrollCaptureSession = session
         session.show()
+    }
+
+    /// Dedicated handler for scroll captures.
+    /// If `savedURL` is non-nil, the session already saved directly as PNG — skip StorageService.saveImage.
+    private func handleScrollCapturedImage(_ image: NSImage, savedURL: URL?) {
+        let defaults = UserDefaults.standard
+        let env = AppEnvironment.shared
+
+        // Increment capture count
+        env.captureCount += 1
+        env.lastCapture = image
+
+        // Auto-copy to clipboard (prefer file URL for proper filename)
+        if defaults.bool(forKey: SettingsKey.autoCopyToClipboard) {
+            if let savedURL {
+                env.clipboardService.copyImageFile(savedURL)
+            } else {
+                env.clipboardService.copyImage(image)
+            }
+        }
+
+        // Auto-save: only go through StorageService if session didn't already save
+        if defaults.bool(forKey: SettingsKey.autoSave), savedURL == nil {
+            let storage = env.storageService
+            let format = defaults.string(forKey: SettingsKey.imageFormat) ?? "png"
+            let quality = defaults.double(forKey: SettingsKey.jpegQuality)
+            let filename = storage.generateImageFilename(format: format)
+            if let saved = try? storage.saveImage(image, filename: filename, format: format, quality: quality) {
+                print("✅ Saved scroll capture to: \(saved.path)")
+            }
+        } else if let savedURL {
+            print("✅ Scroll capture already saved to: \(savedURL.path)")
+        }
+
+        // Show Quick Access overlay
+        if defaults.bool(forKey: SettingsKey.showQuickAccess) {
+            let mouseLocation = NSEvent.mouseLocation
+            AppCoordinator.shared.showQuickAccess(image: image, at: mouseLocation)
+        }
+
+        // Open Annotate tool after capture
+        if defaults.bool(forKey: SettingsKey.openAnnotateAfterCapture) {
+            AppCoordinator.shared.showAnnotationEditor(for: image)
+        }
+
+        // Pin to screen after capture
+        if defaults.bool(forKey: SettingsKey.pinAfterCapture) {
+            let screenFrame = NSScreen.main?.visibleFrame ?? NSRect(x: 0, y: 0, width: 800, height: 600)
+            let pinFrame = NSRect(
+                x: screenFrame.midX - 150,
+                y: screenFrame.midY - 100,
+                width: 300,
+                height: 200
+            )
+            AppCoordinator.shared.pinImage(image, at: pinFrame)
+        }
+
+        // Play capture sound
+        SoundService.playCapture()
     }
 
     // MARK: - Area Capture
