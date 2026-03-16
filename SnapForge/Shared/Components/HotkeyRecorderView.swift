@@ -4,7 +4,7 @@ import Carbon.HIToolbox
 /// A reusable view that displays the current keyboard shortcut for a hotkey
 /// and allows the user to record a new one by clicking and pressing keys.
 ///
-/// Styled after Shottr's clean hotkey recorder with × clear button on hover.
+/// Clean hotkey recorder with × clear button on hover.
 struct HotkeyRecorderView: View {
     let hotkey: HotkeyService.Hotkey
     let onRecord: (UInt16, CGEventFlags) -> Void

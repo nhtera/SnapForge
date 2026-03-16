@@ -59,7 +59,7 @@ struct OnboardingView: View {
                 }
             }
         }
-        .frame(width: 600, height: 560)
+        .frame(width: 640, height: 620)
         .preferredColorScheme(.dark)
     }
 
@@ -67,7 +67,7 @@ struct OnboardingView: View {
 
     private var welcomeStep: some View {
         VStack(spacing: 24) {
-            Spacer()
+            Spacer().frame(height: 32)
 
             // App icon
             Image(nsImage: NSApp.applicationIconImage)
@@ -83,7 +83,7 @@ struct OnboardingView: View {
                 .font(.system(size: 14))
                 .foregroundStyle(.white.opacity(0.6))
                 .multilineTextAlignment(.center)
-                .frame(maxWidth: 340)
+                .frame(maxWidth: 400)
 
             // Feature highlights
             VStack(alignment: .leading, spacing: 12) {
@@ -100,17 +100,18 @@ struct OnboardingView: View {
             }
             .buttonStyle(OnboardingPrimaryButton())
             .keyboardShortcut(.return, modifiers: [])
+            .focusEffectDisabled()
 
-            Spacer().frame(height: 48)
+            Spacer().frame(height: 56)
         }
-        .padding(.horizontal, 40)
+        .padding(.horizontal, 48)
     }
 
     // MARK: - Step 2: Grant Permissions (all on one page)
 
     private var permissionsStep: some View {
         VStack(spacing: 0) {
-            Spacer()
+            Spacer().frame(height: 32)
 
             // Header
             Image(systemName: "lock.shield")
@@ -126,7 +127,7 @@ struct OnboardingView: View {
                 .font(.system(size: 13))
                 .foregroundStyle(.white.opacity(0.6))
                 .multilineTextAlignment(.center)
-                .frame(maxWidth: 340)
+                .frame(maxWidth: 400)
                 .padding(.top, 4)
 
             // Permission rows
@@ -167,7 +168,7 @@ struct OnboardingView: View {
                     onGrant: { permissionService.requestAccessibility() }
                 )
             }
-            .frame(maxWidth: 420)
+            .frame(maxWidth: 500)
             .padding(.top, 24)
 
             Spacer()
@@ -185,10 +186,11 @@ struct OnboardingView: View {
                 .buttonStyle(OnboardingPrimaryButton())
                 .disabled(permissionService.screenRecordingStatus != .granted)
                 .keyboardShortcut(.return, modifiers: [])
+                .focusEffectDisabled()
             }
             .padding(.bottom, 48)
         }
-        .padding(.horizontal, 40)
+        .padding(.horizontal, 48)
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             permissionService.refreshAll()
         }
@@ -198,7 +200,7 @@ struct OnboardingView: View {
 
     private var shortcutsStep: some View {
         VStack(spacing: 0) {
-            Spacer()
+            Spacer().frame(height: 32)
 
             Image(systemName: "keyboard")
                 .font(.system(size: 44))
@@ -213,7 +215,7 @@ struct OnboardingView: View {
                 .font(.system(size: 13))
                 .foregroundStyle(.white.opacity(0.6))
                 .multilineTextAlignment(.center)
-                .frame(maxWidth: 340)
+                .frame(maxWidth: 400)
                 .padding(.top, 4)
 
             // Shortcut groups
@@ -240,7 +242,7 @@ struct OnboardingView: View {
                 Image(systemName: "gearshape")
                     .font(.system(size: 12))
                     .foregroundStyle(.white.opacity(0.3))
-                Text("Customize shortcuts anytime in Preferences → Shortcuts.")
+                Text("Customize shortcuts anytime in Settings → Shortcuts.")
                     .font(.system(size: 12))
                     .foregroundStyle(.white.opacity(0.3))
             }
@@ -259,17 +261,18 @@ struct OnboardingView: View {
                 }
                 .buttonStyle(OnboardingPrimaryButton())
                 .keyboardShortcut(.return, modifiers: [])
+                .focusEffectDisabled()
             }
             .padding(.bottom, 48)
         }
-        .padding(.horizontal, 40)
+        .padding(.horizontal, 48)
     }
 
     // MARK: - Step 4: Completion
 
     private var completionStep: some View {
         VStack(spacing: 0) {
-            Spacer()
+            Spacer().frame(height: 32)
 
             Image(systemName: "checkmark.circle")
                 .font(.system(size: 48, weight: .light))
@@ -284,7 +287,7 @@ struct OnboardingView: View {
                 .font(.system(size: 13))
                 .foregroundStyle(.white.opacity(0.6))
                 .multilineTextAlignment(.center)
-                .frame(maxWidth: 340)
+                .frame(maxWidth: 400)
                 .padding(.top, 4)
 
             // Quick reference hint cards
@@ -301,11 +304,11 @@ struct OnboardingView: View {
                 )
                 CompletionHintCard(
                     icon: "gearshape",
-                    title: "Preferences",
+                    title: "Settings",
                     description: "Customize shortcuts, output format, and more"
                 )
             }
-            .frame(maxWidth: 380)
+            .frame(maxWidth: 460)
             .padding(.top, 20)
 
             Spacer()
@@ -313,9 +316,8 @@ struct OnboardingView: View {
             // Actions
             VStack(spacing: 10) {
                 HStack(spacing: 16) {
-                    Button("Open Preferences") {
-                        NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
-                        AppCoordinator.shared.dismissOnboarding()
+                    SettingsLink {
+                        Text("Open Settings")
                     }
                     .buttonStyle(.plain)
                     .font(.system(size: 13, weight: .medium))
@@ -326,6 +328,7 @@ struct OnboardingView: View {
                     }
                     .buttonStyle(OnboardingSuccessButton())
                     .keyboardShortcut(.return, modifiers: [])
+                    .focusEffectDisabled()
                 }
 
                 Text("Press Enter ↵")
@@ -334,7 +337,7 @@ struct OnboardingView: View {
             }
             .padding(.bottom, 48)
         }
-        .padding(.horizontal, 40)
+        .padding(.horizontal, 48)
     }
 }
 
@@ -544,6 +547,8 @@ private struct CompletionHintCard: View {
 // MARK: - Button Styles
 
 private struct OnboardingPrimaryButton: ButtonStyle {
+    @State private var isHovered = false
+
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(.system(size: 14, weight: .semibold))
@@ -552,30 +557,43 @@ private struct OnboardingPrimaryButton: ButtonStyle {
             .padding(.horizontal, 20)
             .background(
                 Capsule()
-                    .fill(.white.opacity(0.18))
+                    .fill(.white.opacity(isHovered ? 0.25 : 0.18))
             )
-            .overlay { Capsule().stroke(.white.opacity(0.25), lineWidth: 1) }
+            .overlay { Capsule().stroke(.white.opacity(isHovered ? 0.4 : 0.25), lineWidth: 1) }
+            .shadow(color: .white.opacity(isHovered ? 0.15 : 0), radius: 8, y: 0)
             .opacity(configuration.isPressed ? 0.8 : 1.0)
+            .scaleEffect(configuration.isPressed ? 0.97 : 1.0)
+            .animation(.easeOut(duration: 0.15), value: isHovered)
+            .animation(.easeOut(duration: 0.1), value: configuration.isPressed)
+            .onHover { isHovered = $0 }
     }
 }
 
 private struct OnboardingSecondaryButton: ButtonStyle {
+    @State private var isHovered = false
+
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(.system(size: 14, weight: .medium))
-            .foregroundStyle(.white.opacity(0.6))
+            .foregroundStyle(.white.opacity(isHovered ? 0.8 : 0.6))
             .padding(.vertical, 8)
             .padding(.horizontal, 20)
             .background(
                 Capsule()
-                    .fill(.white.opacity(0.08))
+                    .fill(.white.opacity(isHovered ? 0.12 : 0.08))
             )
-            .overlay { Capsule().stroke(.white.opacity(0.15), lineWidth: 1) }
+            .overlay { Capsule().stroke(.white.opacity(isHovered ? 0.25 : 0.15), lineWidth: 1) }
             .opacity(configuration.isPressed ? 0.7 : 1.0)
+            .scaleEffect(configuration.isPressed ? 0.97 : 1.0)
+            .animation(.easeOut(duration: 0.15), value: isHovered)
+            .animation(.easeOut(duration: 0.1), value: configuration.isPressed)
+            .onHover { isHovered = $0 }
     }
 }
 
 private struct OnboardingSuccessButton: ButtonStyle {
+    @State private var isHovered = false
+
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(.system(size: 14, weight: .semibold))
@@ -584,9 +602,14 @@ private struct OnboardingSuccessButton: ButtonStyle {
             .padding(.horizontal, 20)
             .background(
                 Capsule()
-                    .fill(Color.green.opacity(0.3))
+                    .fill(Color.green.opacity(isHovered ? 0.4 : 0.3))
             )
-            .overlay { Capsule().stroke(.green.opacity(0.5), lineWidth: 1) }
+            .overlay { Capsule().stroke(.green.opacity(isHovered ? 0.7 : 0.5), lineWidth: 1) }
+            .shadow(color: .green.opacity(isHovered ? 0.2 : 0), radius: 8, y: 0)
             .opacity(configuration.isPressed ? 0.8 : 1.0)
+            .scaleEffect(configuration.isPressed ? 0.97 : 1.0)
+            .animation(.easeOut(duration: 0.15), value: isHovered)
+            .animation(.easeOut(duration: 0.1), value: configuration.isPressed)
+            .onHover { isHovered = $0 }
     }
 }

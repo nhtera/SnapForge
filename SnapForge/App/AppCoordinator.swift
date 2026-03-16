@@ -97,7 +97,7 @@ final class AppCoordinator {
         let hostingView = NSHostingView(rootView: onboardingView)
 
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 600, height: 500),
+            contentRect: NSRect(x: 0, y: 0, width: 640, height: 620),
             styleMask: [.titled, .closable],
             backing: .buffered,
             defer: false
