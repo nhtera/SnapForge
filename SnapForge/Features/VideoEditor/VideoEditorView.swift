@@ -1,174 +1,390 @@
 import SwiftUI
-import AVFoundation
 import AVKit
 
-/// Main video editor view with player preview, playback controls,
-/// timeline with trim handles, and export options.
+/// Main video editor view with toolbar, sidebars, player, timeline, and export settings.
 struct VideoEditorView: View {
-    @State var state: VideoEditorState
-    @State private var showingSaveOptions = false
+    @Bindable var state: VideoEditorState
+    @State private var showExportSettings = false
+    @State private var showingSaveDialog = false
+    @State private var cachedWallpaperImage: NSImage?
+    @State private var cachedWallpaperURL: URL?
 
     var body: some View {
         VStack(spacing: 0) {
-            // Video player preview
-            playerSection
-
+            // Toolbar
+            VideoEditorToolbarView(state: state)
             Divider()
 
-            // Controls + Timeline + Export
-            VStack(spacing: DesignTokens.Spacing.md) {
-                // Playback controls
-                VideoControlsView(state: state)
+            // Main content area
+            HStack(spacing: 0) {
+                // Left sidebar — Video Details
+                if state.isVideoInfoSidebarVisible {
+                    VideoEditorDetailsSidebarView(state: state)
+                        .frame(width: 240)
+                        .transition(.move(edge: .leading).combined(with: .opacity))
+                    Divider()
+                }
 
-                // Timeline with trim handles
-                VideoTimelineView(state: state)
+                // Center — Player + Controls + Timeline + Export
+                centerContent
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-                Divider()
-
-                // Export toolbar
-                exportToolbar
+                // Right sidebar — Background
+                if state.isRightSidebarVisible {
+                    Divider()
+                    VideoEditorRightSidebar(state: state)
+                        .transition(.move(edge: .trailing).combined(with: .opacity))
+                }
             }
-            .padding(DesignTokens.Spacing.lg)
+            .animation(.easeInOut(duration: 0.25), value: state.isVideoInfoSidebarVisible)
+            .animation(.easeInOut(duration: 0.25), value: state.isRightSidebarVisible)
+
+            // Bottom bar
+            VideoEditorBottomBar(
+                onCancel: handleCancel,
+                onConvert: { showingSaveDialog = true }
+            )
         }
-        .frame(minWidth: 700, minHeight: 500)
+        .background(Color(NSColor.windowBackgroundColor))
+        .overlay {
+            if state.isExporting {
+                exportOverlay
+            }
+        }
+        .overlay {
+            if showingSaveDialog {
+                saveDialogOverlay
+            }
+        }
         .task {
             await state.loadVideo()
             await state.extractFrames()
         }
-        .overlay {
-            if state.isExporting {
-                exportProgressOverlay
-            }
+        .onAppear {
+            updateWallpaperCacheIfNeeded()
+        }
+        .onChange(of: state.backgroundStyle) {
+            updateWallpaperCacheIfNeeded()
         }
         .onDisappear {
             state.cleanup()
         }
     }
 
+    // MARK: - Center Content
+
+    private var centerContent: some View {
+        VStack(spacing: 0) {
+            // Video Player
+            playerSection
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+            Divider()
+
+            // Controls + Timeline + Export Settings
+            VStack(spacing: DesignTokens.Spacing.md) {
+                // Playback controls
+                VideoControlsView(state: state)
+
+                // Timeline
+                VideoTimelineView(state: state)
+
+                // Expand/collapse export settings
+                DisclosureGroup(
+                    isExpanded: $showExportSettings,
+                    content: {
+                        VideoEditorExportSettingsPanel(state: state)
+                    },
+                    label: {
+                        HStack(spacing: DesignTokens.Spacing.xs) {
+                            Image(systemName: "gearshape")
+                                .font(.system(size: 11))
+                            Text("Export Settings")
+                                .font(.system(size: 12, weight: .medium))
+                        }
+                        .foregroundStyle(.secondary)
+                    }
+                )
+            }
+            .padding(DesignTokens.Spacing.md)
+        }
+    }
+
     // MARK: - Player Section
 
     private var playerSection: some View {
-        VideoPlayer(player: state.player)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(Color.black)
-    }
+        GeometryReader { geo in
+            let hasBackground = state.backgroundStyle != .none && state.backgroundPadding > 0
 
-    // MARK: - Export Toolbar
-
-    private var exportToolbar: some View {
-        HStack {
-            Button("Cancel") {
-                AppCoordinator.shared.dismissVideoEditor()
-            }
-            .buttonStyle(.plain)
-            .foregroundStyle(.secondary)
-
-            Spacer()
-
-            HStack(spacing: DesignTokens.Spacing.sm) {
-                // Replace Original
-                Button(action: { replaceOriginal() }) {
-                    Label("Replace Original", systemImage: "arrow.triangle.2.circlepath")
-                }
-                .buttonStyle(.plain)
-                .foregroundStyle(.secondary)
-
-                // Save as Copy
-                Button(action: { saveAsCopy() }) {
-                    Label("Save Copy", systemImage: "doc.badge.plus")
-                }
-                .buttonStyle(.plain)
-                .foregroundStyle(.secondary)
-
-                // Export Trimmed
-                Button(action: { exportTrimmed() }) {
-                    Label("Export Trimmed", systemImage: "square.and.arrow.up")
-                }
-                .buttonStyle(.borderedProminent)
-                .disabled(state.isExporting)
+            if hasBackground {
+                backgroundPlayerView(in: geo.size)
+            } else {
+                plainPlayerView(in: geo.size)
             }
         }
     }
 
-    // MARK: - Export Progress Overlay
+    private func backgroundPlayerView(in containerSize: CGSize) -> some View {
+        let videoW = max(1, state.naturalSize.width)
+        let videoH = max(1, state.naturalSize.height)
 
-    private var exportProgressOverlay: some View {
+        // Calculate the exact output frame ratio: (video + 2*padding) on each axis
+        let outputW = videoW + state.backgroundPadding * 2
+        let outputH = videoH + state.backgroundPadding * 2
+        let outputAspect = outputW / outputH
+
+        // Fit the output frame into the container
+        let frameW: CGFloat
+        let frameH: CGFloat
+        if containerSize.width / containerSize.height > outputAspect {
+            frameH = containerSize.height
+            frameW = frameH * outputAspect
+        } else {
+            frameW = containerSize.width
+            frameH = frameW / outputAspect
+        }
+
+        // Video size within the frame (proportional to padding ratio)
+        let scale = frameW / outputW
+        let playerW = videoW * scale
+        let playerH = videoH * scale
+        let scaledCornerRadius = state.backgroundCornerRadius * scale
+        let shadowScale = min(frameW, frameH) / 800
+
+        return ZStack {
+            backgroundFill
+                .frame(width: frameW, height: frameH)
+                .clipped()
+                .drawingGroup() // GPU-accelerated compositing for wallpaper images
+                .allowsHitTesting(false) // Prevent wallpaper .fill overflow from stealing clicks
+
+            PlayerViewRepresentable(player: state.player)
+                .frame(width: playerW, height: playerH)
+                .clipShape(RoundedRectangle(cornerRadius: scaledCornerRadius))
+                .shadow(
+                    color: .black.opacity(Double(state.backgroundShadowIntensity) * 0.8),
+                    radius: CGFloat(state.backgroundShadowIntensity) * 40 * shadowScale
+                )
+        }
+        .frame(width: frameW, height: frameH)
+        .clipped() // Ensure ZStack contents don't overflow
+        .allowsHitTesting(false) // Player section needs no mouse events
+        .frame(width: containerSize.width, height: containerSize.height)
+    }
+
+    private func plainPlayerView(in containerSize: CGSize) -> some View {
+        let videoW = max(1, state.naturalSize.width)
+        let videoH = max(1, state.naturalSize.height)
+        let videoAspect = videoW / videoH
+
+        let fitW: CGFloat
+        let fitH: CGFloat
+        if containerSize.width / containerSize.height > videoAspect {
+            fitH = containerSize.height
+            fitW = fitH * videoAspect
+        } else {
+            fitW = containerSize.width
+            fitH = fitW / videoAspect
+        }
+
+        return ZStack {
+            Color.black.opacity(0.3)
+
+            PlayerViewRepresentable(player: state.player)
+                .frame(width: fitW, height: fitH)
+        }
+        .frame(width: containerSize.width, height: containerSize.height)
+    }
+
+    @ViewBuilder
+    private var backgroundFill: some View {
+        switch state.backgroundStyle {
+        case .none:
+            EmptyView()
+        case .gradient(let preset):
+            preset.gradient
+        case .solidColor(let color):
+            color
+        case .wallpaper:
+            // Use cached image to avoid reloading from disk on every slider drag
+            if let image = cachedWallpaperImage {
+                Image(nsImage: image)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+            } else {
+                Color.black
+            }
+        }
+    }
+
+    /// Update wallpaper cache when the background style changes to a wallpaper URL
+    private func updateWallpaperCacheIfNeeded() {
+        guard case .wallpaper(let url) = state.backgroundStyle else {
+            cachedWallpaperImage = nil
+            cachedWallpaperURL = nil
+            return
+        }
+        guard url != cachedWallpaperURL else { return }
+        cachedWallpaperURL = url
+        cachedWallpaperImage = NSImage(contentsOf: url)
+    }
+
+    // MARK: - Export Overlay
+
+    private var exportOverlay: some View {
+        ZStack {
+            Color.black.opacity(0.6)
+                .ignoresSafeArea()
+
+            VStack(spacing: DesignTokens.Spacing.lg) {
+                ProgressView(value: state.exportProgress) {
+                    Text(state.exportStatusMessage)
+                        .font(.headline)
+                }
+                .frame(width: 300)
+                .tint(.accentColor)
+
+                Text("\(Int(state.exportProgress * 100))%")
+                    .font(.system(.title, design: .monospaced))
+                    .fontWeight(.bold)
+            }
+            .padding(DesignTokens.Spacing.xxl)
+            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: DesignTokens.Radius.lg))
+        }
+    }
+
+    // MARK: - Save Dialog
+
+    private var saveDialogOverlay: some View {
         ZStack {
             Color.black.opacity(0.5)
+                .ignoresSafeArea()
+                .onTapGesture { showingSaveDialog = false }
 
-            VStack(spacing: DesignTokens.Spacing.md) {
-                ProgressView(value: state.exportProgress, total: 1.0)
-                    .progressViewStyle(.linear)
-                    .frame(width: 200)
+            VStack(spacing: 0) {
+                // App icon
+                if let appIcon = NSApp.applicationIconImage {
+                    Image(nsImage: appIcon)
+                        .resizable()
+                        .frame(width: 56, height: 56)
+                        .padding(.top, DesignTokens.Spacing.xl)
+                        .padding(.bottom, DesignTokens.Spacing.md)
+                }
 
-                Text("Exporting… \(Int(state.exportProgress * 100))%")
-                    .font(.system(.body, design: .monospaced))
-                    .foregroundStyle(.white)
+                // Title
+                Text("Save Edited Video")
+                    .font(.system(size: 15, weight: .bold))
+                    .padding(.bottom, DesignTokens.Spacing.xs)
+
+                // Message
+                Text("How would you like to save the edited video\n\"\(state.filename)\"?")
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .lineLimit(3)
+                    .padding(.horizontal, DesignTokens.Spacing.xl)
+                    .padding(.bottom, DesignTokens.Spacing.xl)
+
+                // Buttons
+                VStack(spacing: DesignTokens.Spacing.sm) {
+                    // Replace Original
+                    Button {
+                        showingSaveDialog = false
+                        exportReplaceOriginal()
+                    } label: {
+                        Text("Replace Original")
+                            .font(.system(size: 13, weight: .medium))
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, DesignTokens.Spacing.sm)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.large)
+
+                    // Save as Copy
+                    Button {
+                        showingSaveDialog = false
+                        exportSaveAsCopy()
+                    } label: {
+                        Text("Save as Copy")
+                            .font(.system(size: 13, weight: .medium))
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, DesignTokens.Spacing.sm)
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.large)
+
+                    // Cancel
+                    Button {
+                        showingSaveDialog = false
+                    } label: {
+                        Text("Cancel")
+                            .font(.system(size: 13))
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, DesignTokens.Spacing.sm)
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.large)
+                }
+                .padding(.horizontal, DesignTokens.Spacing.xl)
+                .padding(.bottom, DesignTokens.Spacing.xl)
             }
-            .padding(DesignTokens.Spacing.xl)
-            .background(.ultraThinMaterial)
-            .clipShape(RoundedRectangle(cornerRadius: DesignTokens.Radius.lg))
+            .frame(width: 280)
+            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: DesignTokens.Radius.lg))
+            .shadow(radius: 20, y: 8)
         }
+        .transition(.opacity)
+        .animation(.easeInOut(duration: 0.15), value: showingSaveDialog)
     }
 
     // MARK: - Export Actions
 
-    private func replaceOriginal() {
-        state.isExporting = true
-        state.exportProgress = 0
+    /// Export and replace the original file
+    private func exportReplaceOriginal() {
+        let originalURL = state.videoURL
+        let tempURL = originalURL
+            .deletingLastPathComponent()
+            .appendingPathComponent(".\(UUID().uuidString).\(state.fileExtension)")
 
-        Task {
+        runExport(to: tempURL) {
+            // Replace the original file with the exported one
             do {
-                try await VideoEditorExporter.replaceOriginal(state: state) { progress in
-                    Task { @MainActor in
-                        state.exportProgress = progress
-                    }
+                let fileManager = FileManager.default
+                if fileManager.fileExists(atPath: originalURL.path) {
+                    try fileManager.removeItem(at: originalURL)
                 }
-                state.isExporting = false
-                AppCoordinator.shared.dismissVideoEditor()
+                try fileManager.moveItem(at: tempURL, to: originalURL)
+                NSWorkspace.shared.activateFileViewerSelecting([originalURL])
             } catch {
-                state.isExporting = false
-                print("❌ Replace original failed: \(error)")
+                print("❌ Failed to replace original: \(error)")
+                // If replace fails, keep the temp file
+                NSWorkspace.shared.activateFileViewerSelecting([tempURL])
             }
         }
     }
 
-    private func saveAsCopy() {
-        state.isExporting = true
-        state.exportProgress = 0
-
-        Task {
-            do {
-                let copyURL = try await VideoEditorExporter.saveAsCopy(state: state) { progress in
-                    Task { @MainActor in
-                        state.exportProgress = progress
-                    }
-                }
-                state.isExporting = false
-                NSWorkspace.shared.activateFileViewerSelecting([copyURL])
-                AppCoordinator.shared.dismissVideoEditor()
-            } catch {
-                state.isExporting = false
-                print("❌ Save as copy failed: \(error)")
-            }
-        }
-    }
-
-    private func exportTrimmed() {
+    /// Export as a new copy via save panel
+    private func exportSaveAsCopy() {
         let savePanel = NSSavePanel()
-        savePanel.title = "Export Trimmed Video"
-        savePanel.nameFieldStringValue = VideoEditorExporter.generateCopyFilename(
-            from: state.videoURL
-        )
+        savePanel.title = "Save as Copy"
+        let baseName = state.videoURL.deletingPathExtension().lastPathComponent
+        savePanel.nameFieldStringValue = "\(baseName)_edited.\(state.fileExtension)"
         savePanel.allowedContentTypes = [.movie, .mpeg4Movie, .quickTimeMovie]
         savePanel.canCreateDirectories = true
 
         guard savePanel.runModal() == .OK, let outputURL = savePanel.url else { return }
 
-        state.isExporting = true
-        state.exportProgress = 0
+        runExport(to: outputURL) {
+            NSWorkspace.shared.activateFileViewerSelecting([outputURL])
+        }
+    }
 
+    /// Shared export logic
+    private func runExport(to outputURL: URL, onSuccess: @escaping () -> Void) {
         Task {
+            state.isExporting = true
+            state.exportProgress = 0
+            state.exportStatusMessage = "Exporting video..."
+
             do {
                 try await VideoEditorExporter.exportTrimmed(
                     state: state,
@@ -178,13 +394,50 @@ struct VideoEditorView: View {
                         state.exportProgress = progress
                     }
                 }
+                state.exportStatusMessage = "Complete!"
                 state.isExporting = false
-                NSWorkspace.shared.activateFileViewerSelecting([outputURL])
-                AppCoordinator.shared.dismissVideoEditor()
+                state.markAsSaved()
+
+                onSuccess()
             } catch {
-                state.isExporting = false
                 print("❌ Export failed: \(error)")
+                state.exportStatusMessage = "Export failed"
+                try? await Task.sleep(for: .seconds(2))
+                state.isExporting = false
             }
+        }
+    }
+
+    private func handleCancel() {
+        AppCoordinator.shared.dismissVideoEditor()
+    }
+}
+
+// MARK: - Player View (No Native Controls)
+
+/// Custom AVPlayerView that refuses first responder to prevent stealing keyboard
+/// focus from toolbar buttons and other controls.
+private final class NonFirstResponderPlayerView: AVPlayerView {
+    override var acceptsFirstResponder: Bool { false }
+    override var canBecomeKeyView: Bool { false }
+}
+
+/// Wraps AVPlayerView with controlsStyle = .none and no first-responder behavior
+/// to prevent native controls from stealing mouse/keyboard events from toolbar buttons.
+private struct PlayerViewRepresentable: NSViewRepresentable {
+    let player: AVPlayer?
+
+    func makeNSView(context: Context) -> NonFirstResponderPlayerView {
+        let view = NonFirstResponderPlayerView()
+        view.controlsStyle = .none
+        view.player = player
+        view.showsFullScreenToggleButton = false
+        return view
+    }
+
+    func updateNSView(_ nsView: NonFirstResponderPlayerView, context: Context) {
+        if nsView.player !== player {
+            nsView.player = player
         }
     }
 }

@@ -2,8 +2,11 @@ import SwiftUI
 import AVFoundation
 import AVKit
 
+
+
 /// Central state management for the SnapForge video editor.
-/// Manages video playback, trim range, frame thumbnails, and export state.
+/// Manages video playback, trim range, frame thumbnails, export settings,
+/// background customization, undo/redo, and file metadata.
 @MainActor
 @Observable
 final class VideoEditorState {
@@ -26,15 +29,71 @@ final class VideoEditorState {
     var trimStart: Double = 0
     var trimEnd: Double = 0
 
+    // MARK: - Audio Control
+
+    var isMuted: Bool = false {
+        didSet { player.isMuted = isMuted }
+    }
+    private var initialIsMuted: Bool = false
+
+    /// Sync player mute with export audio mode
+    func syncPlayerMuteWithExportSettings() {
+        player.isMuted = exportSettings.audioMode == .mute
+        isMuted = exportSettings.audioMode == .mute
+    }
+
     // MARK: - Frame Thumbnails
 
     private(set) var frameThumbnails: [NSImage] = []
     private(set) var isExtractingFrames = false
 
+    // MARK: - Export Settings
+
+    var exportSettings = ExportSettings()
+    private(set) var estimatedFileSize: Int64 = 0
+
+    // MARK: - Background Settings
+
+    var backgroundStyle: VideoBackgroundStyle = .none
+    var backgroundPadding: CGFloat = 0
+    var backgroundShadowIntensity: CGFloat = 0
+    var backgroundCornerRadius: CGFloat = 0
+
     // MARK: - Export State
 
     var isExporting = false
     var exportProgress: Double = 0
+    var exportStatusMessage: String = "Preparing..."
+
+    // MARK: - Unsaved Changes
+
+    private(set) var hasUnsavedChanges = false
+    private var initialTrimStart: Double = 0
+    private var initialTrimEnd: Double = 0
+    private var initialBackgroundStyle: VideoBackgroundStyle = .none
+    private var initialBackgroundPadding: CGFloat = 0
+    private var initialBackgroundShadowIntensity: CGFloat = 0
+    private var initialBackgroundCornerRadius: CGFloat = 0
+
+    // MARK: - Undo/Redo
+
+    private(set) var canUndo = false
+    private(set) var canRedo = false
+    private var undoStack: [EditorAction] = []
+    private var redoStack: [EditorAction] = []
+    private let maxUndoStackSize = 50
+    private var isUndoingOrRedoing = false
+
+    /// Snapshot of background state before a change begins (for undo recording)
+    private var bgSnapshotStyle: VideoBackgroundStyle?
+    private var bgSnapshotPadding: CGFloat = 0
+    private var bgSnapshotShadow: CGFloat = 0
+    private var bgSnapshotCorner: CGFloat = 0
+
+    // MARK: - Sidebar Visibility
+
+    var isVideoInfoSidebarVisible = false
+    var isRightSidebarVisible = false
 
     // MARK: - Computed Properties
 
@@ -44,6 +103,10 @@ final class VideoEditorState {
 
     var filename: String {
         videoURL.lastPathComponent
+    }
+
+    var fileExtension: String {
+        videoURL.pathExtension.lowercased()
     }
 
     var formattedCurrentTime: String {
@@ -58,9 +121,44 @@ final class VideoEditorState {
         formatTime(trimmedDuration)
     }
 
+    var resolutionString: String {
+        guard naturalSize.width > 0 && naturalSize.height > 0 else { return "—" }
+        return "\(Int(naturalSize.width)) × \(Int(naturalSize.height))"
+    }
+
+    var aspectRatioString: String {
+        guard naturalSize.width > 0 && naturalSize.height > 0 else { return "—" }
+        let gcdValue = gcd(Int(naturalSize.width), Int(naturalSize.height))
+        let w = Int(naturalSize.width) / gcdValue
+        let h = Int(naturalSize.height) / gcdValue
+        return "\(w):\(h)"
+    }
+
+    var fileSizeString: String {
+        guard let size = cachedFileSize else { return "—" }
+        return ByteCountFormatter.string(fromByteCount: size, countStyle: .file)
+    }
+
+    var fileCreationDate: Date? {
+        cachedFileAttributes?[.creationDate] as? Date
+    }
+
+    var fileModificationDate: Date? {
+        cachedFileAttributes?[.modificationDate] as? Date
+    }
+
+    var formattedEstimatedFileSize: String {
+        if estimatedFileSize > 0 {
+            return "~" + ByteCountFormatter.string(fromByteCount: estimatedFileSize, countStyle: .file)
+        }
+        return "—"
+    }
+
     // MARK: - Private
 
     private var timeObserver: Any?
+    private var cachedFileAttributes: [FileAttributeKey: Any]?
+    private var cachedFileSize: Int64?
 
     // MARK: - Init
 
@@ -68,6 +166,10 @@ final class VideoEditorState {
         self.videoURL = url
         self.asset = AVURLAsset(url: url)
         self.player = AVPlayer(url: url)
+
+        // Cache file attributes once at init
+        cachedFileAttributes = try? FileManager.default.attributesOfItem(atPath: url.path)
+        cachedFileSize = cachedFileAttributes?[.size] as? Int64
 
         setupTimeObserver()
     }
@@ -87,7 +189,7 @@ final class VideoEditorState {
                 // Auto-pause at trim end
                 if self.currentTime >= self.trimEnd && self.isPlaying {
                     self.pause()
-                    self.seek(to: self.trimEnd)
+                    self.seek(to: self.trimStart)
                 }
             }
         }
@@ -101,6 +203,7 @@ final class VideoEditorState {
             let seconds = CMTimeGetSeconds(dur)
             duration = seconds
             trimEnd = seconds
+            initialTrimEnd = seconds
 
             if let track = try await asset.loadTracks(withMediaType: .video).first {
                 let size = try await track.load(.naturalSize)
@@ -111,6 +214,8 @@ final class VideoEditorState {
                     height: abs(transformedSize.height)
                 )
             }
+
+            recalculateEstimatedFileSize()
         } catch {
             print("⚠️ Failed to load video metadata: \(error)")
         }
@@ -136,7 +241,6 @@ final class VideoEditorState {
 
         for i in 0..<count {
             let time = CMTime(seconds: Double(i) * interval, preferredTimescale: 600)
-            // Use modern async image generation API (macOS 15+)
             if let (cgImage, _) = try? await generator.image(at: time) {
                 let image = NSImage(cgImage: cgImage, size: NSSize(width: 120, height: 68))
                 images.append(image)
@@ -164,6 +268,12 @@ final class VideoEditorState {
         if isPlaying { pause() } else { play() }
     }
 
+    func toggleMute() {
+        let oldValue = isMuted
+        isMuted.toggle()
+        recordAction(.toggleMute(old: oldValue, new: isMuted))
+    }
+
     func seek(to time: Double) {
         let clamped = max(trimStart, min(time, trimEnd))
         currentTime = clamped
@@ -176,31 +286,284 @@ final class VideoEditorState {
 
     // MARK: - Trim Clamping
 
-    func setTrimStart(_ time: Double) {
+    func setTrimStart(_ time: Double, recordUndo: Bool = true) {
+        let oldValue = trimStart
         let minDuration = 0.5
         let maxStart = trimEnd - minDuration
-        trimStart = max(0, min(time, maxStart))
+        let newValue = max(0, min(time, maxStart))
+        trimStart = newValue
+
         if currentTime < trimStart {
             seek(to: trimStart)
         }
+
+        if recordUndo && abs(oldValue - newValue) > 0.01 {
+            recordAction(.trimStart(old: oldValue, new: newValue))
+        }
+
+        updateHasUnsavedChanges()
+        recalculateEstimatedFileSize()
     }
 
-    func setTrimEnd(_ time: Double) {
+    func setTrimEnd(_ time: Double, recordUndo: Bool = true) {
+        let oldValue = trimEnd
         let minDuration = 0.5
         let minEnd = trimStart + minDuration
-        trimEnd = max(minEnd, min(time, duration))
+        let newValue = max(minEnd, min(time, duration))
+        trimEnd = newValue
+
         if currentTime > trimEnd {
             seek(to: trimEnd)
         }
+
+        if recordUndo && abs(oldValue - newValue) > 0.01 {
+            recordAction(.trimEnd(old: oldValue, new: newValue))
+        }
+
+        updateHasUnsavedChanges()
+        recalculateEstimatedFileSize()
+    }
+
+    func resetTrim() {
+        trimStart = 0
+        trimEnd = duration
+        updateHasUnsavedChanges()
+        recalculateEstimatedFileSize()
+    }
+
+    // MARK: - Export Settings
+
+    func updateExportSettings(_ settings: ExportSettings) {
+        exportSettings = settings
+        syncPlayerMuteWithExportSettings()
+        recalculateEstimatedFileSize()
+    }
+
+    func recalculateEstimatedFileSize() {
+        guard duration > 0 else {
+            estimatedFileSize = 0
+            return
+        }
+
+        // Get source file size
+        guard let attrs = try? FileManager.default.attributesOfItem(atPath: videoURL.path),
+              let sourceSize = attrs[.size] as? Int64
+        else {
+            estimatedFileSize = 0
+            return
+        }
+
+        // Calculate trim ratio
+        let trimRatio = trimmedDuration / duration
+
+        // Calculate dimension ratio
+        let exportSize = exportSettings.exportSize(from: naturalSize)
+        let originalPixels = naturalSize.width * naturalSize.height
+        let canvasPixels = exportSize.width * exportSize.height
+        let dimensionRatio = originalPixels > 0 ? canvasPixels / originalPixels : 1.0
+
+        // Apply quality multiplier
+        let qualityMultiplier = Double(exportSettings.quality.bitrateMultiplier)
+
+        // Audio adjustment (~10% of file)
+        let audioMultiplier: Double = exportSettings.audioMode == .mute ? 0.9 : 1.0
+
+        let estimated = Double(sourceSize) * trimRatio * dimensionRatio * qualityMultiplier * audioMultiplier
+        estimatedFileSize = Int64(max(estimated, 1024))
+    }
+
+    // MARK: - Sidebar Toggles
+
+    func toggleVideoInfoSidebar() {
+        isVideoInfoSidebarVisible.toggle()
+    }
+
+    func toggleRightSidebar() {
+        isRightSidebarVisible.toggle()
+    }
+
+    // MARK: - Background Undo Support
+
+    /// Call before changing any background property to save the "before" state.
+    func snapshotBackgroundState() {
+        guard !isUndoingOrRedoing else { return }
+        bgSnapshotStyle = backgroundStyle
+        bgSnapshotPadding = backgroundPadding
+        bgSnapshotShadow = backgroundShadowIntensity
+        bgSnapshotCorner = backgroundCornerRadius
+    }
+
+    /// Call after finishing a background change to record undo action if anything changed.
+    func commitBackgroundChange() {
+        guard !isUndoingOrRedoing,
+              let oldStyle = bgSnapshotStyle else { return }
+
+        // Only record if something actually changed
+        let styleChanged = oldStyle != backgroundStyle
+        let paddingChanged = abs(bgSnapshotPadding - backgroundPadding) > 0.01
+        let shadowChanged = abs(bgSnapshotShadow - backgroundShadowIntensity) > 0.01
+        let cornerChanged = abs(bgSnapshotCorner - backgroundCornerRadius) > 0.01
+
+        guard styleChanged || paddingChanged || shadowChanged || cornerChanged else {
+            bgSnapshotStyle = nil
+            return
+        }
+
+        recordAction(.updateBackground(
+            oldStyle: oldStyle, newStyle: backgroundStyle,
+            oldPadding: bgSnapshotPadding, newPadding: backgroundPadding,
+            oldShadow: bgSnapshotShadow, newShadow: backgroundShadowIntensity,
+            oldCorner: bgSnapshotCorner, newCorner: backgroundCornerRadius
+        ))
+        bgSnapshotStyle = nil
+        updateHasUnsavedChanges()
+    }
+
+    // MARK: - File Operations
+
+    func openInFinder() {
+        NSWorkspace.shared.activateFileViewerSelecting([videoURL])
+    }
+
+    // MARK: - Undo/Redo
+
+    private func recordAction(_ action: EditorAction) {
+        guard !isUndoingOrRedoing else { return }
+        undoStack.append(action)
+        if undoStack.count > maxUndoStackSize {
+            undoStack.removeFirst()
+        }
+        redoStack.removeAll()
+        updateUndoRedoState()
+    }
+
+    func undo() {
+        guard let action = undoStack.popLast() else { return }
+        isUndoingOrRedoing = true
+        defer {
+            isUndoingOrRedoing = false
+            updateUndoRedoState()
+            updateHasUnsavedChanges()
+            recalculateEstimatedFileSize()
+        }
+
+        switch action {
+        case .trimStart(let old, let new):
+            trimStart = old
+            redoStack.append(.trimStart(old: new, new: old))
+        case .trimEnd(let old, let new):
+            trimEnd = old
+            redoStack.append(.trimEnd(old: new, new: old))
+        case .toggleMute(let old, _):
+            isMuted = old
+            redoStack.append(.toggleMute(old: !old, new: old))
+        case .updateBackground(let oldStyle, let newStyle,
+                               let oldPadding, let newPadding,
+                               let oldShadow, let newShadow,
+                               let oldCorner, let newCorner):
+            backgroundStyle = oldStyle
+            backgroundPadding = oldPadding
+            backgroundShadowIntensity = oldShadow
+            backgroundCornerRadius = oldCorner
+            redoStack.append(.updateBackground(
+                oldStyle: newStyle, newStyle: oldStyle,
+                oldPadding: newPadding, newPadding: oldPadding,
+                oldShadow: newShadow, newShadow: oldShadow,
+                oldCorner: newCorner, newCorner: oldCorner
+            ))
+        }
+    }
+
+    func redo() {
+        guard let action = redoStack.popLast() else { return }
+        isUndoingOrRedoing = true
+        defer {
+            isUndoingOrRedoing = false
+            updateUndoRedoState()
+            updateHasUnsavedChanges()
+            recalculateEstimatedFileSize()
+        }
+
+        switch action {
+        case .trimStart(let old, let new):
+            trimStart = old
+            undoStack.append(.trimStart(old: new, new: old))
+        case .trimEnd(let old, let new):
+            trimEnd = old
+            undoStack.append(.trimEnd(old: new, new: old))
+        case .toggleMute(let old, _):
+            isMuted = old
+            undoStack.append(.toggleMute(old: !old, new: old))
+        case .updateBackground(let oldStyle, let newStyle,
+                               let oldPadding, let newPadding,
+                               let oldShadow, let newShadow,
+                               let oldCorner, let newCorner):
+            backgroundStyle = oldStyle
+            backgroundPadding = oldPadding
+            backgroundShadowIntensity = oldShadow
+            backgroundCornerRadius = oldCorner
+            undoStack.append(.updateBackground(
+                oldStyle: newStyle, newStyle: oldStyle,
+                oldPadding: newPadding, newPadding: oldPadding,
+                oldShadow: newShadow, newShadow: oldShadow,
+                oldCorner: newCorner, newCorner: oldCorner
+            ))
+        }
+    }
+
+    private func updateUndoRedoState() {
+        canUndo = !undoStack.isEmpty
+        canRedo = !redoStack.isEmpty
+    }
+
+    // MARK: - Unsaved Changes
+
+    private func updateHasUnsavedChanges() {
+        let startChanged = abs(trimStart - initialTrimStart) > 0.01
+        let endChanged = abs(trimEnd - initialTrimEnd) > 0.01
+        let muteChanged = isMuted != initialIsMuted
+        let bgStyleChanged = backgroundStyle != initialBackgroundStyle
+        let bgPaddingChanged = abs(backgroundPadding - initialBackgroundPadding) > 0.01
+        let bgShadowChanged = abs(backgroundShadowIntensity - initialBackgroundShadowIntensity) > 0.01
+        let bgCornerChanged = abs(backgroundCornerRadius - initialBackgroundCornerRadius) > 0.01
+
+        hasUnsavedChanges = startChanged || endChanged || muteChanged
+            || bgStyleChanged || bgPaddingChanged || bgShadowChanged || bgCornerChanged
+    }
+
+    func markAsSaved() {
+        hasUnsavedChanges = false
+        initialTrimStart = trimStart
+        initialTrimEnd = trimEnd
+        initialIsMuted = isMuted
+        initialBackgroundStyle = backgroundStyle
+        initialBackgroundPadding = backgroundPadding
+        initialBackgroundShadowIntensity = backgroundShadowIntensity
+        initialBackgroundCornerRadius = backgroundCornerRadius
+        undoStack.removeAll()
+        redoStack.removeAll()
+        updateUndoRedoState()
     }
 
     // MARK: - Formatting
 
     func formatTime(_ seconds: Double) -> String {
-        let mins = Int(seconds) / 60
-        let secs = Int(seconds) % 60
-        let frac = Int((seconds.truncatingRemainder(dividingBy: 1)) * 10)
-        return String(format: "%d:%02d.%d", mins, secs, frac)
+        let totalSeconds = Int(seconds)
+        let hours = totalSeconds / 3600
+        let minutes = (totalSeconds % 3600) / 60
+        let secs = totalSeconds % 60
+
+        if hours > 0 {
+            return String(format: "%d:%02d:%02d", hours, minutes, secs)
+        } else {
+            return String(format: "%02d:%02d", minutes, secs)
+        }
+    }
+
+    // MARK: - Helpers
+
+    private func gcd(_ a: Int, _ b: Int) -> Int {
+        b == 0 ? a : gcd(b, a % b)
     }
 
     // MARK: - Cleanup
