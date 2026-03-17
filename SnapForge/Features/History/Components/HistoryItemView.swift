@@ -1,5 +1,6 @@
 import SwiftUI
 import ImageIO
+import AVFoundation
 
 /// Card view for a single capture item in the History grid.
 struct HistoryItemView: View {
@@ -109,9 +110,18 @@ struct HistoryItemView: View {
         }
     }
 
-    /// Loads a downsampled thumbnail using CGImageSource to avoid loading full-res images into memory.
+    /// Loads a downsampled thumbnail. Uses CGImageSource for images and AVAssetImageGenerator for videos.
     private func loadThumbnail(from path: String, maxPixelSize: Int = 200) -> NSImage? {
         let url = URL(fileURLWithPath: path)
+        let ext = url.pathExtension.lowercased()
+
+        // Video files: use AVAssetImageGenerator
+        let videoExtensions: Set<String> = ["mov", "mp4", "m4v", "avi", "mkv"]
+        if videoExtensions.contains(ext) {
+            return loadVideoThumbnail(from: url)
+        }
+
+        // Image files: use CGImageSource for efficient downsampling
         guard let source = CGImageSourceCreateWithURL(url as CFURL, nil) else { return nil }
         let options: [CFString: Any] = [
             kCGImageSourceThumbnailMaxPixelSize: maxPixelSize,
@@ -119,6 +129,16 @@ struct HistoryItemView: View {
             kCGImageSourceCreateThumbnailWithTransform: true
         ]
         guard let cgImage = CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary) else { return nil }
+        return NSImage(cgImage: cgImage, size: NSSize(width: cgImage.width, height: cgImage.height))
+    }
+
+    /// Extract a single frame thumbnail from a video file.
+    private func loadVideoThumbnail(from url: URL) -> NSImage? {
+        let asset = AVURLAsset(url: url)
+        let generator = AVAssetImageGenerator(asset: asset)
+        generator.appliesPreferredTrackTransform = true
+        generator.maximumSize = CGSize(width: 200, height: 200)
+        guard let cgImage = try? generator.copyCGImage(at: .zero, actualTime: nil) else { return nil }
         return NSImage(cgImage: cgImage, size: NSSize(width: cgImage.width, height: cgImage.height))
     }
 

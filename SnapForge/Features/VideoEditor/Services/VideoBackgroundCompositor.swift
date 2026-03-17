@@ -60,16 +60,21 @@ class VideoBackgroundCompositor: NSObject, @unchecked Sendable, AVVideoCompositi
             return
         }
 
-        guard let sourceBuffer = request.sourceFrame(byTrackID: instruction.trackID) else {
-            // Fallback: try first available track
+        // Try requested track ID first, then fall back to any available track.
+        // Track ID mismatch can happen when AVFoundation reassigns IDs during composition.
+        let sourceBuffer: CVPixelBuffer
+        if let buffer = request.sourceFrame(byTrackID: instruction.trackID) {
+            sourceBuffer = buffer
+        } else {
             let availableTrackIDs = request.sourceTrackIDs.map(\.int32Value)
             if let firstTrackID = availableTrackIDs.first,
                let fallbackBuffer = request.sourceFrame(byTrackID: firstTrackID) {
-                request.finish(withComposedVideoFrame: fallbackBuffer)
+                sourceBuffer = fallbackBuffer
+            } else {
+                print("❌ Compositor: no source frame. Requested trackID=\(instruction.trackID), available=\(request.sourceTrackIDs)")
+                request.finish(with: CompositorError.noSourceFrame)
                 return
             }
-            request.finish(with: CompositorError.noSourceFrame)
-            return
         }
 
         // If no background active, pass through directly
