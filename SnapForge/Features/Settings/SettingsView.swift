@@ -744,7 +744,7 @@ struct ShortcutRow: View {
 // MARK: - Permissions Tab
 
 struct PermissionsSettingsTab: View {
-    @State private var permissionService = PermissionService()
+    private var permissionService: PermissionService { AppEnvironment.shared.permissionService }
     @State private var saveFolderGranted = false
     @State private var isChecking = false
 
