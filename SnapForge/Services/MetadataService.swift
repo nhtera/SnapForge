@@ -14,6 +14,9 @@ final class MetadataService {
       .appendingPathComponent(".metadata.json")
   }
 
+  /// Debounce timer to batch rapid writes (e.g., during indexAllCaptures)
+  private var saveTask: Task<Void, Never>?
+
   private init() {
     loadMetadata()
   }
@@ -179,11 +182,17 @@ final class MetadataService {
     }
   }
 
+  /// Debounced save — coalesces rapid mutations into a single disk write after 0.5s of inactivity.
   private func saveMetadata() {
-    let encoder = JSONEncoder()
-    encoder.dateEncodingStrategy = .iso8601
-    encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-    guard let data = try? encoder.encode(metadata) else { return }
-    try? data.write(to: metadataURL, options: .atomic)
+    saveTask?.cancel()
+    saveTask = Task { @MainActor in
+      try? await Task.sleep(for: .milliseconds(500))
+      guard !Task.isCancelled else { return }
+      let encoder = JSONEncoder()
+      encoder.dateEncodingStrategy = .iso8601
+      encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+      guard let data = try? encoder.encode(metadata) else { return }
+      try? data.write(to: metadataURL, options: .atomic)
+    }
   }
 }

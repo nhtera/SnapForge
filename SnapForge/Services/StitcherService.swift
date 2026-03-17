@@ -162,10 +162,13 @@ final class StitcherService: Sendable {
     for (index, image) in images.enumerated() {
       let rect = rectForImage(index, image)
       if config.cornerRadius > 0 {
+        // saveGState/restoreGState properly scopes the clip path per image,
+        // unlike resetClip() which broke clipping for 3+ images.
+        NSGraphicsContext.current?.cgContext.saveGState()
         let path = NSBezierPath(roundedRect: rect, xRadius: config.cornerRadius, yRadius: config.cornerRadius)
         path.addClip()
         image.draw(in: rect, from: .zero, operation: .sourceOver, fraction: 1.0)
-        NSGraphicsContext.current?.cgContext.resetClip()
+        NSGraphicsContext.current?.cgContext.restoreGState()
       } else {
         image.draw(in: rect, from: .zero, operation: .sourceOver, fraction: 1.0)
       }

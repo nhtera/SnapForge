@@ -12,6 +12,9 @@ final class ClipboardService {
         return f
     }()
 
+    /// Track previous temp file URL so we can clean it up on next copy
+    private var previousTempURL: URL?
+
     /// Copy image to system clipboard with a proper filename.
     /// Saves the PNG to a temp file, then copies the file URL.
     /// macOS grants clipboard recipients sandbox read access to the referenced file,
@@ -25,6 +28,10 @@ final class ClipboardService {
         let filename = "SnapForge_\(timestamp).png"
         let tempURL = URL(fileURLWithPath: NSTemporaryDirectory())
             .appendingPathComponent(filename)
+
+        // Clean up previous temp file to avoid accumulating stale files
+        if let prev = previousTempURL { try? FileManager.default.removeItem(at: prev) }
+        previousTempURL = tempURL
 
         // Write PNG data to temp file
         if let tiffData = image.tiffRepresentation,

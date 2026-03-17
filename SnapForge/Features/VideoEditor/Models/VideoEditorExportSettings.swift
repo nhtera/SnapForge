@@ -15,7 +15,7 @@ enum ExportQuality: String, CaseIterable, Identifiable {
     var exportPreset: String {
         switch self {
         case .low: AVAssetExportPresetMediumQuality
-        case .medium: AVAssetExportPresetHighestQuality
+        case .medium: AVAssetExportPreset1920x1080
         case .high: AVAssetExportPresetHighestQuality
         }
     }

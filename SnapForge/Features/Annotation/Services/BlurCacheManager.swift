@@ -5,6 +5,8 @@ import CoreGraphics
 /// Caches pixelated blur regions as CGImage to avoid per-frame recomputation
 final class BlurCacheManager {
   private var cache: [UUID: CacheEntry] = [:]
+  /// Maximum number of cached blur images to prevent unbounded memory growth
+  private let maxCacheSize = 50
 
   private struct CacheEntry {
     let image: CGImage
@@ -32,6 +34,11 @@ final class BlurCacheManager {
       blurType: blurType,
       pixelSize: pixelSize
     ) else { return nil }
+
+    // Evict oldest entries if cache exceeds limit
+    if cache.count >= maxCacheSize {
+      cache.removeAll()
+    }
 
     cache[annotationId] = CacheEntry(image: rendered, bounds: bounds, blurType: blurType)
     return rendered

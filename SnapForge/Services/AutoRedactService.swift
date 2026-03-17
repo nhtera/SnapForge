@@ -166,8 +166,9 @@ final class AutoRedactService: Sendable {
   static func classifySensitiveText(_ text: String) -> RedactType? {
     guard text.count >= 3 else { return nil }
 
-    // Email
-    if text.contains("@") && text.contains(".") { return .email }
+    // Email — use a proper regex to avoid false positives on @MainActor, variable names, etc.
+    let emailPattern = #"^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$"#
+    if text.range(of: emailPattern, options: .regularExpression) != nil { return .email }
 
     let digitsOnly = text.filter(\.isNumber)
 
