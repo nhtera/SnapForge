@@ -14,8 +14,9 @@ final class QuickBlurService: Sendable {
   func autoBlurSensitiveAreas(in image: NSImage) async -> NSImage {
     // Capture image data on caller's thread, then do all work in background
     guard let tiffData = image.tiffRepresentation,
-          let bitmapRep = NSBitmapImageRep(data: tiffData),
-          let cgImage = bitmapRep.cgImage else {
+      let bitmapRep = NSBitmapImageRep(data: tiffData),
+      let cgImage = bitmapRep.cgImage
+    else {
       return image
     }
 
@@ -71,19 +72,20 @@ final class QuickBlurService: Sendable {
         guard AutoRedactService.classifySensitiveText(text) != nil else { continue }
 
         let box = observation.boundingBox
-        rects.append(CGRect(
-          x: box.origin.x * width,
-          y: (1 - box.origin.y - box.height) * height,
-          width: box.width * width,
-          height: box.height * height
-        ))
+        rects.append(
+          CGRect(
+            x: box.origin.x * width,
+            y: (1 - box.origin.y - box.height) * height,
+            width: box.width * width,
+            height: box.height * height
+          ))
       }
     }
     request.recognitionLevel = .accurate  // Need accurate text to check patterns
     request.recognitionLanguages = [
       "en-US", "fr-FR", "it-IT", "de-DE", "es-ES", "pt-BR",
       "zh-Hans", "zh-Hant", "ko-KR", "ja-JP",
-      "ru-RU", "uk-UA", "th-TH", "vi-VT", "ar-SA",
+      "ru-RU", "uk-UA", "th-TH", "vi-VN", "ar-SA",
     ]
     request.automaticallyDetectsLanguage = true
 
@@ -206,7 +208,8 @@ final class QuickBlurService: Sendable {
     let mask = roundedRect.composited(over: black)
 
     // Apply slight Gaussian blur for feathered edges
-    let softMask = mask
+    let softMask =
+      mask
       .applyingGaussianBlur(sigma: 3.0)
       .cropped(to: rect.insetBy(dx: -50, dy: -50))
 

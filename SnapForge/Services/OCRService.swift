@@ -1,5 +1,5 @@
-import Vision
 import AppKit
+import Vision
 
 /// OCR text recognition service using Apple Vision framework.
 /// Supports 18 languages: English, French, Italian, German, Spanish, Portuguese,
@@ -15,7 +15,7 @@ final class OCRService {
         "en-US", "fr-FR", "it-IT", "de-DE", "es-ES", "pt-BR",
         "zh-Hans", "zh-Hant", "yue-Hans", "yue-Hant",
         "ko-KR", "ja-JP", "ru-RU", "uk-UA",
-        "th-TH", "vi-VT", "ar-SA",
+        "th-TH", "vi-VN", "ar-SA",
     ]
 
     struct OCRResult: Sendable {
@@ -41,7 +41,8 @@ final class OCRService {
                 hasResumed = true
 
                 if let error {
-                    continuation.resume(throwing: OCRError.recognitionFailed(error.localizedDescription))
+                    continuation.resume(
+                        throwing: OCRError.recognitionFailed(error.localizedDescription))
                     return
                 }
 
@@ -59,7 +60,10 @@ final class OCRService {
                     )
                 }
                 // Sort top-to-bottom (Vision uses bottom-left origin, so flip Y)
-                .sorted { ($0.boundingBox.origin.y + $0.boundingBox.height) > ($1.boundingBox.origin.y + $1.boundingBox.height) }
+                .sorted {
+                    ($0.boundingBox.origin.y + $0.boundingBox.height)
+                        > ($1.boundingBox.origin.y + $1.boundingBox.height)
+                }
 
                 continuation.resume(returning: results)
             }
@@ -75,7 +79,8 @@ final class OCRService {
             } catch {
                 guard !hasResumed else { return }
                 hasResumed = true
-                continuation.resume(throwing: OCRError.recognitionFailed(error.localizedDescription))
+                continuation.resume(
+                    throwing: OCRError.recognitionFailed(error.localizedDescription))
             }
         }
     }

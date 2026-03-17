@@ -1,5 +1,6 @@
-import Testing
 import Foundation
+import Testing
+
 @testable import SnapForge
 
 /// Tests for OCRService — error enum and configuration.
@@ -26,7 +27,7 @@ struct OCRServiceTests {
 
     @Test("Supported languages include Vietnamese")
     func vietnameseSupport() {
-        #expect(OCRService.allSupportedLanguages.contains("vi-VT"))
+        #expect(OCRService.allSupportedLanguages.contains("vi-VN"))
     }
 
     @Test("Supported languages include Chinese variants")
