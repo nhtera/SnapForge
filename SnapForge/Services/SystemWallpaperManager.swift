@@ -77,8 +77,9 @@ final class SystemWallpaperManager {
             return
         }
 
-        // Downsample on background — NSCache handles concurrent writes safely
-        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+        // Downsample on background — NSCache handles concurrent writes safely.
+        // Use .utility QoS to avoid priority inversion warnings from Xcode thread sanitizer.
+        DispatchQueue.global(qos: .utility).async { [weak self] in
             guard let self else { return }
 
             let thumbnail = self.createDownsampledImage(from: url, maxSize: self.thumbnailSize * 2)
