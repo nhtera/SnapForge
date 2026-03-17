@@ -973,7 +973,7 @@ struct AboutSettingsTab: View {
 
                 HStack(spacing: 16) {
                     Link("GitHub", destination: URL(string: "https://github.com/nhtera/SnapForge")!)
-                    Link("Releases", destination: URL(string: "https://github.com/nhtera/SnapForge/releases")!)
+                    Link("Releases", destination: URL(string: "https://github.com/nhtera/SnapForge-releases/releases")!)
                 }
                 .font(.caption)
             }

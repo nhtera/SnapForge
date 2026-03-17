@@ -1,8 +1,10 @@
 import Sparkle
+import AppKit
 
 /// Shared Sparkle updater manager — singleton, starts updater once, logs lifecycle.
+/// Conforms to SPUUserDriverDelegate to ensure update alerts center on the Settings window.
 @MainActor
-final class UpdaterManager: NSObject, SPUUpdaterDelegate {
+final class UpdaterManager: NSObject, SPUUpdaterDelegate, SPUUserDriverDelegate {
     static let shared = UpdaterManager()
 
     private(set) var controller: SPUStandardUpdaterController!
@@ -16,12 +18,17 @@ final class UpdaterManager: NSObject, SPUUpdaterDelegate {
         controller = SPUStandardUpdaterController(
             startingUpdater: true,
             updaterDelegate: self,
-            userDriverDelegate: nil
+            userDriverDelegate: self
         )
         print("✅ Sparkle updater initialized")
     }
 
     func checkForUpdates() {
+        // Ensure the Settings window is key so Sparkle attaches its sheet there
+        if let keyWindow = NSApp.keyWindow {
+            keyWindow.makeKeyAndOrderFront(nil)
+        }
+        NSApp.activate(ignoringOtherApps: true)
         print("🔄 Manual check for updates triggered")
         updater.checkForUpdates()
     }
@@ -63,3 +70,4 @@ final class UpdaterManager: NSObject, SPUUpdaterDelegate {
         print("⚠️ User cancelled install on quit: v\(version)")
     }
 }
+
