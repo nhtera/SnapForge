@@ -320,7 +320,9 @@ private struct WallpaperThumbnailButton: View {
             return
         }
         SystemWallpaperManager.shared.loadThumbnail(for: item) { image in
-            thumbnail = image
+            Task { @MainActor in
+                thumbnail = image
+            }
         }
     }
 }

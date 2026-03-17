@@ -10,16 +10,14 @@ final class SystemWallpaperManager {
     private(set) var isLoading = false
 
     private nonisolated(unsafe) let thumbnailCache = NSCache<NSURL, NSImage>()
-    private nonisolated(unsafe) let thumbnailSize: CGFloat = 128
-    private nonisolated(unsafe) var loadingURLs = Set<URL>()
-    private nonisolated(unsafe) let cacheQueue = DispatchQueue(label: "com.snapforge.wallpaper.cache", qos: .userInitiated)
+    private let thumbnailSize: CGFloat = 128
 
-    private nonisolated(unsafe) let systemPaths = [
+    private let systemPaths = [
         "/System/Library/Desktop Pictures",
         "/Library/Desktop Pictures",
     ]
 
-    private nonisolated(unsafe) let supportedExtensions: Set<String> = ["heic", "jpg", "jpeg", "png"]
+    private let supportedExtensions: Set<String> = ["heic", "jpg", "jpeg", "png"]
 
     // MARK: - Types
 
@@ -52,7 +50,7 @@ final class SystemWallpaperManager {
         isLoading = true
 
         let items = await Task.detached(priority: .userInitiated) {
-            await self.enumerateSystemWallpapers()
+            self.enumerateSystemWallpapers()
         }.value
 
         wallpapers = items
@@ -79,16 +77,7 @@ final class SystemWallpaperManager {
             return
         }
 
-        // Prevent duplicate loads
-        cacheQueue.sync {
-            guard !loadingURLs.contains(url) else {
-                completion(nil)
-                return
-            }
-            loadingURLs.insert(url)
-        }
-
-        // Downsample on background
+        // Downsample on background — NSCache handles concurrent writes safely
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             guard let self else { return }
 
@@ -96,10 +85,6 @@ final class SystemWallpaperManager {
 
             if let thumbnail {
                 self.thumbnailCache.setObject(thumbnail, forKey: url as NSURL)
-            }
-
-            self.cacheQueue.sync {
-                self.loadingURLs.remove(url)
             }
 
             DispatchQueue.main.async {

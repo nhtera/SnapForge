@@ -234,27 +234,30 @@ enum VideoEditorExporter {
 
     /// Runs an AVAssetExportSession using the legacy callback API wrapped in a
     /// checked continuation, with a timer for progress. This avoids the data-race
-    /// caused by `states(updateInterval:)` + `export(to:as:)` running concurrently.
+    /// caused by the modern `states(updateInterval:)` + `export(to:as:)` APIs
+    /// running concurrently on internal AVFoundation threads.
     private static func runExportSession(
         _ session: AVAssetExportSession,
         progress: @escaping @Sendable (Double) -> Void
     ) async throws {
+        // nonisolated(unsafe) to safely pass non-Sendable types to the callback.
+        // Safe because timer + session are only accessed from the main thread.
+        nonisolated(unsafe) let unsafeSession = session
+
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-            // Progress monitoring via timer — polls `progress` property on main thread
-            let timer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { _ in
-                let currentProgress = session.progress
-                progress(Double(currentProgress))
+            nonisolated(unsafe) let timer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { _ in
+                progress(Double(unsafeSession.progress))
             }
 
-            session.exportAsynchronously {
+            unsafeSession.exportAsynchronously {
                 timer.invalidate()
 
-                switch session.status {
+                switch unsafeSession.status {
                 case .completed:
                     progress(1.0)
                     continuation.resume()
                 case .failed:
-                    continuation.resume(throwing: session.error ?? ExportError.exportFailed)
+                    continuation.resume(throwing: unsafeSession.error ?? ExportError.exportFailed)
                 case .cancelled:
                     continuation.resume(throwing: CancellationError())
                 default:

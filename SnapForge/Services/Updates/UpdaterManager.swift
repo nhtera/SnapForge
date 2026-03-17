@@ -2,12 +2,13 @@ import Sparkle
 import AppKit
 
 /// Shared Sparkle updater manager — singleton, starts updater once, logs lifecycle.
-/// Conforms to SPUUserDriverDelegate to ensure update alerts center on the Settings window.
+/// Conforms to SPUStandardUserDriverDelegate to ensure update alerts center on the Settings window.
 @MainActor
-final class UpdaterManager: NSObject, SPUUpdaterDelegate, SPUStandardUserDriverDelegate {
+final class UpdaterManager: NSObject, SPUUpdaterDelegate {
     static let shared = UpdaterManager()
 
     private(set) var controller: SPUStandardUpdaterController!
+    private let driverDelegate = UpdaterDriverDelegate()
 
     var updater: SPUUpdater {
         controller.updater
@@ -18,19 +19,25 @@ final class UpdaterManager: NSObject, SPUUpdaterDelegate, SPUStandardUserDriverD
         controller = SPUStandardUpdaterController(
             startingUpdater: true,
             updaterDelegate: self,
-            userDriverDelegate: self
+            userDriverDelegate: driverDelegate
         )
         print("✅ Sparkle updater initialized")
     }
 
     func checkForUpdates() {
-        // Ensure the Settings window is key so Sparkle attaches its sheet there
-        if let keyWindow = NSApp.keyWindow {
-            keyWindow.makeKeyAndOrderFront(nil)
+        // Find and activate the Settings window so Sparkle centers its alert on it
+        if let settingsWindow = NSApp.windows.first(where: { $0.title == "Settings" || $0.title.contains("About") }) {
+            settingsWindow.makeKeyAndOrderFront(nil)
+            settingsWindow.center()
         }
         NSApp.activate(ignoringOtherApps: true)
-        print("🔄 Manual check for updates triggered")
-        updater.checkForUpdates()
+
+        // Small delay to let the window become key before Sparkle shows its alert
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(100))
+            print("🔄 Manual check for updates triggered")
+            updater.checkForUpdates()
+        }
     }
 
     // MARK: - SPUUpdaterDelegate
@@ -41,9 +48,7 @@ final class UpdaterManager: NSObject, SPUUpdaterDelegate, SPUStandardUserDriverD
     }
 
     nonisolated func updater(_ updater: SPUUpdater, didFindValidUpdate item: SUAppcastItem) {
-        let version = item.displayVersionString ?? "?"
-        let build = item.versionString ?? "?"
-        print("✅ Update available: v\(version) (\(build))")
+        print("✅ Update available: v\(item.displayVersionString) (\(item.versionString))")
     }
 
     nonisolated func updaterDidNotFindUpdate(_ updater: SPUUpdater, error: any Error) {
@@ -51,13 +56,11 @@ final class UpdaterManager: NSObject, SPUUpdaterDelegate, SPUStandardUserDriverD
     }
 
     nonisolated func updater(_ updater: SPUUpdater, didDownloadUpdate item: SUAppcastItem) {
-        let version = item.displayVersionString ?? "?"
-        print("✅ Downloaded update: v\(version)")
+        print("✅ Downloaded update: v\(item.displayVersionString)")
     }
 
     nonisolated func updater(_ updater: SPUUpdater, willInstallUpdate item: SUAppcastItem) {
-        let version = item.displayVersionString ?? "?"
-        print("✅ Installing update: v\(version)")
+        print("✅ Installing update: v\(item.displayVersionString)")
     }
 
     nonisolated func updater(_ updater: SPUUpdater, didAbortWithError error: any Error) {
@@ -66,8 +69,14 @@ final class UpdaterManager: NSObject, SPUUpdaterDelegate, SPUStandardUserDriverD
     }
 
     nonisolated func updater(_ updater: SPUUpdater, didCancelInstallUpdateOnQuit item: SUAppcastItem) {
-        let version = item.displayVersionString ?? "?"
-        print("⚠️ User cancelled install on quit: v\(version)")
+        print("⚠️ User cancelled install on quit: v\(item.displayVersionString)")
     }
 }
 
+// MARK: - SPUStandardUserDriverDelegate (non-isolated to avoid actor crossing)
+
+final class UpdaterDriverDelegate: NSObject, SPUStandardUserDriverDelegate {
+    var supportsGentleScheduledUpdateReminders: Bool {
+        true
+    }
+}
