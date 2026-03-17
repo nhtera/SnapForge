@@ -154,17 +154,18 @@ final class PermissionService {
     }
 
     func requestAccessibility() {
-        // Use the raw key string to avoid Swift 6 concurrency issue with kAXTrustedCheckOptionPrompt global var
-        let options = ["AXTrustedCheckOptionPrompt": true] as CFDictionary
-        let trusted = AXIsProcessTrustedWithOptions(options)
-
-        if trusted {
+        if AXIsProcessTrusted() {
             accessibilityStatus = .granted
-        } else {
-            // Prompt may not appear if previously dismissed — open System Settings directly
-            openAccessibilityPreferences()
-            accessibilityStatus = .denied
+            return
         }
+
+        // Trigger system prompt (may not appear if previously dismissed)
+        let options = ["AXTrustedCheckOptionPrompt": true] as CFDictionary
+        _ = AXIsProcessTrustedWithOptions(options)
+
+        // Always open System Settings directly — ensures user lands on the right page
+        openAccessibilityPreferences()
+        checkAccessibility()
     }
 
     /// Open System Settings to the Accessibility privacy pane

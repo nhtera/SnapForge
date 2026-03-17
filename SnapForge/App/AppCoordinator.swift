@@ -76,11 +76,13 @@ final class AppCoordinator {
     }
 
     /// Revert to `.accessory` (menu-bar-only) when no user-facing windows remain visible.
+    /// Checks ALL visible normal-level windows (including SwiftUI Settings, Sparkle dialogs, etc.)
     func revertActivationPolicyIfNeeded() {
-        let hasVisibleWindows = [
-            onboardingWindow, annotationWindow, historyWindow,
-            videoEditorWindow, stitcherWindow, screenDiffWindow
-        ].contains { $0?.isVisible == true }
+        let hasVisibleWindows = NSApp.windows.contains { window in
+            window.isVisible &&
+            window.className != "NSStatusBarWindow" &&
+            window.level == .normal
+        }
 
         if !hasVisibleWindows {
             NSApp.setActivationPolicy(.accessory)

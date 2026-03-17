@@ -20,11 +20,6 @@ struct SnapForgeApp: App {
         Settings {
             SettingsView()
                 .environment(appEnvironment)
-                .onDisappear {
-                    // Revert to menu-bar-only when Settings closes
-                    // (unless other managed windows are still visible)
-                    AppCoordinator.shared.revertActivationPolicyIfNeeded()
-                }
         }
     }
 }

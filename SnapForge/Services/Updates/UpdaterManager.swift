@@ -25,19 +25,12 @@ final class UpdaterManager: NSObject, SPUUpdaterDelegate {
     }
 
     func checkForUpdates() {
-        // Find and activate the Settings window so Sparkle centers its alert on it
-        if let settingsWindow = NSApp.windows.first(where: { $0.title == "Settings" || $0.title.contains("About") }) {
-            settingsWindow.makeKeyAndOrderFront(nil)
-            settingsWindow.center()
-        }
+        // Ensure app is in .regular mode so Settings window stays visible
+        // when Sparkle shows its update dialog
+        NSApp.setActivationPolicy(.regular)
         NSApp.activate(ignoringOtherApps: true)
-
-        // Small delay to let the window become key before Sparkle shows its alert
-        Task { @MainActor in
-            try? await Task.sleep(for: .milliseconds(100))
-            print("🔄 Manual check for updates triggered")
-            updater.checkForUpdates()
-        }
+        print("🔄 Manual check for updates triggered")
+        updater.checkForUpdates()
     }
 
     // MARK: - SPUUpdaterDelegate
