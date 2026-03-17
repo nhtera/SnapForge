@@ -5,6 +5,22 @@
     <link>https://github.com/nhtera/SnapForge/releases</link>
     <description>SnapForge application updates</description>
     <language>en</language>
+    <item>
+      <title>Version 0.0.2</title>
+      <sparkle:version>2</sparkle:version>
+      <sparkle:shortVersionString>0.0.2</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
+      <pubDate>Tue, 17 Mar 2026 08:16:22 +0000</pubDate>
+      <description><![CDATA[
+        <style>:root { color-scheme: light dark; } body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; font-size: 13px; line-height: 1.5; padding: 8px 16px; } h3 { font-size: 14px; margin: 12px 0 6px; } ul { padding-left: 20px; margin: 4px 0; } li { margin: 3px 0; }</style>
+        <h3>🔧 Maintenance</h3><ul><li>Bug fixes and improvements</li></ul>
+      ]]></description>
+      <enclosure
+        url="https://github.com/nhtera/SnapForge/releases/download/v0.0.2/SnapForge-v0.0.2.dmg"
+        sparkle:edSignature="j61MH+NKfnZ70d17V95v3P8bnqjKQ2ZvDUR7aWODci5qdtSfeQ/+UV890XyclRRTpsXIrnQ4KD68w7R2QnJMAw=="
+        length="5611307"
+        type="application/octet-stream"/>
+    </item>
     <!--
       TEMPLATE: New <item> blocks are prepended here by scripts/update-appcast.sh
       during the release-publish workflow.
