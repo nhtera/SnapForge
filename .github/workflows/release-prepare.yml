@@ -15,10 +15,6 @@ on:
   push:
     branches: [main]
 
-permissions:
-  contents: write
-  pull-requests: write
-
 concurrency:
   group: release-prepare-${{ github.ref }}
   cancel-in-progress: false
@@ -54,9 +50,6 @@ jobs:
     if: needs.check-release-trigger.outputs.should_release == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    permissions:
-      contents: write
-      pull-requests: write
 
     steps:
       - name: Checkout
@@ -94,7 +87,7 @@ jobs:
 
       - name: Create release PR
         env:
-          GITHUB_TOKEN: ${{ secrets.RELEASES_PAT || secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           VERSION="v${{ steps.version.outputs.version }}"
           BRANCH="release/${VERSION}"
