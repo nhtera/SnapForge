@@ -171,11 +171,13 @@ class CaptureOverlayNSView: NSView {
                 height: cameraImage.size.height
             )
             // Tint the icon white — guard against copy() returning a non-NSImage type
-            guard let tinted = cameraImage.copy() as? NSImage else { return }
-            tinted.lockFocus()
-            NSColor.white.set()
-            NSRect(origin: .zero, size: tinted.size).fill(using: .sourceAtop)
-            tinted.unlockFocus()
+            guard let original = cameraImage.copy() as? NSImage else { return }
+            let tinted = NSImage(size: original.size, flipped: false) { rect in
+                original.draw(in: rect)
+                NSColor.white.set()
+                rect.fill(using: .sourceAtop)
+                return true
+            }
             tinted.draw(in: imageRect, from: .zero, operation: .sourceOver, fraction: 0.9)
         }
     }

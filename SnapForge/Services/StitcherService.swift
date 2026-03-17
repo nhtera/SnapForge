@@ -149,32 +149,31 @@ final class StitcherService: Sendable {
     images: [NSImage],
     canvasSize: NSSize,
     config: StitchConfiguration,
-    rectForImage: (Int, NSImage) -> CGRect
+    rectForImage: @escaping (Int, NSImage) -> CGRect
   ) -> NSImage? {
-    let result = NSImage(size: canvasSize)
-    result.lockFocus()
+    let result = NSImage(size: canvasSize, flipped: false) { _ in
+      // Background
+      config.backgroundColor.setFill()
+      NSBezierPath.fill(NSRect(origin: .zero, size: canvasSize))
 
-    // Background
-    config.backgroundColor.setFill()
-    NSBezierPath.fill(NSRect(origin: .zero, size: canvasSize))
-
-    // Draw each image
-    for (index, image) in images.enumerated() {
-      let rect = rectForImage(index, image)
-      if config.cornerRadius > 0 {
-        // saveGState/restoreGState properly scopes the clip path per image,
-        // unlike resetClip() which broke clipping for 3+ images.
-        NSGraphicsContext.current?.cgContext.saveGState()
-        let path = NSBezierPath(roundedRect: rect, xRadius: config.cornerRadius, yRadius: config.cornerRadius)
-        path.addClip()
-        image.draw(in: rect, from: .zero, operation: .sourceOver, fraction: 1.0)
-        NSGraphicsContext.current?.cgContext.restoreGState()
-      } else {
-        image.draw(in: rect, from: .zero, operation: .sourceOver, fraction: 1.0)
+      // Draw each image
+      for (index, image) in images.enumerated() {
+        let rect = rectForImage(index, image)
+        if config.cornerRadius > 0 {
+          // saveGState/restoreGState properly scopes the clip path per image,
+          // unlike resetClip() which broke clipping for 3+ images.
+          NSGraphicsContext.current?.cgContext.saveGState()
+          let path = NSBezierPath(roundedRect: rect, xRadius: config.cornerRadius, yRadius: config.cornerRadius)
+          path.addClip()
+          image.draw(in: rect, from: .zero, operation: .sourceOver, fraction: 1.0)
+          NSGraphicsContext.current?.cgContext.restoreGState()
+        } else {
+          image.draw(in: rect, from: .zero, operation: .sourceOver, fraction: 1.0)
+        }
       }
-    }
 
-    result.unlockFocus()
+      return true
+    }
     return result
   }
 }

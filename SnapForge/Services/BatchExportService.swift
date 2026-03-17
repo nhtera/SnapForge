@@ -199,15 +199,15 @@ final class BatchExportService {
     }
 
     let newSize = NSSize(width: targetWidth, height: targetHeight)
-    let resized = NSImage(size: newSize)
-    resized.lockFocus()
-    image.draw(
-      in: NSRect(origin: .zero, size: newSize),
-      from: NSRect(origin: .zero, size: originalSize),
-      operation: .sourceOver,
-      fraction: 1.0
-    )
-    resized.unlockFocus()
+    let resized = NSImage(size: newSize, flipped: false) { _ in
+      image.draw(
+        in: NSRect(origin: .zero, size: newSize),
+        from: NSRect(origin: .zero, size: originalSize),
+        operation: .sourceOver,
+        fraction: 1.0
+      )
+      return true
+    }
     return resized
   }
 }

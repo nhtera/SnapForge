@@ -19,13 +19,13 @@ extension NSImage {
         if ratio >= 1 { return self }
 
         let newSize = NSSize(width: size.width * ratio, height: size.height * ratio)
-        let newImage = NSImage(size: newSize)
-        newImage.lockFocus()
-        draw(in: NSRect(origin: .zero, size: newSize),
-             from: NSRect(origin: .zero, size: size),
-             operation: .copy,
-             fraction: 1.0)
-        newImage.unlockFocus()
+        let newImage = NSImage(size: newSize, flipped: false) { _ in
+            self.draw(in: NSRect(origin: .zero, size: newSize),
+                      from: NSRect(origin: .zero, size: self.size),
+                      operation: .copy,
+                      fraction: 1.0)
+            return true
+        }
         return newImage
     }
 }

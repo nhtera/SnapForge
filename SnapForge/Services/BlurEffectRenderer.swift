@@ -172,17 +172,14 @@ struct BlurEffectRenderer {
     let height = Int(ceil(clampedRegion.height))
     guard width > 0, height > 0 else { return nil }
 
-    let nsImage = NSImage(size: NSSize(width: width, height: height))
-    nsImage.lockFocus()
-    guard let context = NSGraphicsContext.current?.cgContext else {
-      nsImage.unlockFocus()
-      return nil
+    let nsImage = NSImage(size: NSSize(width: width, height: height), flipped: false) { rect in
+      guard let context = NSGraphicsContext.current?.cgContext else {
+        return false
+      }
+      let destRect = CGRect(x: 0, y: 0, width: rect.width, height: rect.height)
+      drawPixelated(croppedImage: croppedCG, in: context, destRect: destRect, pixelSize: pixelSize)
+      return true
     }
-
-    let destRect = CGRect(x: 0, y: 0, width: width, height: height)
-    drawPixelated(croppedImage: croppedCG, in: context, destRect: destRect, pixelSize: pixelSize)
-
-    nsImage.unlockFocus()
     return nsImage
   }
 

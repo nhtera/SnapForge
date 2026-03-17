@@ -106,31 +106,31 @@ final class ExportService {
     imageSize: CGSize? = nil
   ) -> NSImage? {
     let size = imageSize ?? baseImage.size
-    let result = NSImage(size: size)
-    result.lockFocus()
+    var renderFailed = false
+    let result = NSImage(size: size, flipped: false) { _ in
+      // Draw the base image
+      baseImage.draw(in: NSRect(origin: .zero, size: size))
 
-    // Draw the base image
-    baseImage.draw(in: NSRect(origin: .zero, size: size))
+      guard let context = NSGraphicsContext.current?.cgContext else {
+        renderFailed = true
+        return false
+      }
 
-    guard let context = NSGraphicsContext.current?.cgContext else {
-      result.unlockFocus()
-      return nil
+      // Use the same renderer as the canvas for consistent output
+      let renderer = AnnotationRenderer(
+        context: context,
+        editingTextId: nil,
+        sourceImage: baseImage,
+        blurCacheManager: nil
+      )
+
+      for annotation in annotations {
+        renderer.draw(annotation)
+      }
+
+      return true
     }
-
-    // Use the same renderer as the canvas for consistent output
-    let renderer = AnnotationRenderer(
-      context: context,
-      editingTextId: nil,
-      sourceImage: baseImage,
-      blurCacheManager: nil
-    )
-
-    for annotation in annotations {
-      renderer.draw(annotation)
-    }
-
-    result.unlockFocus()
-    return result
+    return renderFailed ? nil : result
   }
 
   // MARK: - Filename

@@ -102,15 +102,16 @@ final class DragSourceNSView: NSView {
 
         // Build drag image from thumbnail
         let imageSize = NSSize(width: 100, height: 62)
-        let scaledImage = NSImage(size: imageSize)
-        scaledImage.lockFocus()
-        dragImage?.draw(
-            in: NSRect(origin: .zero, size: imageSize),
-            from: .zero,
-            operation: .sourceOver,
-            fraction: 0.8
-        )
-        scaledImage.unlockFocus()
+        let capturedDragImage = dragImage
+        let scaledImage = NSImage(size: imageSize, flipped: false) { _ in
+            capturedDragImage?.draw(
+                in: NSRect(origin: .zero, size: imageSize),
+                from: .zero,
+                operation: .sourceOver,
+                fraction: 0.8
+            )
+            return true
+        }
 
         dragItem.setDraggingFrame(
             NSRect(

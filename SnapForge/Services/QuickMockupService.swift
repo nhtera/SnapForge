@@ -74,55 +74,54 @@ final class QuickMockupService {
     let totalWidth = imageSize.width + config.padding * 2
     let totalHeight = imageSize.height + config.padding * 2
 
-    let composite = NSImage(size: NSSize(width: totalWidth, height: totalHeight))
-    composite.lockFocus()
+    let composite = NSImage(size: NSSize(width: totalWidth, height: totalHeight), flipped: false) { rect in
+      // Draw gradient background
+      let bgRect = NSRect(origin: .zero, size: rect.size)
+      let gradient = NSGradient(
+        starting: NSColor(config.preset.colors.first ?? .blue),
+        ending: NSColor(config.preset.colors.last ?? .purple)
+      )
+      gradient?.draw(in: bgRect, angle: config.preset.angle)
 
-    // Draw gradient background
-    let bgRect = NSRect(origin: .zero, size: NSSize(width: totalWidth, height: totalHeight))
-    let gradient = NSGradient(
-      starting: NSColor(config.preset.colors.first ?? .blue),
-      ending: NSColor(config.preset.colors.last ?? .purple)
-    )
-    gradient?.draw(in: bgRect, angle: config.preset.angle)
+      // Draw shadow
+      if config.showShadow {
+        let shadowRect = NSRect(
+          x: config.padding, y: config.padding,
+          width: imageSize.width, height: imageSize.height
+        )
+        let shadow = NSShadow()
+        shadow.shadowColor = NSColor.black.withAlphaComponent(0.35)
+        shadow.shadowBlurRadius = 20
+        shadow.shadowOffset = NSSize(width: 0, height: -10)
+        shadow.set()
 
-    // Draw shadow
-    if config.showShadow {
-      let shadowRect = NSRect(
+        NSColor.black.withAlphaComponent(0.5).setFill()
+        let shadowPath = NSBezierPath(
+          roundedRect: shadowRect,
+          xRadius: config.cornerRadius,
+          yRadius: config.cornerRadius
+        )
+        shadowPath.fill()
+
+        // Reset shadow
+        NSShadow().set()
+      }
+
+      // Draw image with corner radius
+      let imageRect = NSRect(
         x: config.padding, y: config.padding,
         width: imageSize.width, height: imageSize.height
       )
-      let shadow = NSShadow()
-      shadow.shadowColor = NSColor.black.withAlphaComponent(0.35)
-      shadow.shadowBlurRadius = 20
-      shadow.shadowOffset = NSSize(width: 0, height: -10)
-      shadow.set()
-
-      NSColor.black.withAlphaComponent(0.5).setFill()
-      let shadowPath = NSBezierPath(
-        roundedRect: shadowRect,
+      let clipPath = NSBezierPath(
+        roundedRect: imageRect,
         xRadius: config.cornerRadius,
         yRadius: config.cornerRadius
       )
-      shadowPath.fill()
+      clipPath.addClip()
+      image.draw(in: imageRect)
 
-      // Reset shadow
-      NSShadow().set()
+      return true
     }
-
-    // Draw image with corner radius
-    let imageRect = NSRect(
-      x: config.padding, y: config.padding,
-      width: imageSize.width, height: imageSize.height
-    )
-    let clipPath = NSBezierPath(
-      roundedRect: imageRect,
-      xRadius: config.cornerRadius,
-      yRadius: config.cornerRadius
-    )
-    clipPath.addClip()
-    image.draw(in: imageRect)
-
-    composite.unlockFocus()
     return composite
   }
 }
