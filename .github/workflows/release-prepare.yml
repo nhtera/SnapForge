@@ -15,6 +15,10 @@ on:
   push:
     branches: [main]
 
+permissions:
+  contents: write
+  pull-requests: write
+
 concurrency:
   group: release-prepare-${{ github.ref }}
   cancel-in-progress: false
