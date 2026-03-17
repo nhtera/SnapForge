@@ -87,7 +87,7 @@ jobs:
 
       - name: Create release PR
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.RELEASES_PAT }}
         run: |
           VERSION="v${{ steps.version.outputs.version }}"
           BRANCH="release/${VERSION}"
