@@ -101,9 +101,12 @@ enum VideoEditorExporter {
         let transform = try await sourceVideoTrack.load(.preferredTransform)
         compositionVideoTrack.preferredTransform = transform
 
-        // Read source frame rate to preserve it in the exported composition
+        // Read source frame rate to preserve it in the exported composition.
+        // nominalFrameRate returns 0 for variable-frame-rate videos (common with screen recordings),
+        // so fall back to 30fps in that case.
         let sourceFPS = try await sourceVideoTrack.load(.nominalFrameRate)
-        let frameTimescale = max(Int32(ceil(sourceFPS)), 1)
+        let effectiveFPS = sourceFPS > 0 ? sourceFPS : 30.0
+        let frameTimescale = Int32(ceil(effectiveFPS))
 
         // Add audio track (unless muted)
         var audioMix: AVMutableAudioMix?
