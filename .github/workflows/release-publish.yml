@@ -245,6 +245,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           repository: nhtera/SnapForge-releases
+          token: ${{ secrets.RELEASES_PAT }}
           tag_name: v${{ steps.version.outputs.version }}
           name: v${{ steps.version.outputs.version }}
           body_path: ${{ steps.changelog.outputs.changelog_path }}
@@ -252,8 +253,6 @@ jobs:
           prerelease: false
           files: ${{ env.dmg_path }}
           generate_release_notes: false
-        env:
-          GITHUB_TOKEN: ${{ secrets.RELEASES_PAT }}
 
       - name: Extract build number
         id: build
