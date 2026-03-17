@@ -21,7 +21,7 @@
     <string>$(PRODUCT_BUNDLE_PACKAGE_TYPE)</string>
 
     <key>CFBundleShortVersionString</key>
-    <string>1.0.0</string>
+    <string>0.0.1</string>
 
     <key>CFBundleVersion</key>
     <string>1</string>
@@ -87,5 +87,12 @@
             </dict>
         </dict>
     </array>
+    <!-- Sparkle Auto-Update -->
+    <key>SUFeedURL</key>
+    <string>https://raw.githubusercontent.com/nhtera/SnapForge/main/appcast.xml</string>
+    <key>SUPublicEDKey</key>
+    <string>6hWRh/RmEr6s7RC7rDMUHWLbic8pQNmipoKhsbP6DtE=</string>
+    <key>SUEnableInstallerLauncherService</key>
+    <true/>
 </dict>
 </plist>

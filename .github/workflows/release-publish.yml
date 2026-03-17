@@ -1,0 +1,386 @@
+name: Release Publish
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [main]
+
+concurrency:
+  group: release-publish
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    # Only run when a release PR is merged (not just closed)
+    if: >-
+      github.event.pull_request.merged == true &&
+      startsWith(github.event.pull_request.head.ref, 'release/v')
+    runs-on: macos-15
+    timeout-minutes: 30
+    permissions:
+      contents: write
+    env:
+      HAS_DEVELOPER_ID_CERT: ${{ secrets.DEVELOPER_ID_P12 != '' && secrets.DEVELOPER_ID_PASSWORD != '' && 'true' || 'false' }}
+      HAS_SELF_SIGNED_CERT: ${{ secrets.SELF_SIGNED_CERT_P12 != '' && secrets.SELF_SIGNED_CERT_PASSWORD != '' && 'true' || 'false' }}
+      HAS_NOTARIZATION_CREDENTIALS: ${{ secrets.APPLE_ID != '' && secrets.APPLE_ID_PASSWORD != '' && secrets.APPLE_TEAM_ID != '' && 'true' || 'false' }}
+      HAS_SPARKLE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY != '' && 'true' || 'false' }}
+
+    steps:
+      - name: Extract version
+        id: version
+        run: |
+          BRANCH="${{ github.event.pull_request.head.ref }}"
+          VERSION="${BRANCH#release/v}"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Release version: v${VERSION}"
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: main
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract changelog
+        id: changelog
+        run: |
+          mkdir -p build
+          # Extract latest commit messages as changelog
+          git log --oneline -20 > build/changelog.md
+          echo "changelog_path=build/changelog.md" >> "$GITHUB_OUTPUT"
+
+      - name: Setup Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: "16.2"
+
+      - name: Install XcodeGen
+        run: HOMEBREW_NO_AUTO_UPDATE=1 brew install xcodegen
+
+      - name: Generate Xcode project
+        run: xcodegen generate
+
+      - name: Build archive
+        run: |
+          set -euo pipefail
+          mkdir -p build
+
+          if ! xcodebuild archive \
+            -project SnapForge.xcodeproj \
+            -scheme SnapForge \
+            -configuration Release \
+            -archivePath build/SnapForge.xcarchive \
+            -derivedDataPath build/DerivedData \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            ONLY_ACTIVE_ARCH=NO \
+            > build/archive.log 2>&1; then
+            tail -100 build/archive.log
+            exit 1
+          fi
+
+          tail -20 build/archive.log
+
+          if [ ! -d "build/SnapForge.xcarchive" ]; then
+            echo "::error::Archive not found at build/SnapForge.xcarchive"
+            exit 1
+          fi
+
+      # --- Code Signing (conditional) ---
+      - name: Import signing certificate
+        if: env.HAS_DEVELOPER_ID_CERT == 'true' || env.HAS_SELF_SIGNED_CERT == 'true'
+        env:
+          DEVELOPER_ID_P12: ${{ secrets.DEVELOPER_ID_P12 }}
+          DEVELOPER_ID_PASSWORD: ${{ secrets.DEVELOPER_ID_PASSWORD }}
+          SELF_SIGNED_CERT_P12: ${{ secrets.SELF_SIGNED_CERT_P12 }}
+          SELF_SIGNED_CERT_PASSWORD: ${{ secrets.SELF_SIGNED_CERT_PASSWORD }}
+        run: |
+          KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
+          KEYCHAIN_PASSWORD=$(uuidgen)
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
+          if [ "${HAS_DEVELOPER_ID_CERT}" = "true" ]; then
+            echo "Importing Developer ID certificate..."
+            echo "$DEVELOPER_ID_P12" | base64 --decode > $RUNNER_TEMP/certificate.p12
+            security import $RUNNER_TEMP/certificate.p12 -P "$DEVELOPER_ID_PASSWORD" \
+              -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+          elif [ "${HAS_SELF_SIGNED_CERT}" = "true" ]; then
+            echo "Importing self-signed certificate (TCC-preserving fallback)..."
+            echo "$SELF_SIGNED_CERT_P12" | base64 --decode > $RUNNER_TEMP/certificate.p12
+            security import $RUNNER_TEMP/certificate.p12 -P "$SELF_SIGNED_CERT_PASSWORD" \
+              -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH" -T /usr/bin/codesign
+          fi
+
+          security list-keychain -d user -s "$KEYCHAIN_PATH"
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
+          echo "Available signing identities:"
+          security find-identity -v -p codesigning "$KEYCHAIN_PATH"
+
+      - name: Export app
+        run: |
+          set -euo pipefail
+          mkdir -p build build/export
+          ARCHIVE_PATH="build/SnapForge.xcarchive"
+
+          if [ ! -d "$ARCHIVE_PATH" ]; then
+            echo "::error::Archive not found at $ARCHIVE_PATH."
+            exit 1
+          fi
+
+          if [ "${HAS_DEVELOPER_ID_CERT}" = "true" ]; then
+            xcodebuild -exportArchive \
+              -archivePath "$ARCHIVE_PATH" \
+              -exportPath build/export \
+              -exportOptionsPlist ExportOptions.plist
+          else
+            # Manual export - copy from archive and sign
+            ditto "$ARCHIVE_PATH/Products/Applications/SnapForge.app" build/SnapForge.app
+
+            APP_PATH="build/SnapForge.app"
+            SPARKLE_FRAMEWORK="$APP_PATH/Contents/Frameworks/Sparkle.framework"
+
+            if [ "${HAS_SELF_SIGNED_CERT}" = "true" ]; then
+              SIGN_IDENTITY="SnapForge Self-Signed"
+              echo "Signing with self-signed certificate: $SIGN_IDENTITY"
+            else
+              SIGN_IDENTITY="-"
+              echo "::warning::Signing ad-hoc — TCC permissions will be lost after each update"
+            fi
+
+            # Sign Sparkle components inside-out
+            if [ -d "$SPARKLE_FRAMEWORK/Versions/B/XPCServices/Installer.xpc" ]; then
+              codesign --force --sign "$SIGN_IDENTITY" -o runtime --timestamp=none "$SPARKLE_FRAMEWORK/Versions/B/XPCServices/Installer.xpc"
+            fi
+            if [ -d "$SPARKLE_FRAMEWORK/Versions/B/XPCServices/Downloader.xpc" ]; then
+              codesign --force --sign "$SIGN_IDENTITY" -o runtime --preserve-metadata=entitlements --timestamp=none "$SPARKLE_FRAMEWORK/Versions/B/XPCServices/Downloader.xpc"
+            fi
+            if [ -f "$SPARKLE_FRAMEWORK/Versions/B/Autoupdate" ]; then
+              codesign --force --sign "$SIGN_IDENTITY" -o runtime --timestamp=none "$SPARKLE_FRAMEWORK/Versions/B/Autoupdate"
+            fi
+            if [ -d "$SPARKLE_FRAMEWORK/Versions/B/Updater.app" ]; then
+              codesign --force --sign "$SIGN_IDENTITY" -o runtime --timestamp=none "$SPARKLE_FRAMEWORK/Versions/B/Updater.app"
+            fi
+            if [ -d "$SPARKLE_FRAMEWORK" ]; then
+              codesign --force --sign "$SIGN_IDENTITY" -o runtime --timestamp=none "$SPARKLE_FRAMEWORK"
+            fi
+
+            # Process entitlements
+            BUNDLE_ID=$(/usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$APP_PATH/Contents/Info.plist")
+            PROCESSED_ENTITLEMENTS="$RUNNER_TEMP/processed-entitlements.plist"
+            sed "s/\$(PRODUCT_BUNDLE_IDENTIFIER)/$BUNDLE_ID/g" SnapForge/SnapForge.entitlements > "$PROCESSED_ENTITLEMENTS"
+            echo "Processed entitlements with bundle ID: $BUNDLE_ID"
+
+            codesign \
+              --force \
+              --sign "$SIGN_IDENTITY" \
+              --entitlements "$PROCESSED_ENTITLEMENTS" \
+              --timestamp=none \
+              "$APP_PATH"
+          fi
+
+      - name: Install create-dmg
+        run: HOMEBREW_NO_AUTO_UPDATE=1 brew install create-dmg
+
+      - name: Create DMG
+        run: |
+          set -euo pipefail
+          APP_PATH="build/SnapForge.app"
+          if [ -d "build/export/SnapForge.app" ]; then
+            APP_PATH="build/export/SnapForge.app"
+          fi
+
+          if [ ! -d "$APP_PATH" ]; then
+            echo "::error::SnapForge.app not found at expected path: $APP_PATH"
+            exit 1
+          fi
+
+          DMG_NAME="SnapForge-v${{ steps.version.outputs.version }}.dmg"
+
+          create-dmg \
+            --volname "SnapForge" \
+            --window-size 660 400 \
+            --icon-size 120 \
+            --icon "SnapForge.app" 180 170 \
+            --app-drop-link 480 170 \
+            --no-internet-enable \
+            "build/${DMG_NAME}" \
+            "$APP_PATH"
+
+          echo "dmg_path=build/${DMG_NAME}" >> "$GITHUB_ENV"
+          echo "dmg_name=${DMG_NAME}" >> "$GITHUB_ENV"
+
+      # --- Notarization (conditional) ---
+      - name: Notarize DMG
+        if: env.HAS_NOTARIZATION_CREDENTIALS == 'true'
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          xcrun notarytool submit "${{ env.dmg_path }}" \
+            --apple-id "$APPLE_ID" \
+            --password "$APPLE_ID_PASSWORD" \
+            --team-id "$APPLE_TEAM_ID" \
+            --wait
+          xcrun stapler staple "${{ env.dmg_path }}"
+
+      - name: Compute SHA256
+        id: sha256
+        run: |
+          SHA=$(shasum -a 256 "${{ env.dmg_path }}" | awk '{print $1}')
+          echo "sha256=$SHA" >> "$GITHUB_OUTPUT"
+          echo "SHA-256: $SHA"
+
+      - name: Upload DMG artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: SnapForge-v${{ steps.version.outputs.version }}
+          path: ${{ env.dmg_path }}
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.version.outputs.version }}
+          name: v${{ steps.version.outputs.version }}
+          body_path: ${{ steps.changelog.outputs.changelog_path }}
+          draft: false
+          prerelease: false
+          files: ${{ env.dmg_path }}
+          generate_release_notes: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract build number
+        id: build
+        run: |
+          BUILD=$(grep -m1 'CURRENT_PROJECT_VERSION:' project.yml | sed 's/.*: *"//' | sed 's/".*//')
+          echo "number=$BUILD" >> "$GITHUB_OUTPUT"
+          echo "Build number: $BUILD"
+
+      - name: Sign DMG with Sparkle EdDSA key
+        id: sparkle_sign
+        if: env.HAS_SPARKLE_KEY == 'true'
+        env:
+          SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
+        run: |
+          set +e
+
+          PRIVATE_KEY_FILE="$RUNNER_TEMP/sparkle_private_key.pem"
+          echo "$SPARKLE_PRIVATE_KEY" > "$PRIVATE_KEY_FILE"
+
+          SIGN_UPDATE=""
+          SIGNATURE=""
+
+          SPARKLE_SRC="build/DerivedData/SourcePackages/checkouts/Sparkle"
+          echo "--- Sparkle checkout contents ---"
+          ls -la "$SPARKLE_SRC/" 2>/dev/null || echo "Sparkle checkout dir not found"
+
+          # Strategy 1: Build sign_update from Sparkle SPM checkout
+          if [ -d "$SPARKLE_SRC/sign_update" ]; then
+            echo "Found sign_update source, building..."
+            if swift build --package-path "$SPARKLE_SRC/sign_update" -c release; then
+              BIN_PATH=$(swift build --package-path "$SPARKLE_SRC/sign_update" -c release --show-bin-path 2>/dev/null)
+              SIGN_UPDATE="$BIN_PATH/sign_update"
+              echo "Built sign_update at: $SIGN_UPDATE"
+            fi
+          fi
+
+          # Strategy 2: Find pre-built sign_update in SPM artifacts
+          if [ -z "$SIGN_UPDATE" ] || [ ! -x "$SIGN_UPDATE" ]; then
+            SIGN_UPDATE_ALT=$(find build/DerivedData/SourcePackages/artifacts -name "sign_update" -type f 2>/dev/null | head -1)
+            if [ -n "$SIGN_UPDATE_ALT" ]; then
+              chmod +x "$SIGN_UPDATE_ALT" 2>/dev/null || true
+              if [ -x "$SIGN_UPDATE_ALT" ]; then
+                SIGN_UPDATE="$SIGN_UPDATE_ALT"
+                echo "Found pre-built sign_update at: $SIGN_UPDATE"
+              fi
+            fi
+          fi
+
+          # Sign the DMG
+          if [ -n "$SIGN_UPDATE" ] && [ -x "$SIGN_UPDATE" ]; then
+            echo "Signing DMG with: $SIGN_UPDATE"
+            SIGN_OUTPUT=$("$SIGN_UPDATE" "${{ env.dmg_path }}" --ed-key-file "$PRIVATE_KEY_FILE" 2>&1) || true
+            echo "sign_update output: $SIGN_OUTPUT"
+            SIGNATURE=$(echo "$SIGN_OUTPUT" | grep "sparkle:edSignature=" | cut -d'"' -f2)
+          else
+            echo "::warning::Could not find or build sign_update binary, skipping signature"
+          fi
+
+          echo "signature=$SIGNATURE" >> "$GITHUB_OUTPUT"
+          rm -f "$PRIVATE_KEY_FILE"
+
+          if [ -n "$SIGNATURE" ]; then
+            echo "DMG signed successfully"
+          else
+            echo "::warning::DMG signature is empty"
+          fi
+
+      - name: Convert changelog to HTML for appcast
+        id: release_notes
+        run: |
+          NOTES_HTML=""
+          CURRENT_SECTION=""
+          IN_RELEVANT_SECTION=false
+
+          while IFS= read -r line; do
+            if echo "$line" | grep -qE '^### Features'; then
+              if [ -n "$CURRENT_SECTION" ]; then
+                NOTES_HTML="${NOTES_HTML}</ul>"
+              fi
+              NOTES_HTML="${NOTES_HTML}<h3>✨ Features</h3><ul>"
+              CURRENT_SECTION="features"
+              IN_RELEVANT_SECTION=true
+            elif echo "$line" | grep -qE '^### Bug Fixes'; then
+              if [ -n "$CURRENT_SECTION" ]; then
+                NOTES_HTML="${NOTES_HTML}</ul>"
+              fi
+              NOTES_HTML="${NOTES_HTML}<h3>🐛 Bug Fixes</h3><ul>"
+              CURRENT_SECTION="bugfixes"
+              IN_RELEVANT_SECTION=true
+            elif echo "$line" | grep -qE '^### '; then
+              if [ -n "$CURRENT_SECTION" ]; then
+                NOTES_HTML="${NOTES_HTML}</ul>"
+              fi
+              CURRENT_SECTION=""
+              IN_RELEVANT_SECTION=false
+            elif [ "$IN_RELEVANT_SECTION" = true ] && echo "$line" | grep -qE '^- '; then
+              ITEM=$(echo "$line" | sed 's/^- *//' | sed 's/ ([a-f0-9]\{7\})$//' | sed 's/ (#[0-9]*)//g')
+              if [ -n "$ITEM" ]; then
+                NOTES_HTML="${NOTES_HTML}<li>${ITEM}</li>"
+              fi
+            fi
+          done < "${{ steps.changelog.outputs.changelog_path }}"
+
+          if [ -n "$CURRENT_SECTION" ]; then
+            NOTES_HTML="${NOTES_HTML}</ul>"
+          fi
+
+          if [ -z "$NOTES_HTML" ]; then
+            NOTES_HTML="<h3>🔧 Maintenance</h3><ul><li>Bug fixes and improvements</li></ul>"
+          fi
+
+          echo "release_notes_html=$NOTES_HTML" >> "$GITHUB_OUTPUT"
+
+      - name: Update appcast.xml
+        run: |
+          chmod +x scripts/update-appcast.sh
+          ./scripts/update-appcast.sh \
+            "${{ steps.version.outputs.version }}" \
+            "${{ steps.build.outputs.number }}" \
+            "${{ env.dmg_path }}" \
+            "appcast.xml" \
+            "${{ steps.sparkle_sign.outputs.signature }}" \
+            "${{ steps.release_notes.outputs.release_notes_html }}"
+
+      - name: Commit appcast update
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add appcast.xml
+          git commit -m "chore: update appcast for v${{ steps.version.outputs.version }}"
+          git push origin main

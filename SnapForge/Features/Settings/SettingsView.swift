@@ -913,6 +913,14 @@ struct PermissionsSettingsTab: View {
 // MARK: - About Tab
 
 struct AboutSettingsTab: View {
+    private var appVersion: String {
+        Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?"
+    }
+
+    private var buildNumber: String {
+        Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "?"
+    }
+
     var body: some View {
         VStack(spacing: 16) {
             Spacer()
@@ -930,13 +938,30 @@ struct AboutSettingsTab: View {
             Text("SnapForge")
                 .font(.system(size: 28, weight: .bold, design: .rounded))
 
-            Text("Version 1.0.0 (Build 1)")
+            Text("Version \(appVersion) (\(buildNumber))")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
 
             Text("Forge perfect captures.")
                 .font(.body)
                 .foregroundStyle(.secondary)
+
+            // Check for Updates
+            Button {
+                UpdaterManager.shared.checkForUpdates()
+            } label: {
+                HStack(spacing: DesignTokens.Spacing.xs) {
+                    Image(systemName: "arrow.triangle.2.circlepath")
+                    Text("Check for Updates")
+                }
+                .font(.body.weight(.medium))
+                .padding(.horizontal, DesignTokens.Spacing.lg)
+                .padding(.vertical, DesignTokens.Spacing.sm)
+                .background(Color.accentColor)
+                .foregroundStyle(.white)
+                .clipShape(RoundedRectangle(cornerRadius: DesignTokens.Radius.md))
+            }
+            .buttonStyle(.plain)
 
             Divider()
                 .frame(width: 200)
@@ -947,9 +972,8 @@ struct AboutSettingsTab: View {
                     .foregroundStyle(.secondary)
 
                 HStack(spacing: 16) {
-                    Link("Website", destination: URL(string: "https://snapforge.app")!)
-                    Link("GitHub", destination: URL(string: "https://github.com/nicktien007")!)
-                    Link("Twitter", destination: URL(string: "https://twitter.com/nicktien007")!)
+                    Link("GitHub", destination: URL(string: "https://github.com/nhtera/SnapForge")!)
+                    Link("Releases", destination: URL(string: "https://github.com/nhtera/SnapForge/releases")!)
                 }
                 .font(.caption)
             }

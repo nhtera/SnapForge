@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" xmlns:dc="http://purl.org/dc/elements/1.1/">
+  <channel>
+    <title>SnapForge Updates</title>
+    <link>https://github.com/nhtera/SnapForge/releases</link>
+    <description>SnapForge application updates</description>
+    <language>en</language>
+    <!--
+      TEMPLATE: New <item> blocks are prepended here by scripts/update-appcast.sh
+      during the release-publish workflow.
+    -->
+  </channel>
+</rss>
