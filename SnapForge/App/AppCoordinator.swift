@@ -70,6 +70,11 @@ final class AppCoordinator {
         }
     }
 
+    /// Centralized activation policy management — call this instead of NSApp.setActivationPolicy directly.
+    func setActivationPolicyRegular() {
+        NSApp.setActivationPolicy(.regular)
+    }
+
     /// Revert to `.accessory` (menu-bar-only) when no user-facing windows remain visible.
     func revertActivationPolicyIfNeeded() {
         let hasVisibleWindows = [

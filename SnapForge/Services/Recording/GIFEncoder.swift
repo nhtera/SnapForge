@@ -41,6 +41,10 @@ final class GIFEncoder {
             throw GIFEncoderError.invalidInput("No frames to extract")
         }
 
+        // Cap frames to prevent OOM on long recordings (~30s at 15fps)
+        let maxFrames = 450
+        let cappedTotalFrames = min(totalFrames, maxFrames)
+
         let frameDuration = 1.0 / Double(config.fps)
 
         // Set up AVAssetImageGenerator
@@ -63,7 +67,7 @@ final class GIFEncoder {
         guard let destination = CGImageDestinationCreateWithURL(
             outputURL as CFURL,
             UTType.gif.identifier as CFString,
-            totalFrames,
+            cappedTotalFrames,
             nil
         ) else {
             throw GIFEncoderError.failedToCreateDestination
@@ -85,7 +89,7 @@ final class GIFEncoder {
         ]
 
         // Extract frames and add to GIF
-        for i in 0..<totalFrames {
+        for i in 0..<cappedTotalFrames {
             let time = CMTime(seconds: Double(i) * frameDuration, preferredTimescale: 600)
 
             let cgImage: CGImage
@@ -97,8 +101,10 @@ final class GIFEncoder {
                 continue
             }
 
-            CGImageDestinationAddImage(destination, cgImage, frameProperties as CFDictionary)
-            progress?(i + 1, totalFrames)
+            autoreleasepool {
+                CGImageDestinationAddImage(destination, cgImage, frameProperties as CFDictionary)
+            }
+            progress?(i + 1, cappedTotalFrames)
         }
 
         // Finalize
@@ -106,7 +112,7 @@ final class GIFEncoder {
             throw GIFEncoderError.failedToFinalize
         }
 
-        print("✅ GIF encoded: \(totalFrames) frames → \(outputURL.lastPathComponent)")
+        print("✅ GIF encoded: \(cappedTotalFrames) frames → \(outputURL.lastPathComponent)")
     }
 }
 

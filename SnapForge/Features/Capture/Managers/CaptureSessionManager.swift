@@ -57,8 +57,11 @@ final class CaptureSessionManager {
         // Dismiss Quick Access if visible — it steals key window focus
         AppCoordinator.shared.dismissQuickAccess()
 
-        guard let screen = NSScreen.main else { return }
-        let screenFrame = screen.frame
+        let mouseLocation = NSEvent.mouseLocation
+        let targetScreen = NSScreen.screens.first(where: { $0.frame.contains(mouseLocation) })
+            ?? NSScreen.main
+            ?? NSScreen.screens.first!
+        let screenFrame = targetScreen.frame
 
         let panel = CaptureOverlayPanel(
             contentRect: screenFrame,
@@ -98,9 +101,12 @@ final class CaptureSessionManager {
         // Dismiss Quick Access if visible — it can steal key window focus
         AppCoordinator.shared.dismissQuickAccess()
 
-        // Use the main screen frame
-        guard let screen = NSScreen.main else { return }
-        let screenFrame = screen.frame
+        // Use the screen containing the mouse cursor for multi-display support
+        let mouseLocation = NSEvent.mouseLocation
+        let targetScreen = NSScreen.screens.first(where: { $0.frame.contains(mouseLocation) })
+            ?? NSScreen.main
+            ?? NSScreen.screens.first!
+        let screenFrame = targetScreen.frame
 
         // Create the overlay panel
         let panel = CaptureOverlayPanel(
@@ -163,8 +169,11 @@ final class CaptureSessionManager {
 
     /// Window capture with clear background + window highlight
     private func showWindowOverlayWithBlur() {
-        guard let screen = NSScreen.main else { return }
-        let screenFrame = screen.frame
+        let mouseLocation = NSEvent.mouseLocation
+        let targetScreen = NSScreen.screens.first(where: { $0.frame.contains(mouseLocation) })
+            ?? NSScreen.main
+            ?? NSScreen.screens.first!
+        let screenFrame = targetScreen.frame
 
         let panel = CaptureOverlayPanel(
             contentRect: screenFrame,

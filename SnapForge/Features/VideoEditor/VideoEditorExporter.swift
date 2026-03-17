@@ -101,6 +101,10 @@ enum VideoEditorExporter {
         let transform = try await sourceVideoTrack.load(.preferredTransform)
         compositionVideoTrack.preferredTransform = transform
 
+        // Read source frame rate to preserve it in the exported composition
+        let sourceFPS = try await sourceVideoTrack.load(.nominalFrameRate)
+        let frameTimescale = max(Int32(ceil(sourceFPS)), 1)
+
         // Add audio track (unless muted)
         var audioMix: AVMutableAudioMix?
 
@@ -154,7 +158,7 @@ enum VideoEditorExporter {
 
             let vc = AVMutableVideoComposition()
             vc.renderSize = paddedSize
-            vc.frameDuration = CMTime(value: 1, timescale: 30)
+            vc.frameDuration = CMTime(value: 1, timescale: frameTimescale)
             vc.customVideoCompositorClass = VideoBackgroundCompositor.self
 
             let bgInstruction = BackgroundCompositionInstruction(
@@ -178,7 +182,7 @@ enum VideoEditorExporter {
 
             let vc = AVMutableVideoComposition()
             vc.renderSize = exportSize
-            vc.frameDuration = CMTime(value: 1, timescale: 30)
+            vc.frameDuration = CMTime(value: 1, timescale: frameTimescale)
 
             let instruction = AVMutableVideoCompositionInstruction()
             instruction.timeRange = CMTimeRange(

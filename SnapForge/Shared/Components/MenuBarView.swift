@@ -163,7 +163,7 @@ struct MenuBarView: View {
             HStack(spacing: 12) {
                 Button(action: {
                     dismiss()
-                    NSApp.setActivationPolicy(.regular)
+                    AppCoordinator.shared.setActivationPolicyRegular()
                     NSApp.activate(ignoringOtherApps: true)
                     Task { @MainActor in
                         try? await Task.sleep(for: .milliseconds(100))

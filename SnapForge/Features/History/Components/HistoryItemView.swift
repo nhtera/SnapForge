@@ -1,4 +1,5 @@
 import SwiftUI
+import ImageIO
 
 /// Card view for a single capture item in the History grid.
 struct HistoryItemView: View {
@@ -90,7 +91,7 @@ struct HistoryItemView: View {
     @ViewBuilder
     private var thumbnailView: some View {
         GeometryReader { geo in
-            if let image = NSImage(contentsOfFile: capture.filePath) {
+            if let image = loadThumbnail(from: capture.filePath) {
                 Image(nsImage: image)
                     .resizable()
                     .aspectRatio(contentMode: .fill)
@@ -106,6 +107,19 @@ struct HistoryItemView: View {
                     }
             }
         }
+    }
+
+    /// Loads a downsampled thumbnail using CGImageSource to avoid loading full-res images into memory.
+    private func loadThumbnail(from path: String, maxPixelSize: Int = 200) -> NSImage? {
+        let url = URL(fileURLWithPath: path)
+        guard let source = CGImageSourceCreateWithURL(url as CFURL, nil) else { return nil }
+        let options: [CFString: Any] = [
+            kCGImageSourceThumbnailMaxPixelSize: maxPixelSize,
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceCreateThumbnailWithTransform: true
+        ]
+        guard let cgImage = CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary) else { return nil }
+        return NSImage(cgImage: cgImage, size: NSSize(width: cgImage.width, height: cgImage.height))
     }
 
     private var typeBadge: some View {
