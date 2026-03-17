@@ -4,7 +4,7 @@ import AppKit
 /// Shared Sparkle updater manager — singleton, starts updater once, logs lifecycle.
 /// Conforms to SPUUserDriverDelegate to ensure update alerts center on the Settings window.
 @MainActor
-final class UpdaterManager: NSObject, SPUUpdaterDelegate, SPUUserDriverDelegate {
+final class UpdaterManager: NSObject, SPUUpdaterDelegate, SPUStandardUserDriverDelegate {
     static let shared = UpdaterManager()
 
     private(set) var controller: SPUStandardUpdaterController!
