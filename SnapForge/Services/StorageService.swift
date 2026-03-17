@@ -70,7 +70,23 @@ final class StorageService {
                 return url
             }
             imageData = bitmapRep.representation(using: .png, properties: [:])
-        default: // "png", "webp" (webp falls back to png)
+        case "webp":
+            // Real WebP encoding via CGImageDestination — available macOS 14+, safe on our 15.0+ target
+            if let cgImage = bitmapRep.cgImage {
+                guard let dest = CGImageDestinationCreateWithURL(
+                    url as CFURL, UTType.webP.identifier as CFString, 1, nil
+                ) else { throw StorageError.encodingFailed(format) }
+                CGImageDestinationAddImage(dest, cgImage, [
+                    kCGImageDestinationLossyCompressionQuality: quality
+                ] as CFDictionary)
+                guard CGImageDestinationFinalize(dest) else {
+                    throw StorageError.encodingFailed(format)
+                }
+                return url
+            }
+            // Fallback: cgImage unavailable, write as PNG
+            imageData = bitmapRep.representation(using: .png, properties: [:])
+        default: // "png"
             imageData = bitmapRep.representation(using: .png, properties: [:])
         }
 
@@ -169,7 +185,11 @@ final class StorageService {
                 try? saveBookmark(for: url)
             }
         }
-        _ = url?.startAccessingSecurityScopedResource()
+        // Stop access immediately — callers only need the resolved URL path,
+        // not sustained security-scoped access. Without this, each call leaks
+        // a kernel resource until the process exits.
+        let accessing = url?.startAccessingSecurityScopedResource() ?? false
+        defer { if accessing { url?.stopAccessingSecurityScopedResource() } }
         return url
     }
 }

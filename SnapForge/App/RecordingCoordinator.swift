@@ -110,8 +110,11 @@ final class RecordingCoordinator {
     /// Clean up all recording windows.
     func cleanup() {
         recordingBorderWindow?.close()
+        recordingBorderWindow = nil
         recordingToolbarPanel?.close()
+        recordingToolbarPanel = nil
         recordingCountdownWindow?.close()
+        recordingCountdownWindow = nil
     }
 
     // MARK: - Pre-Record UI

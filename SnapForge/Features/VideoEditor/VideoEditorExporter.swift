@@ -281,21 +281,11 @@ enum VideoEditorExporter {
         try await exportTrimmed(state: state, to: tempURL, progress: progress)
 
         let originalURL = state.videoURL
-        let backupURL = originalURL.deletingLastPathComponent()
-            .appendingPathComponent(".\(originalURL.lastPathComponent).backup")
 
-        do {
-            try? FileManager.default.removeItem(at: backupURL)
-            try FileManager.default.moveItem(at: originalURL, to: backupURL)
-            try FileManager.default.moveItem(at: tempURL, to: originalURL)
-            try? FileManager.default.removeItem(at: backupURL)
-            print("✅ Original video replaced: \(originalURL.lastPathComponent)")
-        } catch {
-            if FileManager.default.fileExists(atPath: backupURL.path) {
-                try? FileManager.default.moveItem(at: backupURL, to: originalURL)
-            }
-            throw error
-        }
+        // Atomic replacement — avoids the race condition where original is removed
+        // but the move fails, leaving the file permanently gone.
+        _ = try FileManager.default.replaceItemAt(originalURL, withItemAt: tempURL)
+        print("✅ Original video replaced: \(originalURL.lastPathComponent)")
     }
 
     /// Save exported video as a copy next to the original.

@@ -120,8 +120,8 @@ final class DrawingCanvasNSView: NSView {
 
     case 36: // Enter — confirm crop
       if state.selectedTool == .crop && state.isCropActive {
-        state.applyCrop()
-        state.selectedTool = .selection
+        // Signal AnnotationView to run the real crop logic (which translates annotations etc.)
+        state.shouldApplyCrop = true
         needsDisplay = true
         return
       }
@@ -313,6 +313,8 @@ final class DrawingCanvasNSView: NSView {
     {
       let displayBounds = imageToDisplay(annotation.bounds)
       if let handle = hitTestHandle(at: displayPoint, for: displayBounds) {
+        // Save undo state before resize begins so undo restores pre-resize position
+        state.saveState()
         isResizingAnnotation = true
         activeResizeHandle = handle
         originalBounds = annotation.bounds
@@ -329,6 +331,8 @@ final class DrawingCanvasNSView: NSView {
     // Selection tool
     if state.selectedTool == .selection {
       if let annotation = state.selectAnnotation(at: imagePoint) {
+        // Save undo state before drag begins so undo restores pre-drag position
+        state.saveState()
         isDraggingAnnotation = true
         dragOffset = CGPoint(
           x: imagePoint.x - annotation.bounds.origin.x,
@@ -357,6 +361,8 @@ final class DrawingCanvasNSView: NSView {
       if let annotation = hitTestAnnotation(at: imagePoint) {
         // Hit an existing annotation — select and drag it
         state.selectedAnnotationId = annotation.id
+        // Save undo state before drag begins so undo restores pre-drag position
+        state.saveState()
         isDraggingAnnotation = true
         dragOffset = CGPoint(
           x: imagePoint.x - annotation.bounds.origin.x,
@@ -445,7 +451,7 @@ final class DrawingCanvasNSView: NSView {
       {
         blurCacheManager.invalidate(id: selectedId)
       }
-      state.saveState()
+      // saveState() already called in mouseDown before resize started
       isResizingAnnotation = false
       activeResizeHandle = nil
       needsDisplay = true
@@ -463,7 +469,7 @@ final class DrawingCanvasNSView: NSView {
     }
 
     if isDraggingAnnotation {
-      state.saveState()
+      // saveState() already called in mouseDown before drag started
       isDraggingAnnotation = false
       updateCursor(for: event)
       needsDisplay = true

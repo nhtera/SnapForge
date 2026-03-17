@@ -170,8 +170,8 @@ class CaptureOverlayNSView: NSView {
                 width: cameraImage.size.width,
                 height: cameraImage.size.height
             )
-            // Tint the icon white
-            let tinted = cameraImage.copy() as! NSImage
+            // Tint the icon white — guard against copy() returning a non-NSImage type
+            guard let tinted = cameraImage.copy() as? NSImage else { return }
             tinted.lockFocus()
             NSColor.white.set()
             NSRect(origin: .zero, size: tinted.size).fill(using: .sourceAtop)
@@ -268,9 +268,10 @@ class CaptureOverlayNSView: NSView {
             if let ownerPID = info[kCGWindowOwnerPID as String] as? Int32, ownerPID == ownPID { continue }
             if let ownerName = info[kCGWindowOwnerName as String] as? String, excludedOwners.contains(ownerName) { continue }
 
-            // Parse window bounds using CGRect(dictionaryRepresentation:)
+            // Parse window bounds using CGRect(dictionaryRepresentation:) — bridge via NSDictionary to avoid unsafe force cast
             guard let boundsAny = info[kCGWindowBounds as String],
-                  let cgWindowRect = CGRect(dictionaryRepresentation: boundsAny as! CFDictionary) else { continue }
+                  let boundsNS = boundsAny as? NSDictionary,
+                  let cgWindowRect = CGRect(dictionaryRepresentation: boundsNS as CFDictionary) else { continue }
 
             guard cgWindowRect.width > 50 && cgWindowRect.height > 50 else { continue }
 

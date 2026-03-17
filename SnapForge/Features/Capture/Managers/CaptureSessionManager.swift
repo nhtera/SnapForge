@@ -22,6 +22,11 @@ final class CaptureSessionManager {
     // MARK: - Start Capture Session
 
     func startCapture(mode: CaptureMode) {
+        // Dismiss any existing capture session to prevent orphaned overlay panels
+        if overlayPanel != nil {
+            dismissOverlay()
+        }
+
         currentMode = mode
 
         switch mode {
@@ -285,6 +290,7 @@ final class CaptureSessionManager {
                 handleCapturedImage(image)
             } catch {
                 print("❌ Area capture failed: \(error)")
+                AppEnvironment.shared.showUserError("Capture failed. Please check screen recording permission in System Settings.")
             }
         }
     }
@@ -466,6 +472,7 @@ final class CaptureSessionManager {
                 handleCapturedImage(image)
             } catch {
                 print("❌ Fullscreen capture failed: \(error)")
+                AppEnvironment.shared.showUserError("Fullscreen capture failed. Please check screen recording permission in System Settings.")
             }
         }
     }

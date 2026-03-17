@@ -43,6 +43,8 @@ final class AnnotateState {
   var isCropResizing = false
   var isCropShiftLocked = false
   var originalCropRect: CGRect?
+  /// Set to true by Enter key handler to trigger real crop in AnnotationView
+  var shouldApplyCrop = false
 
   // MARK: - Layers Panel State
 

@@ -511,14 +511,23 @@ final class AppCoordinator {
 
     func cleanup() {
         captureOverlayWindow?.close()
+        captureOverlayWindow = nil
         quickAccessPanel?.close()
+        quickAccessPanel = nil
         videoQuickAccessPanel?.close()
+        videoQuickAccessPanel = nil
         annotationWindow?.close()
+        annotationWindow = nil
         onboardingWindow?.close()
+        onboardingWindow = nil
         historyWindow?.close()
+        historyWindow = nil
         videoEditorWindow?.close()
+        videoEditorWindow = nil
         stitcherWindow?.close()
+        stitcherWindow = nil
         screenDiffWindow?.close()
+        screenDiffWindow = nil
         RecordingCoordinator.shared.cleanup()
         floatingPins.forEach { $0.close() }
         floatingPins.removeAll()

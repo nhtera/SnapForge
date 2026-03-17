@@ -152,6 +152,13 @@ struct AnnotationView: View {
         }
       }
     }
+    // Enter key from canvas signals the real crop should run here
+    .onChange(of: state.shouldApplyCrop) { _, newValue in
+      guard newValue else { return }
+      state.shouldApplyCrop = false
+      applyCrop()
+      state.selectedTool = .selection
+    }
     // Tool keyboard shortcuts (work regardless of focus)
     .background { toolShortcutButtons }
     // ⌘C — Copy annotated image and close editor
@@ -385,6 +392,32 @@ struct AnnotationView: View {
       }
 
       item.bounds = bounds
+
+      // Translate embedded point coordinates that live inside the type's associated values
+      switch item.type {
+      case .arrow(let start, let end):
+        item.type = .arrow(
+          start: CGPoint(x: start.x - offsetX, y: start.y - offsetY),
+          end: CGPoint(x: end.x - offsetX, y: end.y - offsetY)
+        )
+      case .line(let start, let end):
+        item.type = .line(
+          start: CGPoint(x: start.x - offsetX, y: start.y - offsetY),
+          end: CGPoint(x: end.x - offsetX, y: end.y - offsetY)
+        )
+      case .ruler(let start, let end):
+        item.type = .ruler(
+          start: CGPoint(x: start.x - offsetX, y: start.y - offsetY),
+          end: CGPoint(x: end.x - offsetX, y: end.y - offsetY)
+        )
+      case .path(let points):
+        item.type = .path(points.map { CGPoint(x: $0.x - offsetX, y: $0.y - offsetY) })
+      case .highlight(let points):
+        item.type = .highlight(points.map { CGPoint(x: $0.x - offsetX, y: $0.y - offsetY) })
+      default:
+        break
+      }
+
       return item
     }
 
