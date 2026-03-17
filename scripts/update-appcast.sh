@@ -32,7 +32,7 @@ fi
 PUB_DATE=$(date -u '+%a, %d %b %Y %H:%M:%S +0000')
 
 # Download URL
-DOWNLOAD_URL="https://github.com/nhtera/SnapForge/releases/download/v${VERSION}/SnapForge-v${VERSION}.dmg"
+DOWNLOAD_URL="https://github.com/nhtera/SnapForge-releases/releases/download/v${VERSION}/SnapForge-v${VERSION}.dmg"
 
 # Default release notes if none provided
 if [ -z "$RELEASE_NOTES_HTML" ]; then

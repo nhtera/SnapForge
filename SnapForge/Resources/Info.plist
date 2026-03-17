@@ -89,7 +89,7 @@
     </array>
     <!-- Sparkle Auto-Update -->
     <key>SUFeedURL</key>
-    <string>https://raw.githubusercontent.com/nhtera/SnapForge/main/appcast.xml</string>
+    <string>https://raw.githubusercontent.com/nhtera/SnapForge-releases/main/appcast.xml</string>
     <key>SUPublicEDKey</key>
     <string>6hWRh/RmEr6s7RC7rDMUHWLbic8pQNmipoKhsbP6DtE=</string>
     <key>SUEnableInstallerLauncherService</key>

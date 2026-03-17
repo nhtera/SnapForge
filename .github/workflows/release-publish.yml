@@ -241,9 +241,10 @@ jobs:
           name: SnapForge-v${{ steps.version.outputs.version }}
           path: ${{ env.dmg_path }}
 
-      - name: Create GitHub Release
+      - name: Create GitHub Release (public repo)
         uses: softprops/action-gh-release@v2
         with:
+          repository: nhtera/SnapForge-releases
           tag_name: v${{ steps.version.outputs.version }}
           name: v${{ steps.version.outputs.version }}
           body_path: ${{ steps.changelog.outputs.changelog_path }}
@@ -252,7 +253,7 @@ jobs:
           files: ${{ env.dmg_path }}
           generate_release_notes: false
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.RELEASES_PAT }}
 
       - name: Extract build number
         id: build
@@ -377,10 +378,28 @@ jobs:
             "${{ steps.sparkle_sign.outputs.signature }}" \
             "${{ steps.release_notes.outputs.release_notes_html }}"
 
-      - name: Commit appcast update
+      - name: Commit appcast to public releases repo
+        env:
+          RELEASES_PAT: ${{ secrets.RELEASES_PAT }}
         run: |
+          # Clone the public releases repo
+          RELEASES_DIR="$RUNNER_TEMP/SnapForge-releases"
+          git clone "https://x-access-token:${RELEASES_PAT}@github.com/nhtera/SnapForge-releases.git" "$RELEASES_DIR"
+          
+          # Copy updated appcast.xml
+          cp appcast.xml "$RELEASES_DIR/appcast.xml"
+          
+          cd "$RELEASES_DIR"
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add appcast.xml
           git commit -m "chore: update appcast for v${{ steps.version.outputs.version }}"
           git push origin main
+          
+          # Also keep a copy in the private repo
+          cd -
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add appcast.xml
+          git commit -m "chore: update appcast for v${{ steps.version.outputs.version }}" || true
+          git push origin main || true
