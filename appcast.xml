@@ -6,6 +6,22 @@
     <description>SnapForge application updates</description>
     <language>en</language>
     <item>
+      <title>Version 0.0.17</title>
+      <sparkle:version>17</sparkle:version>
+      <sparkle:shortVersionString>0.0.17</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
+      <pubDate>Tue, 17 Mar 2026 18:42:40 +0000</pubDate>
+      <description><![CDATA[
+        <style>:root { color-scheme: light dark; } body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; font-size: 13px; line-height: 1.5; padding: 8px 16px; } h3 { font-size: 14px; margin: 12px 0 6px; } ul { padding-left: 20px; margin: 4px 0; } li { margin: 3px 0; }</style>
+        <h3>🔧 Maintenance</h3><ul><li>Bug fixes and improvements</li></ul>
+      ]]></description>
+      <enclosure
+        url="https://github.com/nhtera/SnapForge-releases/releases/download/v0.0.17/SnapForge-v0.0.17.dmg"
+        sparkle:edSignature="7V4oaiEhOC80puWVAr6hRz2fBsFoze6qil5K5fmmZH4BVCFXAqsAEWLyw4gxsz76LfmOtt+A0DyAhK480c6WAA=="
+        length="5659428"
+        type="application/octet-stream"/>
+    </item>
+    <item>
       <title>Version 0.0.13</title>
       <sparkle:version>13</sparkle:version>
       <sparkle:shortVersionString>0.0.13</sparkle:shortVersionString>
