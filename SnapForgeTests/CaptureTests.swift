@@ -23,17 +23,17 @@ struct CaptureSessionManagerTests {
 @MainActor
 struct SCKitServiceTests {
 
-    /// Probes screen recording permission by attempting to fetch shareable content.
-    /// Returns nil if permission is not granted (test should skip).
-    private static func requireScreenRecordingPermission() async throws -> SCShareableContent {
-        let content: SCShareableContent
+    /// Attempts to fetch shareable content. Returns nil when screen recording
+    /// permission is unavailable (CI), recording the absence as a known issue.
+    private static func fetchContentIfPermitted() async -> SCShareableContent? {
         do {
-            content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
+            return try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
         } catch {
-            try #require(Bool(false), "Skipping: screen recording permission not granted")
-            fatalError("Unreachable")
+            withKnownIssue("Screen recording permission not granted — skipping") {
+                throw error
+            }
+            return nil
         }
-        return content
     }
 
     @Test func windowInfoInitiallyEmpty() {
@@ -42,14 +42,14 @@ struct SCKitServiceTests {
     }
 
     @Test func refreshContentDoesNotThrow() async throws {
-        _ = try await Self.requireScreenRecordingPermission()
+        guard await Self.fetchContentIfPermitted() != nil else { return }
         let service = SCKitService()
         try await service.refreshContent()
         #expect(service.availableDisplays.isEmpty == false, "Should have at least one display")
     }
 
     @Test func captureFullscreenProducesImage() async throws {
-        _ = try await Self.requireScreenRecordingPermission()
+        guard await Self.fetchContentIfPermitted() != nil else { return }
         let service = SCKitService()
         let image = try await service.captureFullscreen()
         #expect(image.size.width > 0)
@@ -57,7 +57,7 @@ struct SCKitServiceTests {
     }
 
     @Test func captureAreaProducesImage() async throws {
-        _ = try await Self.requireScreenRecordingPermission()
+        guard await Self.fetchContentIfPermitted() != nil else { return }
         let service = SCKitService()
         let rect = CGRect(x: 100, y: 100, width: 200, height: 200)
         let image = try await service.captureArea(rect)

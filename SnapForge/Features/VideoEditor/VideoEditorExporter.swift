@@ -62,10 +62,9 @@ enum VideoEditorExporter {
         try? FileManager.default.removeItem(at: outputURL)
 
         exportSession.timeRange = timeRange
-        exportSession.outputURL = outputURL
-        exportSession.outputFileType = outputFileType(for: state.videoURL.pathExtension)
 
-        try await runExportSession(exportSession, progress: progress)
+        let fileType = outputFileType(for: state.videoURL.pathExtension)
+        try await runExportSession(exportSession, to: outputURL, as: fileType, progress: progress)
 
         print("✅ Exported video: \(outputURL.lastPathComponent)")
     }
@@ -215,9 +214,6 @@ enum VideoEditorExporter {
 
         try? FileManager.default.removeItem(at: outputURL)
 
-        exportSession.outputURL = outputURL
-        exportSession.outputFileType = outputFileType(for: state.videoURL.pathExtension)
-
         if let audioMix {
             exportSession.audioMix = audioMix
         }
@@ -225,46 +221,38 @@ enum VideoEditorExporter {
             exportSession.videoComposition = videoComposition
         }
 
-        try await runExportSession(exportSession, progress: progress)
+        let fileType = outputFileType(for: state.videoURL.pathExtension)
+        try await runExportSession(exportSession, to: outputURL, as: fileType, progress: progress)
 
         print("✅ Exported video with settings: \(outputURL.lastPathComponent)")
     }
 
     // MARK: - Safe Export Runner
 
-    /// Runs an AVAssetExportSession using the legacy callback API wrapped in a
-    /// checked continuation, with a timer for progress. This avoids the data-race
-    /// caused by the modern `states(updateInterval:)` + `export(to:as:)` APIs
-    /// running concurrently on internal AVFoundation threads.
+    /// Runs an AVAssetExportSession using the modern export(to:as:) API.
+    /// Progress is polled from a Task on the main actor — both the polling
+    /// and export cooperatively interleave at suspension points (no data race).
+    /// export(to:as:) throws on failure, eliminating need for deprecated
+    /// status/error checks.
     private static func runExportSession(
         _ session: AVAssetExportSession,
+        to outputURL: URL,
+        as fileType: AVFileType,
         progress: @escaping @Sendable (Double) -> Void
     ) async throws {
-        // nonisolated(unsafe) to safely pass non-Sendable types to the callback.
-        // Safe because timer + session are only accessed from the main thread.
-        nonisolated(unsafe) let unsafeSession = session
-
-        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-            nonisolated(unsafe) let timer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { _ in
-                progress(Double(unsafeSession.progress))
-            }
-
-            unsafeSession.exportAsynchronously {
-                timer.invalidate()
-
-                switch unsafeSession.status {
-                case .completed:
-                    progress(1.0)
-                    continuation.resume()
-                case .failed:
-                    continuation.resume(throwing: unsafeSession.error ?? ExportError.exportFailed)
-                case .cancelled:
-                    continuation.resume(throwing: CancellationError())
-                default:
-                    continuation.resume(throwing: ExportError.exportFailed)
-                }
+        let progressTask = Task {
+            while !Task.isCancelled {
+                progress(Double(session.progress))
+                try? await Task.sleep(nanoseconds: 100_000_000)
             }
         }
+
+        defer {
+            progressTask.cancel()
+            progress(1.0)
+        }
+
+        try await session.export(to: outputURL, as: fileType)
     }
 
     // MARK: - Replace Original
