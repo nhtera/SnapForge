@@ -139,16 +139,23 @@ struct GeneralSettingsTab: View {
     }
 
     private func chooseSaveLocation() {
-        let panel = NSOpenPanel()
-        panel.canChooseDirectories = true
-        panel.canChooseFiles = false
-        panel.allowsMultipleSelection = false
-        if panel.runModal() == .OK, let url = panel.url {
+        let fileAccess = SandboxFileAccessManager.shared
+        if let url = fileAccess.chooseExportDirectory() {
             saveLocation = url.path
+            // Re-ensure directory exists with new bookmark access
+            AppEnvironment.shared.storageService.ensureDefaultDirectoryExists()
         }
     }
 
     private func shortenedPath(_ path: String) -> String {
+        // Use real home path (getpwuid bypasses sandbox container redirect)
+        if let pw = getpwuid(getuid()), let homeDir = pw.pointee.pw_dir {
+            let realHome = String(cString: homeDir)
+            if path.hasPrefix(realHome) {
+                return "~" + path.dropFirst(realHome.count)
+            }
+        }
+        // Fallback to sandbox home
         let home = NSHomeDirectory()
         if path.hasPrefix(home) {
             return "~" + path.dropFirst(home.count)

@@ -416,8 +416,12 @@ struct StitcherView: View {
     guard let preview = previewImage else { return }
     let exportService = AppEnvironment.shared.exportService
     let storage = AppEnvironment.shared.storageService
+    let dir = storage.snapForgeDirectory
+    let access = SandboxFileAccessManager.shared.beginAccessingURL(dir)
+    defer { access.stop() }
+    try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
     let filename = exportService.generateFilename(format: exportFormat)
-    let url = storage.snapForgeDirectory.appendingPathComponent(filename)
+    let url = dir.appendingPathComponent(filename)
 
     do {
       try exportService.exportImage(preview, format: exportFormat, quality: exportQuality, to: url)

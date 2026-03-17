@@ -513,8 +513,12 @@ struct AnnotationView: View {
     env.clipboardService.copyImage(rendered)
 
     if !copyOnly {
+      let dir = env.storageService.snapForgeDirectory
+      let access = SandboxFileAccessManager.shared.beginAccessingURL(dir)
+      defer { access.stop() }
+      try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
       let filename = env.exportService.generateFilename(format: exportFormat)
-      let url = env.storageService.snapForgeDirectory.appendingPathComponent(filename)
+      let url = dir.appendingPathComponent(filename)
 
       do {
         try env.exportService.exportImage(rendered, format: exportFormat, quality: exportQuality, to: url)

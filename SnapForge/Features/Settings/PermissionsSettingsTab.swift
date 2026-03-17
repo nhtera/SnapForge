@@ -159,12 +159,7 @@ struct PermissionsSettingsTab: View {
     }
 
     private func checkSaveFolder() {
-        let path = UserDefaults.standard.string(forKey: SettingsKey.saveLocation) ?? ""
-        if path.isEmpty {
-            saveFolderGranted = false
-            return
-        }
-        let url = URL(fileURLWithPath: (path as NSString).expandingTildeInPath)
-        saveFolderGranted = FileManager.default.isWritableFile(atPath: url.path)
+        let fileAccess = SandboxFileAccessManager.shared
+        saveFolderGranted = fileAccess.hasValidBookmark
     }
 }

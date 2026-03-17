@@ -3,7 +3,8 @@ import AppKit
 import ImageIO
 import UniformTypeIdentifiers
 
-/// Manages file storage, save locations, and Security-Scoped Bookmarks.
+/// Manages file storage and save locations.
+/// Uses SandboxFileAccessManager for proper security-scoped file access in sandbox.
 @MainActor
 @Observable
 final class StorageService {
@@ -11,6 +12,7 @@ final class StorageService {
     enum StorageError: LocalizedError {
         case imageConversionFailed
         case encodingFailed(String)
+        case noExportAccess
 
         var errorDescription: String? {
             switch self {
@@ -18,15 +20,34 @@ final class StorageService {
                 return "Failed to convert image"
             case .encodingFailed(let format):
                 return "Failed to encode image as \(format)"
+            case .noExportAccess:
+                return "No access to export directory. Please choose a save location in Settings."
             }
         }
     }
 
-    var defaultSaveURL: URL {
+    private let fileAccess = SandboxFileAccessManager.shared
+
+    /// Resolved save directory — prefers bookmark URL (real path), falls back to stored path.
+    var resolvedSaveURL: URL {
+        if let bookmarkURL = fileAccess.resolveBookmarkURL() {
+            return bookmarkURL
+        }
+        // Fallback to stored path (may be container path on first launch)
         let path = UserDefaults.standard.string(forKey: SettingsKey.saveLocation)
-            ?? NSSearchPathForDirectoriesInDomains(.picturesDirectory, .userDomainMask, true).first
-            ?? "~/Pictures"
+            ?? fileAccess.defaultPicturesDirectory.deletingLastPathComponent().path
         return URL(fileURLWithPath: (path as NSString).expandingTildeInPath)
+    }
+
+    /// The SnapForge subdirectory inside the resolved save location.
+    var snapForgeDirectory: URL {
+        // If bookmark points directly to a "SnapForge" directory, use it as-is.
+        // Otherwise, append "SnapForge" subdirectory.
+        let resolved = resolvedSaveURL
+        if resolved.lastPathComponent == "SnapForge" {
+            return resolved
+        }
+        return resolved.appendingPathComponent("SnapForge")
     }
 
     init() {
@@ -36,20 +57,24 @@ final class StorageService {
     // MARK: - Directory Management
 
     func ensureDefaultDirectoryExists() {
-        let snapForgeDir = defaultSaveURL.appendingPathComponent("SnapForge")
-        if !FileManager.default.fileExists(atPath: snapForgeDir.path) {
-            try? FileManager.default.createDirectory(at: snapForgeDir, withIntermediateDirectories: true)
-        }
-    }
+        let dir = snapForgeDirectory
+        let access = fileAccess.beginAccessingURL(dir)
+        defer { access.stop() }
 
-    var snapForgeDirectory: URL {
-        defaultSaveURL.appendingPathComponent("SnapForge")
+        if !FileManager.default.fileExists(atPath: dir.path) {
+            try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        }
     }
 
     // MARK: - Save Image
 
     func saveImage(_ image: NSImage, filename: String, format: String = "png", quality: Double = 0.9) throws -> URL {
-        let url = snapForgeDirectory.appendingPathComponent(filename)
+        let dir = snapForgeDirectory
+        let access = fileAccess.beginAccessingURL(dir)
+        defer { access.stop() }
+
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let url = dir.appendingPathComponent(filename)
 
         guard let tiffData = image.tiffRepresentation,
               let bitmapRep = NSBitmapImageRep(data: tiffData) else {
@@ -61,7 +86,6 @@ final class StorageService {
         case "jpg", "jpeg":
             imageData = bitmapRep.representation(using: .jpeg, properties: [.compressionFactor: quality])
         case "heic":
-            // CIImage route for HEIC — NSBitmapImageRep doesn't directly support HEIC
             if let cgImage = bitmapRep.cgImage {
                 let ciImage = CIImage(cgImage: cgImage)
                 let context = CIContext()
@@ -71,7 +95,6 @@ final class StorageService {
             }
             imageData = bitmapRep.representation(using: .png, properties: [:])
         case "webp":
-            // Real WebP encoding via CGImageDestination — available macOS 14+, safe on our 15.0+ target
             if let cgImage = bitmapRep.cgImage {
                 guard let dest = CGImageDestinationCreateWithURL(
                     url as CFURL, UTType.webP.identifier as CFString, 1, nil
@@ -84,9 +107,8 @@ final class StorageService {
                 }
                 return url
             }
-            // Fallback: cgImage unavailable, write as PNG
             imageData = bitmapRep.representation(using: .png, properties: [:])
-        default: // "png"
+        default:
             imageData = bitmapRep.representation(using: .png, properties: [:])
         }
 
@@ -103,7 +125,12 @@ final class StorageService {
     /// Save a CGImage directly to disk using CGImageDestination.
     /// Bypasses NSImage.tiffRepresentation — ideal for large scroll captures.
     func saveCGImage(_ cgImage: CGImage, filename: String, format: String = "png", quality: Double = 0.9) throws -> URL {
-        let url = snapForgeDirectory.appendingPathComponent(filename)
+        let dir = snapForgeDirectory
+        let access = fileAccess.beginAccessingURL(dir)
+        defer { access.stop() }
+
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let url = dir.appendingPathComponent(filename)
 
         let utType: CFString
         switch format.lowercased() {
@@ -136,7 +163,12 @@ final class StorageService {
     // MARK: - Save Video
 
     func saveVideo(from sourceURL: URL, filename: String) throws -> URL {
-        let destinationURL = snapForgeDirectory.appendingPathComponent(filename)
+        let dir = snapForgeDirectory
+        let access = fileAccess.beginAccessingURL(dir)
+        defer { access.stop() }
+
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let destinationURL = dir.appendingPathComponent(filename)
         try FileManager.default.copyItem(at: sourceURL, to: destinationURL)
         return destinationURL
     }
@@ -157,39 +189,5 @@ final class StorageService {
     func generateVideoFilename(format: String = "mp4") -> String {
         let timestamp = Self.timestampFormatter.string(from: Date())
         return "SnapForge_Recording_\(timestamp).\(format)"
-    }
-
-    // MARK: - Security-Scoped Bookmarks
-
-    func saveBookmark(for url: URL) throws {
-        let bookmarkData = try url.bookmarkData(
-            options: [.withSecurityScope],
-            includingResourceValuesForKeys: nil,
-            relativeTo: nil
-        )
-        UserDefaults.standard.set(bookmarkData, forKey: SettingsKey.saveLocationBookmark)
-    }
-
-    func resolveBookmark() -> URL? {
-        guard let bookmarkData = UserDefaults.standard.data(forKey: SettingsKey.saveLocationBookmark) else { return nil }
-        var isStale = false
-        let url = try? URL(
-            resolvingBookmarkData: bookmarkData,
-            options: [.withSecurityScope],
-            relativeTo: nil,
-            bookmarkDataIsStale: &isStale
-        )
-        if isStale {
-            // Re-save bookmark
-            if let url = url {
-                try? saveBookmark(for: url)
-            }
-        }
-        // Stop access immediately — callers only need the resolved URL path,
-        // not sustained security-scoped access. Without this, each call leaks
-        // a kernel resource until the process exits.
-        let accessing = url?.startAccessingSecurityScopedResource() ?? false
-        defer { if accessing { url?.stopAccessingSecurityScopedResource() } }
-        return url
     }
 }

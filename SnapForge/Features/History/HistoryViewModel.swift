@@ -49,6 +49,8 @@ final class HistoryViewModel {
     func loadCaptures() {
         let storage = AppEnvironment.shared.storageService
         let directory = storage.snapForgeDirectory
+        let access = SandboxFileAccessManager.shared.beginAccessingURL(directory)
+        defer { access.stop() }
         let fm = FileManager.default
 
         guard let urls = try? fm.contentsOfDirectory(
@@ -138,7 +140,10 @@ final class HistoryViewModel {
     }
 
     func delete(_ capture: HistoryCapture) {
-        try? FileManager.default.removeItem(atPath: capture.filePath)
+        let url = URL(fileURLWithPath: capture.filePath)
+        let access = SandboxFileAccessManager.shared.beginAccessingURL(url)
+        defer { access.stop() }
+        try? FileManager.default.removeItem(at: url)
         MetadataService.shared.deleteMetadata(for: capture.filename)
         captures.removeAll { $0.id == capture.id }
     }

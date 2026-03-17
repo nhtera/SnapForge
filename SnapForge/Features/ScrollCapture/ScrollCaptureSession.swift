@@ -505,8 +505,12 @@ final class ScrollCaptureSession {
         }
 
         let storage = AppEnvironment.shared.storageService
+        let dir = storage.snapForgeDirectory
+        let access = SandboxFileAccessManager.shared.beginAccessingURL(dir)
+        defer { access.stop() }
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         let filename = storage.generateImageFilename(format: "png")
-        let url = storage.snapForgeDirectory.appendingPathComponent(filename)
+        let url = dir.appendingPathComponent(filename)
 
         // Write directly as PNG using CGImageDestination — no TIFF intermediary
         guard let destination = CGImageDestinationCreateWithURL(

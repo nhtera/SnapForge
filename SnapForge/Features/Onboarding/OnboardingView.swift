@@ -6,6 +6,9 @@ import AVFoundation
 struct OnboardingView: View {
     @State private var currentStep = 0
     @State private var permissionService = AppEnvironment.shared.permissionService
+    @State private var pollingTask: Task<Void, Never>?
+    @State private var screenRecordingRequested = false
+    @State private var saveFolderGranted = SandboxFileAccessManager.shared.hasValidBookmark
 
     private let totalSteps = 4
 
@@ -109,19 +112,24 @@ struct OnboardingView: View {
 
     // MARK: - Step 2: Grant Permissions (all on one page)
 
+    /// All required permissions granted — Screen Recording + Save Folder.
+    private var requiredPermissionsGranted: Bool {
+        permissionService.screenRecordingStatus == .granted && saveFolderGranted
+    }
+
     private var permissionsStep: some View {
         VStack(spacing: 0) {
-            Spacer().frame(height: 32)
+            Spacer().frame(height: 24)
 
             // Header
             Image(systemName: "lock.shield")
-                .font(.system(size: 48))
+                .font(.system(size: 44))
                 .foregroundStyle(.white.opacity(0.7))
 
             Text("Grant Permissions")
                 .font(.system(size: 24, weight: .bold))
                 .foregroundStyle(.white)
-                .padding(.top, 20)
+                .padding(.top, 16)
 
             Text("SnapForge needs permissions for capture, audio, and accessibility.")
                 .font(.system(size: 13))
@@ -131,47 +139,75 @@ struct OnboardingView: View {
                 .padding(.top, 4)
 
             // Permission rows
-            VStack(spacing: 12) {
-                OnboardingPermissionRow(
-                    icon: "rectangle.dashed.badge.record",
-                    title: "Screen Recording",
-                    description: "Required for screenshots and recordings",
-                    isRequired: true,
-                    isGranted: permissionService.screenRecordingStatus == .granted,
-                    onGrant: { Task { await permissionService.requestScreenRecording() } }
-                )
+            ScrollView {
+                VStack(spacing: 10) {
+                    OnboardingPermissionRow(
+                        icon: "rectangle.dashed.badge.record",
+                        title: "Screen Recording",
+                        description: "Required for screenshots and recordings",
+                        isRequired: true,
+                        isGranted: permissionService.screenRecordingStatus == .granted,
+                        onGrant: {
+                            screenRecordingRequested = true
+                            Task { await permissionService.requestScreenRecording() }
+                        }
+                    )
 
-                OnboardingPermissionRow(
-                    icon: "mic.fill",
-                    title: "Microphone",
-                    description: "Optional for voice recording",
-                    isRequired: false,
-                    isGranted: permissionService.microphoneStatus == .granted,
-                    onGrant: { Task { await permissionService.requestMicrophone() } }
-                )
+                    OnboardingPermissionRow(
+                        icon: "folder.fill",
+                        title: "Save Folder",
+                        description: "Required — choose where captures are saved",
+                        isRequired: true,
+                        isGranted: saveFolderGranted,
+                        onGrant: {
+                            if let url = SandboxFileAccessManager.shared.chooseExportDirectory() {
+                                saveFolderGranted = true
+                                AppEnvironment.shared.storageService.ensureDefaultDirectoryExists()
+                                print("Save folder granted: \(url.path)")
+                            }
+                        }
+                    )
 
-                OnboardingPermissionRow(
-                    icon: "camera.fill",
-                    title: "Camera",
-                    description: "Optional for webcam overlay",
-                    isRequired: false,
-                    isGranted: permissionService.cameraStatus == .granted,
-                    onGrant: { Task { await permissionService.requestCamera() } }
-                )
+                    OnboardingPermissionRow(
+                        icon: "mic.fill",
+                        title: "Microphone",
+                        description: "Optional for voice recording",
+                        isRequired: false,
+                        isGranted: permissionService.microphoneStatus == .granted,
+                        onGrant: { Task { await permissionService.requestMicrophone() } }
+                    )
 
-                OnboardingPermissionRow(
-                    icon: "hand.raised.fill",
-                    title: "Accessibility",
-                    description: "Optional for keystroke display & shortcuts",
-                    isRequired: false,
-                    isGranted: permissionService.accessibilityStatus == .granted,
-                    onGrant: { permissionService.requestAccessibility() }
-                )
+                    OnboardingPermissionRow(
+                        icon: "camera.fill",
+                        title: "Camera",
+                        description: "Optional for webcam overlay",
+                        isRequired: false,
+                        isGranted: permissionService.cameraStatus == .granted,
+                        onGrant: { Task { await permissionService.requestCamera() } }
+                    )
+
+                    OnboardingPermissionRow(
+                        icon: "hand.raised.fill",
+                        title: "Accessibility",
+                        description: "Optional for keystroke display & shortcuts",
+                        isRequired: false,
+                        isGranted: permissionService.accessibilityStatus == .granted,
+                        onGrant: { permissionService.requestAccessibility() }
+                    )
+                }
+                .frame(maxWidth: 500)
             }
-            .frame(maxWidth: 500)
-            .padding(.top, 24)
+            .padding(.top, 20)
 
             Spacer()
+
+            // Hint: macOS 15+ may need relaunch for Screen Recording
+            if screenRecordingRequested && permissionService.screenRecordingStatus != .granted {
+                Text("Already granted? macOS may require a relaunch to detect it.")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.orange.opacity(0.7))
+                    .padding(.bottom, 8)
+            }
 
             // Bottom navigation
             HStack(spacing: 16) {
@@ -180,19 +216,42 @@ struct OnboardingView: View {
                 }
                 .buttonStyle(OnboardingSecondaryButton())
 
+                // Allow "Continue anyway" if user has requested but macOS hasn't propagated
+                if screenRecordingRequested && permissionService.screenRecordingStatus != .granted && saveFolderGranted {
+                    Button("Continue Anyway") {
+                        withAnimation(.easeInOut(duration: 0.4)) { currentStep = 2 }
+                    }
+                    .buttonStyle(OnboardingSecondaryButton())
+                }
+
                 Button("Next") {
                     withAnimation(.easeInOut(duration: 0.4)) { currentStep = 2 }
                 }
                 .buttonStyle(OnboardingPrimaryButton())
-                .disabled(permissionService.screenRecordingStatus != .granted)
+                .disabled(!requiredPermissionsGranted)
                 .keyboardShortcut(.return, modifiers: [])
                 .focusEffectDisabled()
             }
             .padding(.bottom, 48)
         }
         .padding(.horizontal, 48)
+        .onAppear { startPermissionPolling() }
+        .onDisappear { pollingTask?.cancel() }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             permissionService.refreshAll()
+        }
+    }
+
+    /// Poll permissions every 2 seconds while on the permissions step.
+    /// Handles macOS 15+ where didBecomeActive may not reliably detect changes.
+    private func startPermissionPolling() {
+        pollingTask?.cancel()
+        pollingTask = Task { @MainActor in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(2))
+                guard !Task.isCancelled else { break }
+                permissionService.refreshAll()
+            }
         }
     }
 

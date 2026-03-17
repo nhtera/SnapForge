@@ -41,7 +41,8 @@ final class AppEnvironment {
         // Register default settings
         UserDefaults.standard.register(defaults: [
             SettingsKey.hasCompletedOnboarding: false,
-            SettingsKey.saveLocation: URL.picturesDirectory.path(),
+            // saveLocation default omitted — resolved by SandboxFileAccessManager
+            // to avoid sandbox container path (~/Library/Containers/.../Pictures)
             // Screenshots
             SettingsKey.imageFormat: "png",
             SettingsKey.jpegQuality: 0.9,

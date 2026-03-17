@@ -172,8 +172,12 @@ final class MetadataService {
   // MARK: - Persistence
 
   private func loadMetadata() {
-    guard FileManager.default.fileExists(atPath: metadataURL.path),
-          let data = try? Data(contentsOf: metadataURL) else { return }
+    let url = metadataURL
+    let access = SandboxFileAccessManager.shared.beginAccessingURL(url)
+    defer { access.stop() }
+
+    guard FileManager.default.fileExists(atPath: url.path),
+          let data = try? Data(contentsOf: url) else { return }
 
     let decoder = JSONDecoder()
     decoder.dateDecodingStrategy = .iso8601
@@ -192,7 +196,10 @@ final class MetadataService {
       encoder.dateEncodingStrategy = .iso8601
       encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
       guard let data = try? encoder.encode(metadata) else { return }
-      try? data.write(to: metadataURL, options: .atomic)
+      let url = metadataURL
+      let access = SandboxFileAccessManager.shared.beginAccessingURL(url)
+      defer { access.stop() }
+      try? data.write(to: url, options: .atomic)
     }
   }
 }

@@ -102,6 +102,7 @@ final class ScreenRecordingService: NSObject {
     private var recordingCodec: AVVideoCodecType = .h264
     private var outputURL: URL?
     private var registeredOutputTypes: Set<SCStreamOutputType> = []
+    private var directoryAccess: SandboxFileAccessManager.ScopedAccess?
 
     // Dedicated queues for each stream type
     private let videoQueue = DispatchQueue(label: "com.snapforge.recording.video", qos: .userInitiated)
@@ -163,6 +164,9 @@ final class ScreenRecordingService: NSObject {
         let scaleFactor = useRetinaScale ? (screen?.backingScaleFactor ?? 2.0) : 1.0
         let outputWidth = Int(ceil(rect.width * scaleFactor))
         let outputHeight = Int(ceil(rect.height * scaleFactor))
+
+        // Begin scoped access for sandbox — held until cleanup()
+        directoryAccess = SandboxFileAccessManager.shared.beginAccessingURL(saveDirectory)
 
         // Generate output URL
         let filename = generateFileName()
@@ -518,6 +522,8 @@ final class ScreenRecordingService: NSObject {
         registeredOutputTypes.removeAll()
         session.reset()
         outputURL = nil
+        directoryAccess?.stop()
+        directoryAccess = nil
         state = .idle
         elapsedSeconds = 0
     }
