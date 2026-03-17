@@ -33,7 +33,8 @@ jobs:
             echo "should_release=true" >> "$GITHUB_OUTPUT"
             echo "version_type=${{ inputs.version_type }}" >> "$GITHUB_OUTPUT"
           elif [ "${{ github.event_name }}" = "push" ]; then
-            COMMIT_MSG="${{ github.event.head_commit.message }}"
+            # Use only the first line of the commit message to avoid multi-line parsing issues
+            COMMIT_MSG=$(echo "${{ github.event.head_commit.message }}" | head -1)
             if echo "$COMMIT_MSG" | grep -qE "^release\((patch|minor|major)\):"; then
               TYPE=$(echo "$COMMIT_MSG" | sed -E 's/^release\((patch|minor|major)\):.*/\1/')
               echo "should_release=true" >> "$GITHUB_OUTPUT"
