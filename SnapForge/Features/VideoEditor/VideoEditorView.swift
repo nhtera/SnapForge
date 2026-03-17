@@ -89,22 +89,33 @@ struct VideoEditorView: View {
                 // Timeline
                 VideoTimelineView(state: state)
 
-                // Expand/collapse export settings
-                DisclosureGroup(
-                    isExpanded: $showExportSettings,
-                    content: {
-                        VideoEditorExportSettingsPanel(state: state)
-                    },
-                    label: {
+                // Expand/collapse export settings — entire row is clickable
+                VStack(spacing: 0) {
+                    Button {
+                        withAnimation(DesignTokens.Animation.fast) {
+                            showExportSettings.toggle()
+                        }
+                    } label: {
                         HStack(spacing: DesignTokens.Spacing.xs) {
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 10, weight: .semibold))
+                                .rotationEffect(.degrees(showExportSettings ? 90 : 0))
                             Image(systemName: "gearshape")
                                 .font(.system(size: 11))
                             Text("Export Settings")
                                 .font(.system(size: 12, weight: .medium))
+                            Spacer()
                         }
+                        .contentShape(Rectangle())
                         .foregroundStyle(.secondary)
                     }
-                )
+                    .buttonStyle(.plain)
+
+                    if showExportSettings {
+                        VideoEditorExportSettingsPanel(state: state)
+                            .transition(.opacity.combined(with: .move(edge: .top)))
+                    }
+                }
             }
             .padding(DesignTokens.Spacing.md)
         }
