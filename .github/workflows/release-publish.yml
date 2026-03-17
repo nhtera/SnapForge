@@ -71,9 +71,9 @@ jobs:
             -configuration Release \
             -archivePath build/SnapForge.xcarchive \
             -derivedDataPath build/DerivedData \
-            CODE_SIGN_IDENTITY="-" \
+            CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGNING_ALLOWED=YES \
+            CODE_SIGNING_ALLOWED=NO \
             ONLY_ACTIVE_ARCH=NO \
             > build/archive.log 2>&1; then
             tail -100 build/archive.log
@@ -180,6 +180,23 @@ jobs:
               --entitlements "$PROCESSED_ENTITLEMENTS" \
               --timestamp=none \
               "$APP_PATH"
+          fi
+
+      - name: Verify exported app bundle
+        run: |
+          set -euo pipefail
+          APP_PATH="build/SnapForge.app"
+          if [ -d "build/export/SnapForge.app" ]; then
+            APP_PATH="build/export/SnapForge.app"
+          fi
+
+          codesign --verify --deep --strict --verbose=4 "$APP_PATH"
+          codesign -dv --verbose=4 "$APP_PATH"
+          codesign -d --entitlements - "$APP_PATH" > build/exported-app-entitlements.plist
+
+          if ! grep -q "com.apple.security.app-sandbox" build/exported-app-entitlements.plist; then
+            echo "::error::Expected app sandbox entitlement missing from exported app"
+            exit 1
           fi
 
       - name: Install create-dmg
