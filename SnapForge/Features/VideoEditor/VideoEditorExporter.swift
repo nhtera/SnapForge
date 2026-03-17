@@ -62,9 +62,10 @@ enum VideoEditorExporter {
         try? FileManager.default.removeItem(at: outputURL)
 
         exportSession.timeRange = timeRange
+        exportSession.outputURL = outputURL
+        exportSession.outputFileType = outputFileType(for: state.videoURL.pathExtension)
 
-        let fileType = outputFileType(for: state.videoURL.pathExtension)
-        try await runExportSession(exportSession, to: outputURL, as: fileType, progress: progress)
+        try await runExportSession(exportSession, progress: progress)
 
         print("✅ Exported video: \(outputURL.lastPathComponent)")
     }
@@ -214,6 +215,9 @@ enum VideoEditorExporter {
 
         try? FileManager.default.removeItem(at: outputURL)
 
+        exportSession.outputURL = outputURL
+        exportSession.outputFileType = outputFileType(for: state.videoURL.pathExtension)
+
         if let audioMix {
             exportSession.audioMix = audioMix
         }
@@ -221,38 +225,46 @@ enum VideoEditorExporter {
             exportSession.videoComposition = videoComposition
         }
 
-        let fileType = outputFileType(for: state.videoURL.pathExtension)
-        try await runExportSession(exportSession, to: outputURL, as: fileType, progress: progress)
+        try await runExportSession(exportSession, progress: progress)
 
         print("✅ Exported video with settings: \(outputURL.lastPathComponent)")
     }
 
     // MARK: - Safe Export Runner
 
-    /// Runs an AVAssetExportSession using the modern export(to:as:) API.
-    /// Progress is polled from a Task on the main actor — both the polling
-    /// and export cooperatively interleave at suspension points (no data race).
-    /// export(to:as:) throws on failure, eliminating need for deprecated
-    /// status/error checks.
+    /// Runs an AVAssetExportSession using the legacy callback API wrapped in a
+    /// checked continuation with a timer for progress polling.
+    ///
+    /// The modern `export(to:as:)` API crashes with EXC_BAD_ACCESS on internal
+    /// AVFoundation threads when used with custom video compositors (FB16XXXXXX).
+    /// The legacy callback API is the only stable option until Apple fixes this.
     private static func runExportSession(
         _ session: AVAssetExportSession,
-        to outputURL: URL,
-        as fileType: AVFileType,
         progress: @escaping @Sendable (Double) -> Void
     ) async throws {
-        let progressTask = Task {
-            while !Task.isCancelled {
-                progress(Double(session.progress))
-                try? await Task.sleep(nanoseconds: 100_000_000)
+        nonisolated(unsafe) let unsafeSession = session
+
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            nonisolated(unsafe) let timer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { _ in
+                progress(Double(unsafeSession.progress))
+            }
+
+            unsafeSession.exportAsynchronously {
+                timer.invalidate()
+
+                switch unsafeSession.status {
+                case .completed:
+                    progress(1.0)
+                    continuation.resume()
+                case .failed:
+                    continuation.resume(throwing: unsafeSession.error ?? ExportError.exportFailed)
+                case .cancelled:
+                    continuation.resume(throwing: CancellationError())
+                default:
+                    continuation.resume(throwing: ExportError.exportFailed)
+                }
             }
         }
-
-        defer {
-            progressTask.cancel()
-            progress(1.0)
-        }
-
-        try await session.export(to: outputURL, as: fileType)
     }
 
     // MARK: - Replace Original
