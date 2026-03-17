@@ -71,9 +71,9 @@ jobs:
             -configuration Release \
             -archivePath build/SnapForge.xcarchive \
             -derivedDataPath build/DerivedData \
-            CODE_SIGN_IDENTITY="" \
+            CODE_SIGN_IDENTITY="-" \
             CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_ALLOWED=YES \
             ONLY_ACTIVE_ARCH=NO \
             > build/archive.log 2>&1; then
             tail -100 build/archive.log
