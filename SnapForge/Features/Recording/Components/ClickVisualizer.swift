@@ -23,7 +23,9 @@ final class ClickVisualizer {
         clickMonitor = NSEvent.addGlobalMonitorForEvents(
             matching: [.leftMouseDown, .rightMouseDown]
         ) { [weak self] event in
-            let point = event.locationInWindow
+            // Use NSEvent.mouseLocation for reliable screen coordinates
+            // (event.locationInWindow is in the originating app's window space for global monitors)
+            let point = NSEvent.mouseLocation
             let isRight = event.type == .rightMouseDown
             Task { @MainActor [weak self] in
                 self?.showRipple(at: point, isRightClick: isRight)
