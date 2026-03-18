@@ -373,7 +373,7 @@ class CaptureOverlayNSView: NSView {
 
         let coordText = "\(Int(pos.x)), \(Int(bounds.height - pos.y))" as NSString
         let attrs: [NSAttributedString.Key: Any] = [
-            .font: NSFont.monospacedSystemFont(ofSize: 11, weight: .medium),
+            .font: Self.safeMonospacedFont(size: 11, weight: .medium),
             .foregroundColor: NSColor.white,
             .backgroundColor: NSColor.black.withAlphaComponent(0.65)
         ]
@@ -385,16 +385,30 @@ class CaptureOverlayNSView: NSView {
         coordText.draw(at: textPoint, withAttributes: attrs)
     }
 
+    /// Cached font/attrs — avoids repeated creation in draw() and guards against nil font crash
+    private static let dimensionAttrs: [NSAttributedString.Key: Any] = {
+        let font = safeMonospacedFont(size: 12, weight: .semibold)
+        return [.font: font, .foregroundColor: NSColor.white]
+    }()
+
+    /// Create monospaced font with safe fallback (NSFont.monospacedSystemFont can crash in edge cases)
+    private static func safeMonospacedFont(size: CGFloat, weight: NSFont.Weight) -> NSFont {
+        let base = NSFont.systemFont(ofSize: size, weight: weight)
+        if let monoDesc = base.fontDescriptor.withDesign(.monospaced),
+           let monoFont = NSFont(descriptor: monoDesc, size: size) {
+            return monoFont
+        }
+        return base
+    }
+
     private func drawDimensionLabel(context: CGContext, rect: CGRect) {
+        guard rect.width > 0, rect.height > 0 else { return }
         let scaleFactor = window?.backingScaleFactor ?? 2.0
         let pixelW = Int(rect.width * scaleFactor)
         let pixelH = Int(rect.height * scaleFactor)
         let dimText = "\(pixelW) × \(pixelH)" as NSString
 
-        let attrs: [NSAttributedString.Key: Any] = [
-            .font: NSFont.monospacedSystemFont(ofSize: 12, weight: .semibold),
-            .foregroundColor: NSColor.white,
-        ]
+        let attrs = Self.dimensionAttrs
         let textSize = dimText.size(withAttributes: attrs)
         let padding: CGFloat = 8
 
