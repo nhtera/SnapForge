@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// PreferenceKey to report annotate button center X for Phase 2 popover positioning
+/// PreferenceKey to report annotate button center X for popover positioning
 struct AnnotateButtonCenterXKey: PreferenceKey {
     nonisolated(unsafe) static var defaultValue: CGFloat = 0
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
@@ -8,22 +8,23 @@ struct AnnotateButtonCenterXKey: PreferenceKey {
     }
 }
 
-/// Recording status bar: [drag] | [dot timer] | [pause] [annotate] | [restart] [trash] | [Stop]
+/// Recording status bar: [drag] | [dot timer res] | [pause] [annotate] | [restart] [trash] | [Stop]
 struct RecordingStatusBarView: View {
     private var recorder: ScreenRecordingService { ScreenRecordingService.shared }
 
     var isGIFMode: Bool = false
     var annotationState: RecordingAnnotationState?
+    var recordingSize: CGSize?
     var onRestart: (() -> Void)?
     var onDelete: () -> Void
     var onStop: () -> Void
 
     @State private var isBlinking = true
-    @State private var showDeleteConfirmation = false
+    @State private var showDeletePopover = false
 
     var body: some View {
         HStack(spacing: 0) {
-            // Drag handle (visual only — dragging via NSPanel property)
+            // Drag handle
             Image(systemName: "line.3.horizontal")
                 .font(.system(size: 10))
                 .foregroundStyle(.white.opacity(0.3))
@@ -32,10 +33,10 @@ struct RecordingStatusBarView: View {
 
             RecordingToolbarDivider()
 
-            // Recording indicator + timer
+            // Recording indicator + timer (dims when paused)
             HStack(spacing: 6) {
                 Circle()
-                    .fill(.red)
+                    .fill(recorder.isPaused ? .orange : .red)
                     .frame(width: 8, height: 8)
                     .opacity(isBlinking ? 1.0 : 0.3)
                     .animation(.easeInOut(duration: 0.5).repeatForever(), value: isBlinking)
@@ -55,10 +56,19 @@ struct RecordingStatusBarView: View {
                         .foregroundStyle(.white)
                         .frame(minWidth: 40)
                 }
-                // Audio level indicator
+
+                // Resolution label
+                if let size = recordingSize {
+                    Text("\(Int(size.width))x\(Int(size.height))")
+                        .font(.system(size: 9, design: .monospaced))
+                        .foregroundStyle(.white.opacity(0.3))
+                }
+
                 RecordingAudioLevelIndicator()
             }
             .padding(.horizontal, 8)
+            .opacity(recorder.isPaused ? 0.5 : 1.0)
+            .animation(.easeInOut(duration: 0.3), value: recorder.isPaused)
 
             RecordingToolbarDivider()
 
@@ -69,7 +79,7 @@ struct RecordingStatusBarView: View {
                 accessibilityLabel: recorder.isPaused ? "Resume recording" : "Pause recording"
             )
 
-            // Annotate button placeholder (wired in Phase 2)
+            // Annotate toggle
             RecordingToolbarIconButton(
                 systemName: "pencil.tip.crop.circle",
                 action: { annotationState?.isAnnotationEnabled.toggle() },
@@ -96,15 +106,27 @@ struct RecordingStatusBarView: View {
                 )
             }
 
-            // Delete (with confirmation)
+            // Delete (inline popover confirmation)
             RecordingToolbarIconButton(
                 systemName: "trash",
-                action: { showDeleteConfirmation = true },
+                action: { showDeletePopover = true },
                 accessibilityLabel: "Delete recording"
             )
-            .confirmationDialog("Delete this recording?", isPresented: $showDeleteConfirmation) {
-                Button("Delete", role: .destructive, action: onDelete)
-                Button("Cancel", role: .cancel) {}
+            .popover(isPresented: $showDeletePopover) {
+                VStack(spacing: 8) {
+                    Text("Delete recording?")
+                        .font(.system(size: 12, weight: .medium))
+                    HStack(spacing: 8) {
+                        Button("Cancel") { showDeletePopover = false }
+                            .buttonStyle(.plain)
+                            .font(.system(size: 11))
+                        Button("Delete") { onDelete() }
+                            .buttonStyle(.borderedProminent)
+                            .tint(.red)
+                            .controlSize(.small)
+                    }
+                }
+                .padding(12)
             }
 
             RecordingToolbarDivider()
@@ -114,7 +136,7 @@ struct RecordingStatusBarView: View {
                 Text("Stop")
             }
             .buttonStyle(TextToolbarButtonStyle())
-            .accessibilityLabel("Stop recording")
+            .accessibilityLabel("Stop recording (⌘⇧R)")
             .padding(.trailing, 6)
         }
         .padding(.vertical, RecordingToolbarConstants.verticalPadding)

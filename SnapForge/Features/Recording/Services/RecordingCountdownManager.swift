@@ -7,13 +7,16 @@ final class RecordingCountdownManager {
     private var countdownWindow: NSWindow?
 
     /// Show countdown overlay and await completion
-    func showCountdown(seconds: Int) async {
+    /// - Parameters:
+    ///   - seconds: Countdown duration
+    ///   - captureRect: Recording area in CG coordinates (positions badge above selection)
+    func showCountdown(seconds: Int, captureRect: CGRect = .zero) async {
         guard let screen = NSScreen.main else { return }
 
         await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
             let countdownView = CountdownOverlayView(
                 totalSeconds: seconds,
-                captureRect: .zero,
+                captureRect: captureRect,
                 screenSize: screen.frame.size,
                 onComplete: { [weak self] in
                     self?.dismissCountdown()

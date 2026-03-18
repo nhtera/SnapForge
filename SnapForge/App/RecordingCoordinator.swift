@@ -19,6 +19,16 @@ final class RecordingCoordinator {
     private var toolbarState: RecordingToolbarState?
     private var timerLimitTask: Task<Void, Never>?
 
+    // MARK: - Event Monitors
+
+    private var localEscapeMonitor: Any?
+    private var globalEscapeMonitor: Any?
+    private var stopHotkeyMonitor: Any?
+
+    // MARK: - Dim Overlay
+
+    private var dimOverlayWindow: NSWindow?
+
     // MARK: - Extracted Managers
 
     private let countdownManager = RecordingCountdownManager()
@@ -101,14 +111,91 @@ final class RecordingCoordinator {
     }
 
     func cleanup() {
+        removeEscapeMonitors()
+        removeStopHotkey()
         recordingBorderWindow?.close()
         recordingBorderWindow = nil
         recordingToolbarPanel?.close()
         recordingToolbarPanel = nil
         regionOverlayWindow?.close()
         regionOverlayWindow = nil
+        dimOverlayWindow?.close()
+        dimOverlayWindow = nil
         countdownManager.dismissCountdown()
         annotationManager.dismiss()
+    }
+
+    // MARK: - Escape Key & Hotkey Monitors
+
+    private func setupEscapeMonitors() {
+        localEscapeMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            if event.keyCode == 53 { // Escape
+                Task { @MainActor in
+                    self?.dismissRecordingIndicator()
+                    self?.pendingRecordingRect = nil
+                }
+                return nil // consume event
+            }
+            return event
+        }
+        globalEscapeMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            if event.keyCode == 53 {
+                Task { @MainActor in
+                    self?.dismissRecordingIndicator()
+                    self?.pendingRecordingRect = nil
+                }
+            }
+        }
+    }
+
+    private func removeEscapeMonitors() {
+        if let monitor = localEscapeMonitor { NSEvent.removeMonitor(monitor); localEscapeMonitor = nil }
+        if let monitor = globalEscapeMonitor { NSEvent.removeMonitor(monitor); globalEscapeMonitor = nil }
+    }
+
+    private func setupStopHotkey() {
+        stopHotkeyMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            // Cmd+Shift+R to stop recording
+            if event.modifierFlags.contains([.command, .shift]) && event.keyCode == 15 {
+                Task { @MainActor in await self?.stopRecording() }
+            }
+        }
+    }
+
+    private func removeStopHotkey() {
+        if let monitor = stopHotkeyMonitor { NSEvent.removeMonitor(monitor); stopHotkeyMonitor = nil }
+    }
+
+    // MARK: - Last Recording Area
+
+    /// Load last recording area from UserDefaults (supports both dictionary and legacy array format)
+    func loadLastRecordingArea() -> CGRect? {
+        let defaults = UserDefaults.standard
+        // Dictionary format (new)
+        if let dict = defaults.dictionary(forKey: SettingsKey.lastRecordingArea),
+           let x = dict["x"] as? Double, let y = dict["y"] as? Double,
+           let w = dict["width"] as? Double, let h = dict["height"] as? Double {
+            let rect = CGRect(x: x, y: y, width: w, height: h)
+            return isRectVisibleOnScreen(rect) ? rect : nil
+        }
+        // Legacy array format
+        if let arr = defaults.array(forKey: SettingsKey.lastRecordingArea) as? [Double], arr.count == 4 {
+            let rect = CGRect(x: arr[0], y: arr[1], width: arr[2], height: arr[3])
+            return isRectVisibleOnScreen(rect) ? rect : nil
+        }
+        return nil
+    }
+
+    /// Check if rect is visible on any connected screen
+    private func isRectVisibleOnScreen(_ rect: CGRect) -> Bool {
+        NSScreen.screens.contains { $0.frame.intersects(rect) }
+    }
+
+    /// Restore last recording area — dismiss current UI, show pre-record for saved area
+    func restoreLastRecordingArea() {
+        guard let rect = loadLastRecordingArea() else { return }
+        dismissRecordingIndicator()
+        showPreRecordIndicator(for: rect)
     }
 
     // MARK: - Pre-Record UI
@@ -128,6 +215,9 @@ final class RecordingCoordinator {
         }
         toolbarState = state
 
+        // Determine if restore-area button should be shown
+        let hasValidLastArea = loadLastRecordingArea() != nil
+
         let toolbarView = PreRecordToolbarView(
             state: state,
             onRecord: { [weak self] in
@@ -138,7 +228,8 @@ final class RecordingCoordinator {
             onCancel: { [weak self] in
                 self?.dismissRecordingIndicator()
                 self?.pendingRecordingRect = nil
-            }
+            },
+            onRestoreArea: hasValidLastArea ? { [weak self] in self?.restoreLastRecordingArea() } : nil
         )
 
         let panel = RecordingToolbarWindow()
@@ -146,6 +237,8 @@ final class RecordingCoordinator {
         panel.positionBelowRect(cocoaRect)
         panel.orderFrontRegardless()
         recordingToolbarPanel = panel
+
+        setupEscapeMonitors()
     }
 
     /// Handle region rect changes from the interactive overlay (converts Cocoa back to CG)
@@ -176,6 +269,7 @@ final class RecordingCoordinator {
         let toolbarView = RecordingStatusBarView(
             isGIFMode: toolbarState?.outputMode == .gif,
             annotationState: annotationManager.annotationState,
+            recordingSize: CGSize(width: rect.width, height: rect.height),
             onRestart: { [weak self] in self?.restartRecording() },
             onDelete: { Task { await AppCoordinator.shared.cancelRecording() } },
             onStop: { Task { await AppCoordinator.shared.stopRecording() } }
@@ -192,9 +286,14 @@ final class RecordingCoordinator {
             anchorPanel: panel, recordingRect: rect,
             cocoaRectProvider: { [weak self] r in self?.cgToCocoaRect(r) ?? r }
         )
+
+        setupStopHotkey()
+        showDimOverlayIfEnabled(recordingRect: rect)
     }
 
     func dismissRecordingIndicator() {
+        removeEscapeMonitors()
+        removeStopHotkey()
         recordingBorderWindow?.close()
         recordingBorderWindow = nil
         recordingToolbarPanel?.close()
@@ -202,6 +301,8 @@ final class RecordingCoordinator {
         regionOverlayWindow?.close()
         regionOverlayWindow = nil
         regionState = nil
+        dimOverlayWindow?.close()
+        dimOverlayWindow = nil
     }
 
     // MARK: - Recording Lifecycle
@@ -214,7 +315,7 @@ final class RecordingCoordinator {
         dismissRecordingIndicator()
 
         if countdownSeconds > 0 {
-            await countdownManager.showCountdown(seconds: countdownSeconds)
+            await countdownManager.showCountdown(seconds: countdownSeconds, captureRect: rect)
         }
 
         let recorder = ScreenRecordingService.shared
@@ -248,9 +349,12 @@ final class RecordingCoordinator {
                 KeystrokeVisualizer.shared.start()
             }
 
-            // Save last recording area
-            let areaData = [rect.origin.x, rect.origin.y, rect.width, rect.height]
-            defaults.set(areaData, forKey: SettingsKey.lastRecordingArea)
+            // Save last recording area (dictionary format for readability)
+            let areaDict: [String: Double] = [
+                "x": rect.origin.x, "y": rect.origin.y,
+                "width": rect.width, "height": rect.height
+            ]
+            defaults.set(areaDict, forKey: SettingsKey.lastRecordingArea)
 
             // Start timer limit if configured
             let limit = defaults.integer(forKey: SettingsKey.recordingTimerLimit)
@@ -324,6 +428,30 @@ final class RecordingCoordinator {
     }
 
     // MARK: - Annotation UI (Phase 2) — delegated to RecordingAnnotationManager
+
+    // MARK: - Dim Overlay
+
+    /// Show click-through dim overlay outside recording region if enabled in settings
+    private func showDimOverlayIfEnabled(recordingRect: CGRect) {
+        guard UserDefaults.standard.bool(forKey: SettingsKey.dimScreenWhileRecording),
+              let screen = NSScreen.main else { return }
+        let cocoaRect = cgToCocoaRect(recordingRect)
+
+        let window = NSWindow(
+            contentRect: screen.frame, styleMask: .borderless,
+            backing: .buffered, defer: false
+        )
+        let dimView = RecordingDimOverlayNSView(cutoutRect: cocoaRect)
+        window.contentView = dimView
+        window.level = NSWindow.Level(rawValue: NSWindow.Level.statusBar.rawValue - 1)
+        window.isOpaque = false
+        window.backgroundColor = .clear
+        window.ignoresMouseEvents = true
+        window.isReleasedWhenClosed = false
+        window.collectionBehavior = [.canJoinAllSpaces, .stationary]
+        window.orderFrontRegardless()
+        dimOverlayWindow = window
+    }
 
     // MARK: - Window Helpers
 

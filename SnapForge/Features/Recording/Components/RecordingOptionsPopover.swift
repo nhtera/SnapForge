@@ -75,6 +75,7 @@ struct RecordingOptionsPopover: View {
         .font(.system(size: 12))
         .tint(.accentColor)
         .modifier(ForceDarkAppearance())
+        .onAppear { state.reloadFromDefaults() }
     }
 }
 

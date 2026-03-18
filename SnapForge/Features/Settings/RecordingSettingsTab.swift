@@ -84,12 +84,31 @@ struct RecordingGeneralSubTab: View {
 }
 
 struct RecordingVideoSubTab: View {
-    @AppStorage("recordingFPS") private var recordingFPS = 30
-    @AppStorage("recordingCodec") private var recordingCodec = "h264"
-    @AppStorage("recordingResolution") private var recordingResolution = "retina"
+    @AppStorage(SettingsKey.recordingVideoFormat) private var videoFormat = "mov"
+    @AppStorage(SettingsKey.recordingVideoQuality) private var videoQuality = "high"
+    @AppStorage(SettingsKey.recordingFPS) private var recordingFPS = 30
+    @AppStorage(SettingsKey.recordingCodec) private var recordingCodec = "h264"
+    @AppStorage(SettingsKey.recordingResolution) private var recordingResolution = "retina"
+
+    @State private var showAdvanced = false
 
     var body: some View {
         Form {
+            Section("Format") {
+                Picker("Video Format", selection: $videoFormat) {
+                    Text("MOV — best quality").tag("mov")
+                    Text("MP4 — wider compatibility").tag("mp4")
+                }
+            }
+
+            Section("Quality") {
+                Picker("Quality", selection: $videoQuality) {
+                    Text("High").tag("high")
+                    Text("Medium").tag("medium")
+                    Text("Low").tag("low")
+                }
+            }
+
             Section("Frame Rate") {
                 Picker("FPS", selection: $recordingFPS) {
                     Text("24 fps — cinematic").tag(24)
@@ -98,17 +117,16 @@ struct RecordingVideoSubTab: View {
                 }
             }
 
-            Section("Codec") {
-                Picker("Video Codec", selection: $recordingCodec) {
-                    Text("H.264 — best compatibility").tag("h264")
-                    Text("HEVC (H.265) — smaller files").tag("hevc")
-                }
-            }
-
-            Section("Resolution") {
-                Picker("Output Resolution", selection: $recordingResolution) {
-                    Text("Retina (2x) — full quality").tag("retina")
-                    Text("Standard (1x) — smaller files").tag("standard")
+            Section {
+                DisclosureGroup("Advanced", isExpanded: $showAdvanced) {
+                    Picker("Video Codec", selection: $recordingCodec) {
+                        Text("H.264 — best compatibility").tag("h264")
+                        Text("HEVC (H.265) — smaller files").tag("hevc")
+                    }
+                    Picker("Output Resolution", selection: $recordingResolution) {
+                        Text("Retina (2x) — full quality").tag("retina")
+                        Text("Standard (1x) — smaller files").tag("standard")
+                    }
                 }
             }
         }

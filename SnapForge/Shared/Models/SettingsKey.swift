@@ -52,11 +52,12 @@ enum SettingsKey {
     static let gifQuality = "gifQuality"
     static let gifLoopCount = "gifLoopCount"
 
-    // Recording Toolbar (Phase 1)
+    // Recording Toolbar
     static let recordingOutputMode = "recordingOutputMode"
     static let recordingSystemAudioEnabled = "recordingSystemAudioEnabled"
     static let recordingMicEnabled = "recordingMicEnabled"
     static let recordingVideoFormat = "recordingVideoFormat"
+    static let recordingVideoQuality = "recordingVideoQuality"
 
     // Recording Settings (Phase 4)
     static let recordingCountdownSeconds = "recordingCountdownSeconds"

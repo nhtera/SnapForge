@@ -4,27 +4,32 @@ import SwiftUI
 /// Persists all settings to UserDefaults via SettingsKey.
 @MainActor @Observable
 final class RecordingToolbarState {
+    /// Suppresses didSet UserDefaults writes during batch reload
+    private var isReloading = false
+
     var outputMode: RecordingOutputMode {
-        didSet { UserDefaults.standard.set(outputMode.rawValue, forKey: SettingsKey.recordingOutputMode) }
+        didSet { guard !isReloading else { return }; UserDefaults.standard.set(outputMode.rawValue, forKey: SettingsKey.recordingOutputMode) }
     }
     var captureMode: RecordingMode = .area
     var isSystemAudioEnabled: Bool {
-        didSet { UserDefaults.standard.set(isSystemAudioEnabled, forKey: SettingsKey.recordingSystemAudioEnabled) }
+        didSet { guard !isReloading else { return }; UserDefaults.standard.set(isSystemAudioEnabled, forKey: SettingsKey.recordingSystemAudioEnabled) }
     }
     var isMicEnabled: Bool {
-        didSet { UserDefaults.standard.set(isMicEnabled, forKey: SettingsKey.recordingMicEnabled) }
+        didSet { guard !isReloading else { return }; UserDefaults.standard.set(isMicEnabled, forKey: SettingsKey.recordingMicEnabled) }
     }
     var showOptionsPopover: Bool = false
 
     var videoFormat: VideoFormat {
-        didSet { UserDefaults.standard.set(videoFormat.rawValue, forKey: SettingsKey.recordingVideoFormat) }
+        didSet { guard !isReloading else { return }; UserDefaults.standard.set(videoFormat.rawValue, forKey: SettingsKey.recordingVideoFormat) }
     }
-    var videoQuality: VideoQuality = .high
+    var videoQuality: VideoQuality {
+        didSet { guard !isReloading else { return }; UserDefaults.standard.set(videoQuality.rawValue, forKey: SettingsKey.recordingVideoQuality) }
+    }
     var highlightClicks: Bool {
-        didSet { UserDefaults.standard.set(highlightClicks, forKey: SettingsKey.highlightClicks) }
+        didSet { guard !isReloading else { return }; UserDefaults.standard.set(highlightClicks, forKey: SettingsKey.highlightClicks) }
     }
     var showKeystrokes: Bool {
-        didSet { UserDefaults.standard.set(showKeystrokes, forKey: SettingsKey.showKeystrokes) }
+        didSet { guard !isReloading else { return }; UserDefaults.standard.set(showKeystrokes, forKey: SettingsKey.showKeystrokes) }
     }
 
     /// Callback when capture mode changes (area/fullscreen)
@@ -41,6 +46,24 @@ final class RecordingToolbarState {
         isMicEnabled = defaults.bool(forKey: SettingsKey.recordingMicEnabled)
         let fmtRaw = defaults.string(forKey: SettingsKey.recordingVideoFormat) ?? "mov"
         videoFormat = VideoFormat(rawValue: fmtRaw) ?? .mov
+        let qualRaw = defaults.string(forKey: SettingsKey.recordingVideoQuality) ?? "high"
+        videoQuality = VideoQuality(rawValue: qualRaw) ?? .high
+        highlightClicks = defaults.bool(forKey: SettingsKey.highlightClicks)
+        showKeystrokes = defaults.bool(forKey: SettingsKey.showKeystrokes)
+    }
+
+    /// Re-read all persistent properties from UserDefaults (for sync with Settings window)
+    func reloadFromDefaults() {
+        isReloading = true
+        defer { isReloading = false }
+        let defaults = UserDefaults.standard
+        let fmtRaw = defaults.string(forKey: SettingsKey.recordingVideoFormat) ?? "mov"
+        videoFormat = VideoFormat(rawValue: fmtRaw) ?? .mov
+        let qualRaw = defaults.string(forKey: SettingsKey.recordingVideoQuality) ?? "high"
+        videoQuality = VideoQuality(rawValue: qualRaw) ?? .high
+        isSystemAudioEnabled = defaults.object(forKey: SettingsKey.recordingSystemAudioEnabled) == nil
+            ? true : defaults.bool(forKey: SettingsKey.recordingSystemAudioEnabled)
+        isMicEnabled = defaults.bool(forKey: SettingsKey.recordingMicEnabled)
         highlightClicks = defaults.bool(forKey: SettingsKey.highlightClicks)
         showKeystrokes = defaults.bool(forKey: SettingsKey.showKeystrokes)
     }
