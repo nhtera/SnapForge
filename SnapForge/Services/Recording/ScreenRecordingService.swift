@@ -81,6 +81,7 @@ final class ScreenRecordingService: NSObject {
     // MARK: - Recording Components
 
     private var stream: SCStream?
+    private var accumulatedExceptedWindowIDs: Set<Int> = []
     private let session = RecordingSession()
     private let audioLevelMonitor = AudioLevelMonitor()
     private(set) var audioLevel: Float = 0.0
@@ -467,9 +468,9 @@ final class ScreenRecordingService: NSObject {
     // MARK: - Annotation Window Exceptions
 
     /// Add windows to the SCStream content filter's excepted windows list.
-    /// This makes the specified windows visible in the recording even though
-    /// the app bundle is excluded.
+    /// Accumulates window IDs across multiple calls so previously added windows are not lost.
     func addExceptedWindows(_ windowNumbers: [Int]) async {
+        accumulatedExceptedWindowIDs.formUnion(windowNumbers)
         guard let activeStream = stream else { return }
         do {
             let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
@@ -480,8 +481,9 @@ final class ScreenRecordingService: NSObject {
                 excludedApps = content.applications.filter { $0.bundleIdentifier == bundleID }
             }
 
+            let allIDs = accumulatedExceptedWindowIDs
             let exceptedWindows = content.windows.filter { window in
-                windowNumbers.contains(Int(window.windowID))
+                allIDs.contains(Int(window.windowID))
             }
 
             let filter = SCContentFilter(
@@ -497,6 +499,7 @@ final class ScreenRecordingService: NSObject {
 
     /// Remove all excepted windows, reverting to default filter
     func removeExceptedWindows() async {
+        accumulatedExceptedWindowIDs.removeAll()
         guard let activeStream = stream else { return }
         do {
             let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
