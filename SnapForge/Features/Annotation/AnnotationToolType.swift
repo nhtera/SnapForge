@@ -59,6 +59,11 @@ enum AnnotationToolType: String, CaseIterable, Identifiable {
   }
 
   /// Display name for the tool
+  /// Subset of tools available during screen recording
+  static let recordingTools: [AnnotationToolType] = [
+    .selection, .rectangle, .oval, .arrow, .line, .pencil, .highlighter,
+  ]
+
   var displayName: String {
     switch self {
     case .selection: return "Selection"

@@ -266,6 +266,14 @@ struct VideoQuickAccessView: View {
             let access = SandboxFileAccessManager.shared.beginAccessingURL(videoURL)
             defer { access.stop() }
 
+            // GIF files: use NSImage directly (AVFoundation can't handle GIFs)
+            if videoURL.pathExtension.lowercased() == "gif" {
+                if let image = NSImage(contentsOf: videoURL) {
+                    thumbnail = image
+                }
+                return
+            }
+
             let asset = AVURLAsset(url: videoURL)
             let generator = AVAssetImageGenerator(asset: asset)
             generator.appliesPreferredTrackTransform = true

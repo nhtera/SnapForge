@@ -2,8 +2,7 @@ import SwiftUI
 import AppKit
 import AVFoundation
 
-/// Dedicated coordinator for all recording-related window management and lifecycle.
-/// Extracted from `AppCoordinator` to keep each coordinator focused and manageable.
+/// Orchestrates recording-related window management and lifecycle.
 @MainActor
 @Observable
 final class RecordingCoordinator {
@@ -12,12 +11,26 @@ final class RecordingCoordinator {
     // MARK: - Window References
 
     private var recordingBorderWindow: NSWindow?
-    private var recordingToolbarPanel: NSPanel?
-    private var recordingCountdownWindow: NSWindow?
+    private var recordingToolbarPanel: RecordingToolbarWindow?
 
-    /// Pending recording rect (after area selection, before user clicks Record)
+    // MARK: - State
+
     private var pendingRecordingRect: CGRect?
-    private var isGIFMode = false
+    private var toolbarState: RecordingToolbarState?
+    private var timerLimitTask: Task<Void, Never>?
+
+    // MARK: - Extracted Managers
+
+    private let countdownManager = RecordingCountdownManager()
+    private let gifConverter = RecordingGIFConverter()
+
+    // MARK: - Phase 2 Annotation
+    private let annotationManager = RecordingAnnotationManager()
+    var annotationState: RecordingAnnotationState? { annotationManager.annotationState }
+
+    // MARK: - Phase 3 Region Overlay
+    private var regionOverlayWindow: RecordingRegionOverlayWindow?
+    private var regionState: RecordingRegionState?
 
     private init() {}
 
@@ -39,65 +52,146 @@ final class RecordingCoordinator {
     }
 
     func stopRecording() async {
+        timerLimitTask?.cancel()
+        timerLimitTask = nil
+        annotationManager.dismiss()
+
         let recorder = ScreenRecordingService.shared
         let savedURL = await recorder.stopRecording()
-
-        if let savedURL {
-            print("✅ Recording saved: \(savedURL.path)")
-
-            if isGIFMode {
-                await convertToGIF(videoURL: savedURL)
-            } else {
-                // Show Video Quick Access overlay if enabled
-                if UserDefaults.standard.bool(forKey: SettingsKey.showQuickAccess) {
-                    let mouseLocation = NSEvent.mouseLocation
-                    AppCoordinator.shared.showVideoQuickAccess(
-                        videoURL: savedURL,
-                        at: mouseLocation
-                    )
-                }
-            }
-        }
+        let isGIF = toolbarState?.outputMode == .gif
 
         AppEnvironment.shared.isRecording = false
-        isGIFMode = false
-
-        // Stop click visualizer if it was running
         ClickVisualizer.shared.stop()
         KeystrokeVisualizer.shared.stop()
-
         dismissRecordingIndicator()
+
+        guard let savedURL else {
+            recorder.releaseDirectoryAccess()
+            return
+        }
+        print("✅ Recording saved: \(savedURL.path)")
+
+        if isGIF {
+            // Convert GIF in background, show Quick Access when ready
+            let gifURL = await gifConverter.convert(videoURL: savedURL)
+            handlePostRecordingActions(fileURL: gifURL ?? savedURL)
+        } else {
+            handlePostRecordingActions(fileURL: savedURL)
+        }
+
+        // Release sandbox scoped access after all file operations complete
+        recorder.releaseDirectoryAccess()
     }
 
     func cancelRecording() async {
-        let recorder = ScreenRecordingService.shared
-        await recorder.cancelRecording()
+        timerLimitTask?.cancel()
+        timerLimitTask = nil
+        annotationManager.dismiss()
+        await ScreenRecordingService.shared.cancelRecording()
         AppEnvironment.shared.isRecording = false
-        isGIFMode = false
         dismissRecordingIndicator()
     }
 
     func toggleRecording() {
         if AppEnvironment.shared.isRecording {
-            Task { @MainActor in
-                await stopRecording()
-            }
+            Task { @MainActor in await stopRecording() }
         } else {
             startRecording()
         }
     }
 
+    func cleanup() {
+        recordingBorderWindow?.close()
+        recordingBorderWindow = nil
+        recordingToolbarPanel?.close()
+        recordingToolbarPanel = nil
+        regionOverlayWindow?.close()
+        regionOverlayWindow = nil
+        countdownManager.dismissCountdown()
+        annotationManager.dismiss()
+    }
+
+    // MARK: - Pre-Record UI
+
+    func showPreRecordIndicator(for rect: CGRect) {
+        pendingRecordingRect = rect
+        let cocoaRect = cgToCocoaRect(rect)
+        let isFullscreen = (rect == NSScreen.main?.frame)
+
+        // Simple border rectangle around selected area (no dim overlay)
+        showBorderWindow(cocoaRect: cocoaRect, isPreRecord: true)
+
+        let state = RecordingToolbarState()
+        state.captureMode = isFullscreen ? .fullscreen : .area
+        state.onCaptureModeChanged = { [weak self] mode in
+            self?.handleCaptureModeChange(mode)
+        }
+        toolbarState = state
+
+        let toolbarView = PreRecordToolbarView(
+            state: state,
+            onRecord: { [weak self] in
+                guard let self, let rect = self.pendingRecordingRect else { return }
+                Task { @MainActor in await self.beginRecording(in: rect) }
+            },
+            onCapture: { [weak self] in self?.captureScreenshotFromSetup() },
+            onCancel: { [weak self] in
+                self?.dismissRecordingIndicator()
+                self?.pendingRecordingRect = nil
+            }
+        )
+
+        let panel = RecordingToolbarWindow()
+        panel.setContent(toolbarView)
+        panel.positionBelowRect(cocoaRect)
+        panel.orderFrontRegardless()
+        recordingToolbarPanel = panel
+    }
+
+    /// Handle region rect changes from the interactive overlay (converts Cocoa back to CG)
+    private func handleRegionRectChanged(_ cocoaRect: CGRect) {
+        guard let screenHeight = NSScreen.main?.frame.height else { return }
+        let cgRect = CGRect(
+            x: cocoaRect.origin.x,
+            y: screenHeight - cocoaRect.origin.y - cocoaRect.height,
+            width: cocoaRect.width,
+            height: cocoaRect.height
+        )
+        pendingRecordingRect = cgRect
+        recordingToolbarPanel?.positionBelowRect(cocoaRect)
+    }
+
     func showRecordingIndicator(in rect: NSRect) {
         let cocoaRect = cgToCocoaRect(rect)
-
-        // 1. Border overlay — click-through
         showBorderWindow(cocoaRect: cocoaRect, isPreRecord: false)
 
-        // 2. Toolbar panel — only if showRecordingControls is enabled
-        if UserDefaults.standard.bool(forKey: SettingsKey.showRecordingControls) {
-            let toolbarView = RecordingToolbarView(isGIFMode: isGIFMode)
-            showToolbarPanel(toolbarView: toolbarView, cocoaRect: cocoaRect)
-        }
+        guard UserDefaults.standard.bool(forKey: SettingsKey.showRecordingControls) else { return }
+
+        // Setup annotation manager
+        annotationManager.setup(
+            anchorPanel: nil, recordingRect: rect,
+            cocoaRectProvider: { [weak self] r in self?.cgToCocoaRect(r) ?? r }
+        )
+
+        let toolbarView = RecordingStatusBarView(
+            isGIFMode: toolbarState?.outputMode == .gif,
+            annotationState: annotationManager.annotationState,
+            onRestart: { [weak self] in self?.restartRecording() },
+            onDelete: { Task { await AppCoordinator.shared.cancelRecording() } },
+            onStop: { Task { await AppCoordinator.shared.stopRecording() } }
+        )
+
+        let panel = RecordingToolbarWindow()
+        panel.setContent(toolbarView, draggable: true)
+        panel.positionBelowRect(cocoaRect)
+        panel.orderFrontRegardless()
+        recordingToolbarPanel = panel
+
+        // Update annotation manager with the actual panel reference
+        annotationManager.setup(
+            anchorPanel: panel, recordingRect: rect,
+            cocoaRectProvider: { [weak self] r in self?.cgToCocoaRect(r) ?? r }
+        )
     }
 
     func dismissRecordingIndicator() {
@@ -105,269 +199,157 @@ final class RecordingCoordinator {
         recordingBorderWindow = nil
         recordingToolbarPanel?.close()
         recordingToolbarPanel = nil
-    }
-
-    /// Clean up all recording windows.
-    func cleanup() {
-        recordingBorderWindow?.close()
-        recordingBorderWindow = nil
-        recordingToolbarPanel?.close()
-        recordingToolbarPanel = nil
-        recordingCountdownWindow?.close()
-        recordingCountdownWindow = nil
-    }
-
-    // MARK: - Pre-Record UI
-
-    /// Show pre-record toolbar with highlighted area border (two separate windows)
-    private func showPreRecordIndicator(for rect: CGRect) {
-        pendingRecordingRect = rect
-        let cocoaRect = cgToCocoaRect(rect)
-
-        // 1. Border overlay — click-through
-        showBorderWindow(cocoaRect: cocoaRect, isPreRecord: true)
-
-        // 2. Toolbar panel — non-activating, accepts first mouse
-        let toolbarView = PreRecordToolbarView(
-            onStartVideo: { [weak self] in
-                guard let self, let rect = self.pendingRecordingRect else { return }
-                self.isGIFMode = false
-                Task { @MainActor in
-                    await self.beginRecording(in: rect)
-                }
-            },
-            onStartGIF: { [weak self] in
-                guard let self, let rect = self.pendingRecordingRect else { return }
-                self.isGIFMode = true
-                Task { @MainActor in
-                    await self.beginRecording(in: rect)
-                }
-            },
-            onCancel: { [weak self] in
-                self?.dismissRecordingIndicator()
-                self?.pendingRecordingRect = nil
-            }
-        )
-        showToolbarPanel(toolbarView: toolbarView, cocoaRect: cocoaRect)
+        regionOverlayWindow?.close()
+        regionOverlayWindow = nil
+        regionState = nil
     }
 
     // MARK: - Recording Lifecycle
 
     private func beginRecording(in rect: CGRect) async {
         let defaults = UserDefaults.standard
+        let countdownSeconds = defaults.integer(forKey: SettingsKey.recordingCountdownSeconds)
 
-        // Show countdown before recording if enabled
-        if defaults.bool(forKey: SettingsKey.showRecordingCountdown) {
-            dismissRecordingIndicator()
-            await withCheckedContinuation { continuation in
-                showRecordingCountdown(seconds: 3) {
-                    continuation.resume()
-                }
-            }
+        // Always dismiss pre-record UI before starting recording
+        dismissRecordingIndicator()
+
+        if countdownSeconds > 0 {
+            await countdownManager.showCountdown(seconds: countdownSeconds)
         }
 
         let recorder = ScreenRecordingService.shared
         let storage = AppEnvironment.shared.storageService
-
-        // Resolve codec from settings
         let codecString = defaults.string(forKey: SettingsKey.recordingCodec) ?? "h264"
         let codec: AVVideoCodecType = (codecString == "hevc") ? .hevc : .h264
-
-        // Resolve resolution scale
         let resolutionSetting = defaults.string(forKey: SettingsKey.recordingResolution) ?? "retina"
-        let useRetinaScale = (resolutionSetting == "retina")
+
+        let format = toolbarState?.videoFormat ?? .mov
+        let quality = toolbarState?.videoQuality ?? .high
+        let systemAudio = toolbarState?.isSystemAudioEnabled ?? true
+        let mic = toolbarState?.isMicEnabled ?? false
 
         do {
             try await recorder.prepareRecording(
-                rect: rect,
-                format: .mov,
-                quality: .high,
+                rect: rect, format: format, quality: quality,
                 fps: defaults.integer(forKey: SettingsKey.recordingFPS),
-                captureSystemAudio: true,
-                captureMicrophone: false,
+                captureSystemAudio: systemAudio, captureMicrophone: mic,
                 showCursor: defaults.bool(forKey: SettingsKey.showCursorInRecording),
-                codec: codec,
-                useRetinaScale: useRetinaScale,
+                codec: codec, useRetinaScale: resolutionSetting == "retina",
                 saveDirectory: storage.snapForgeDirectory
             )
             try await recorder.startRecording()
-
             AppEnvironment.shared.isRecording = true
-            pendingRecordingRect = nil
+            pendingRecordingRect = rect
 
-            // Start click visualizer if highlight-clicks is enabled
-            if defaults.bool(forKey: SettingsKey.highlightClicks) {
+            if toolbarState?.highlightClicks ?? defaults.bool(forKey: SettingsKey.highlightClicks) {
                 ClickVisualizer.shared.start()
             }
-
-            // Start keystroke visualizer if show-keystrokes is enabled
-            if defaults.bool(forKey: SettingsKey.showKeystrokes) {
+            if toolbarState?.showKeystrokes ?? defaults.bool(forKey: SettingsKey.showKeystrokes) {
                 KeystrokeVisualizer.shared.start()
             }
 
-            // Switch from pre-record to recording mode
+            // Save last recording area
+            let areaData = [rect.origin.x, rect.origin.y, rect.width, rect.height]
+            defaults.set(areaData, forKey: SettingsKey.lastRecordingArea)
+
+            // Start timer limit if configured
+            let limit = defaults.integer(forKey: SettingsKey.recordingTimerLimit)
+            if limit > 0 {
+                timerLimitTask = Task { @MainActor in
+                    try? await Task.sleep(for: .seconds(limit))
+                    guard !Task.isCancelled else { return }
+                    await self.stopRecording()
+                }
+            }
+
             showRecordingIndicator(in: rect)
         } catch {
             print("❌ Recording failed: \(error)")
         }
     }
 
-    private func convertToGIF(videoURL: URL) async {
-        let encoder = GIFEncoder()
-        let gifURL = videoURL.deletingPathExtension().appendingPathExtension("gif")
+    private func restartRecording() {
+        guard let rect = pendingRecordingRect else { return }
+        Task { @MainActor in
+            await cancelRecording()
+            try? await Task.sleep(for: .milliseconds(100))
+            await beginRecording(in: rect)
+        }
+    }
+
+    // MARK: - Capture Mode
+
+    private func handleCaptureModeChange(_ mode: RecordingMode) {
+        switch mode {
+        case .fullscreen:
+            guard let screen = NSScreen.main else { return }
+            pendingRecordingRect = screen.frame
+            dismissRecordingIndicator()
+            showPreRecordIndicator(for: screen.frame)
+        case .area, .window:
+            dismissRecordingIndicator()
+            pendingRecordingRect = nil
+            let manager = CaptureSessionManager.shared
+            manager.startRecordingAreaSelection { [weak self] rect in
+                guard let self else { return }
+                Task { @MainActor in self.showPreRecordIndicator(for: rect) }
+            }
+        }
+    }
+
+    private func captureScreenshotFromSetup() {
+        guard pendingRecordingRect != nil else { return }
+        dismissRecordingIndicator()
+        pendingRecordingRect = nil
+        // Trigger area capture mode for screenshot
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(200))
+            CaptureSessionManager.shared.startCapture(mode: .area)
+        }
+    }
+
+    // MARK: - Post-Recording Actions
+
+    private func handlePostRecordingActions(fileURL: URL) {
         let defaults = UserDefaults.standard
-        let config = GIFEncoder.Configuration(
-            fps: defaults.integer(forKey: SettingsKey.gifFPS),
-            maxWidth: defaults.integer(forKey: SettingsKey.gifMaxWidth),
-            loopCount: defaults.integer(forKey: SettingsKey.gifLoopCount),
-            quality: Float(defaults.double(forKey: SettingsKey.gifQuality))
-        )
-        do {
-            try await encoder.encode(
-                inputURL: videoURL,
-                outputURL: gifURL,
-                config: config
-            ) { @Sendable framesProcessed, totalFrames in
-                print("GIF encoding: \(framesProcessed)/\(totalFrames)")
-            }
-            print("✅ GIF saved: \(gifURL.lastPathComponent)")
-            try? FileManager.default.removeItem(at: videoURL)
-        } catch {
-            print("❌ GIF encoding failed: \(error)")
+        if defaults.bool(forKey: SettingsKey.autoCopyRecording) {
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.writeObjects([fileURL as NSURL])
+        }
+        if defaults.bool(forKey: SettingsKey.autoOpenRecording) {
+            NSWorkspace.shared.open(fileURL)
+        } else if defaults.bool(forKey: SettingsKey.showQuickAccess) {
+            AppCoordinator.shared.showVideoQuickAccess(videoURL: fileURL, at: NSEvent.mouseLocation)
         }
     }
 
-    // MARK: - Countdown
-
-    private func showRecordingCountdown(seconds: Int, onComplete: @escaping () -> Void) {
-        guard let screen = NSScreen.main else {
-            onComplete()
-            return
-        }
-
-        let countdownView = CountdownOverlayView(
-            totalSeconds: seconds,
-            captureRect: .zero,
-            screenSize: screen.frame.size,
-            onComplete: { [weak self] in
-                self?.recordingCountdownWindow?.close()
-                self?.recordingCountdownWindow = nil
-                onComplete()
-            },
-            onCancel: { [weak self] in
-                self?.recordingCountdownWindow?.close()
-                self?.recordingCountdownWindow = nil
-                onComplete()  // Must resume continuation so caller doesn't hang
-            }
-        )
-
-        let hostingView = NSHostingView(rootView: countdownView)
-        let window = NSWindow(
-            contentRect: screen.frame,
-            styleMask: .borderless,
-            backing: .buffered,
-            defer: false
-        )
-        window.contentView = hostingView
-        window.level = .statusBar
-        window.isOpaque = false
-        window.backgroundColor = .clear
-        window.isReleasedWhenClosed = false
-        window.collectionBehavior = [.canJoinAllSpaces, .stationary]
-        window.makeKeyAndOrderFront(nil)
-        recordingCountdownWindow = window
-    }
+    // MARK: - Annotation UI (Phase 2) — delegated to RecordingAnnotationManager
 
     // MARK: - Window Helpers
 
-    /// Click-through border window — shows area highlight only.
     private func showBorderWindow(cocoaRect: CGRect, isPreRecord: Bool) {
         recordingBorderWindow?.close()
-
         let borderView = RecordingBorderView(isPreRecord: isPreRecord)
         let hostingView = NSHostingView(rootView: borderView)
-
         let window = NSWindow(
-            contentRect: cocoaRect,
-            styleMask: .borderless,
-            backing: .buffered,
-            defer: false
+            contentRect: cocoaRect, styleMask: .borderless,
+            backing: .buffered, defer: false
         )
         window.contentView = hostingView
-        window.level = .statusBar
+        // Pre-record: use .floating so popovers can appear above it
+        // Recording: use .statusBar so it stays above everything
+        window.level = isPreRecord ? .floating : .statusBar
         window.isOpaque = false
         window.backgroundColor = .clear
-        window.ignoresMouseEvents = true    // Click-through!
+        window.ignoresMouseEvents = true
         window.isReleasedWhenClosed = false
         window.collectionBehavior = [.canJoinAllSpaces, .stationary]
         window.orderFrontRegardless()
-
         recordingBorderWindow = window
     }
 
-    /// Non-activating toolbar panel — buttons respond on first click.
-    private func showToolbarPanel<V: View>(toolbarView: V, cocoaRect: CGRect) {
-        recordingToolbarPanel?.close()
-
-        let hostingView = FirstMouseHostingView(rootView: toolbarView)
-        let intrinsicSize = hostingView.fittingSize
-
-        // Smart position: use visibleFrame to detect Dock & menu bar safe areas
-        let toolbarGap: CGFloat = 12
-        let visibleFrame = NSScreen.main?.visibleFrame ?? CGRect(x: 0, y: 0, width: 1920, height: 1080)
-        let minSafeY = visibleFrame.origin.y  // Bottom of usable area (above Dock)
-        let maxSafeY = visibleFrame.maxY      // Top of usable area (below menu bar)
-
-        let belowY = cocoaRect.origin.y - intrinsicSize.height - toolbarGap
-        let insideBottomY = max(cocoaRect.origin.y + toolbarGap, minSafeY + toolbarGap)
-        let aboveY = cocoaRect.maxY + toolbarGap
-
-        let toolbarY: CGFloat
-        if belowY >= minSafeY {
-            // Preferred: below the capture area (most common case)
-            toolbarY = belowY
-        } else if insideBottomY + intrinsicSize.height <= cocoaRect.maxY {
-            // Second: inside the capture area near the bottom (mouse is already here)
-            toolbarY = insideBottomY
-        } else if aboveY + intrinsicSize.height <= maxSafeY {
-            // Last resort: above the capture area
-            toolbarY = aboveY
-        } else {
-            // Edge case: center in visible area
-            toolbarY = visibleFrame.midY - intrinsicSize.height / 2
-        }
-
-        let toolbarRect = CGRect(
-            x: cocoaRect.midX - intrinsicSize.width / 2,
-            y: toolbarY,
-            width: intrinsicSize.width,
-            height: intrinsicSize.height
-        )
-
-        let panel = NSPanel(
-            contentRect: toolbarRect,
-            styleMask: [.borderless, .nonactivatingPanel],
-            backing: .buffered,
-            defer: false
-        )
-        panel.contentView = hostingView
-        panel.level = .statusBar + 1
-        panel.isOpaque = false
-        panel.backgroundColor = .clear
-        panel.isFloatingPanel = true
-        panel.hidesOnDeactivate = false
-        panel.isReleasedWhenClosed = false
-        panel.becomesKeyOnlyIfNeeded = true
-        panel.collectionBehavior = [.canJoinAllSpaces, .stationary]
-        panel.orderFrontRegardless()
-
-        recordingToolbarPanel = panel
-    }
-
-    // MARK: - Coordinate Helpers
-
-    /// Convert CG screen coordinates (y=0 at top) to Cocoa screen coordinates (y=0 at bottom)
-    private func cgToCocoaRect(_ cgRect: CGRect) -> CGRect {
+    /// Convert CG screen coordinates (y=0 at top) to Cocoa (y=0 at bottom)
+    func cgToCocoaRect(_ cgRect: CGRect) -> CGRect {
         guard let screenHeight = NSScreen.main?.frame.height else { return cgRect }
         return CGRect(
             x: cgRect.origin.x,

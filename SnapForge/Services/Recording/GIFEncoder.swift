@@ -88,23 +88,43 @@ final class GIFEncoder {
             ]
         ]
 
-        // Extract frames and add to GIF
-        for i in 0..<cappedTotalFrames {
-            let time = CMTime(seconds: Double(i) * frameDuration, preferredTimescale: 600)
+        // Use batch API to extract frames with a single internal reader.
+        // The async image(at:) API creates a new reader per call,
+        // exhausting resources after ~30 frames (AVError -11832 / -12431).
+        let requestedTimes = (0..<cappedTotalFrames).map { i in
+            NSValue(time: CMTime(seconds: Double(i) * frameDuration, preferredTimescale: 600))
+        }
 
-            let cgImage: CGImage
-            do {
-                let (image, _) = try await generator.image(at: time)
-                cgImage = image
-            } catch {
-                print("⚠️ GIF frame \(i) extraction failed: \(error)")
-                continue
-            }
+        let batchCtx = GIFBatchContext(
+            destination: destination,
+            frameProperties: frameProperties as CFDictionary,
+            totalFrames: cappedTotalFrames,
+            progress: progress
+        )
 
-            autoreleasepool {
-                CGImageDestinationAddImage(destination, cgImage, frameProperties as CFDictionary)
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            generator.generateCGImagesAsynchronously(forTimes: requestedTimes) { _, image, _, result, error in
+                batchCtx.processedCount += 1
+
+                if result == .succeeded, let image {
+                    autoreleasepool {
+                        CGImageDestinationAddImage(batchCtx.destination, image, batchCtx.frameProperties)
+                    }
+                    batchCtx.framesAdded += 1
+                } else if let error {
+                    print("⚠️ GIF frame \(batchCtx.processedCount) extraction failed: \(error.localizedDescription)")
+                }
+
+                batchCtx.progress?(batchCtx.processedCount, batchCtx.totalFrames)
+
+                if batchCtx.processedCount >= batchCtx.totalFrames {
+                    continuation.resume()
+                }
             }
-            progress?(i + 1, cappedTotalFrames)
+        }
+
+        guard batchCtx.framesAdded > 0 else {
+            throw GIFEncoderError.invalidInput("No frames could be extracted from video")
         }
 
         // Finalize
@@ -112,7 +132,33 @@ final class GIFEncoder {
             throw GIFEncoderError.failedToFinalize
         }
 
-        print("✅ GIF encoded: \(cappedTotalFrames) frames → \(outputURL.lastPathComponent)")
+        print("✅ GIF encoded: \(batchCtx.framesAdded)/\(cappedTotalFrames) frames → \(outputURL.lastPathComponent)")
+    }
+}
+
+// MARK: - Batch Context
+
+/// Thread-safe context for batch GIF frame extraction.
+/// Callbacks from generateCGImagesAsynchronously are called sequentially,
+/// so mutable access is safe despite @unchecked Sendable.
+private final class GIFBatchContext: @unchecked Sendable {
+    let destination: CGImageDestination
+    let frameProperties: CFDictionary
+    let totalFrames: Int
+    let progress: GIFEncoder.ProgressHandler?
+    var framesAdded = 0
+    var processedCount = 0
+
+    init(
+        destination: CGImageDestination,
+        frameProperties: CFDictionary,
+        totalFrames: Int,
+        progress: GIFEncoder.ProgressHandler?
+    ) {
+        self.destination = destination
+        self.frameProperties = frameProperties
+        self.totalFrames = totalFrames
+        self.progress = progress
     }
 }
 

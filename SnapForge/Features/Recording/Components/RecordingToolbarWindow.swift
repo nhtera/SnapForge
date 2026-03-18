@@ -1,0 +1,76 @@
+import SwiftUI
+import AppKit
+
+/// NSPanel wrapper for recording toolbars.
+/// Non-activating, accepts first mouse, optional dragging.
+@MainActor
+final class RecordingToolbarWindow: NSPanel {
+    private var contentSize: CGSize = .zero
+
+    init() {
+        super.init(
+            contentRect: .zero,
+            styleMask: [.borderless, .nonactivatingPanel],
+            backing: .buffered,
+            defer: false
+        )
+        level = .statusBar + 1
+        isOpaque = false
+        backgroundColor = .clear
+        isFloatingPanel = true
+        hidesOnDeactivate = false
+        isReleasedWhenClosed = false
+        becomesKeyOnlyIfNeeded = true
+        collectionBehavior = [.canJoinAllSpaces, .stationary]
+    }
+
+    /// Set the SwiftUI content and compute intrinsic size
+    func setContent<V: View>(_ view: V, draggable: Bool = false) {
+        isMovableByWindowBackground = draggable
+
+        // Wrap content with dark material background and rounded corners in SwiftUI
+        let styledView = view
+            .padding(.horizontal, 4)
+            .padding(.vertical, 2)
+            .background(.black.opacity(0.78), in: RoundedRectangle(cornerRadius: 12))
+            .environment(\.colorScheme, .dark)
+
+        let hostingView = FirstMouseHostingView(rootView: styledView)
+        contentSize = hostingView.fittingSize
+        contentView = hostingView
+
+        hasShadow = true
+    }
+
+    /// Position toolbar below a given rect (in CG screen coords, converted to Cocoa)
+    func positionBelowRect(_ cocoaRect: CGRect) {
+        let size = contentSize
+        let gap = RecordingToolbarConstants.toolbarGap
+        let visibleFrame = NSScreen.main?.visibleFrame ?? CGRect(x: 0, y: 0, width: 1920, height: 1080)
+        let minSafeY = visibleFrame.origin.y
+        let maxSafeY = visibleFrame.maxY
+
+        let belowY = cocoaRect.origin.y - size.height - gap
+        let insideBottomY = max(cocoaRect.origin.y + gap, minSafeY + gap)
+        let aboveY = cocoaRect.maxY + gap
+
+        let toolbarY: CGFloat
+        if belowY >= minSafeY {
+            toolbarY = belowY
+        } else if insideBottomY + size.height <= cocoaRect.maxY {
+            toolbarY = insideBottomY
+        } else if aboveY + size.height <= maxSafeY {
+            toolbarY = aboveY
+        } else {
+            toolbarY = visibleFrame.midY - size.height / 2
+        }
+
+        let toolbarRect = CGRect(
+            x: cocoaRect.midX - size.width / 2,
+            y: toolbarY,
+            width: size.width,
+            height: size.height
+        )
+        setFrame(toolbarRect, display: true)
+    }
+}

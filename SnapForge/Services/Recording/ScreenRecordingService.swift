@@ -82,6 +82,8 @@ final class ScreenRecordingService: NSObject {
 
     private var stream: SCStream?
     private let session = RecordingSession()
+    private let audioLevelMonitor = AudioLevelMonitor()
+    private(set) var audioLevel: Float = 0.0
 
     // MARK: - Timing
 
@@ -172,6 +174,10 @@ final class ScreenRecordingService: NSObject {
         let filename = generateFileName()
         try FileManager.default.createDirectory(at: saveDirectory, withIntermediateDirectories: true)
         outputURL = saveDirectory.appendingPathComponent("\(filename).\(format.fileExtension)")
+
+        // Wire audio level monitor
+        session.audioLevelMonitor = audioLevelMonitor
+        audioLevelMonitor.reset()
 
         // Setup AVAssetWriter
         try setupAssetWriter(width: outputWidth, height: outputHeight)
@@ -285,6 +291,7 @@ final class ScreenRecordingService: NSObject {
         }
 
         cleanup()
+        releaseDirectoryAccess()
     }
 
     // MARK: - Private Setup
@@ -457,6 +464,60 @@ final class ScreenRecordingService: NSObject {
         }
     }
 
+    // MARK: - Annotation Window Exceptions
+
+    /// Add windows to the SCStream content filter's excepted windows list.
+    /// This makes the specified windows visible in the recording even though
+    /// the app bundle is excluded.
+    func addExceptedWindows(_ windowNumbers: [Int]) async {
+        guard let activeStream = stream else { return }
+        do {
+            let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
+            guard let display = content.displays.first else { return }
+
+            var excludedApps: [SCRunningApplication] = []
+            if let bundleID = Bundle.main.bundleIdentifier {
+                excludedApps = content.applications.filter { $0.bundleIdentifier == bundleID }
+            }
+
+            let exceptedWindows = content.windows.filter { window in
+                windowNumbers.contains(Int(window.windowID))
+            }
+
+            let filter = SCContentFilter(
+                display: display,
+                excludingApplications: excludedApps,
+                exceptingWindows: exceptedWindows
+            )
+            try await activeStream.updateContentFilter(filter)
+        } catch {
+            print("⚠️ Failed to update content filter: \(error)")
+        }
+    }
+
+    /// Remove all excepted windows, reverting to default filter
+    func removeExceptedWindows() async {
+        guard let activeStream = stream else { return }
+        do {
+            let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
+            guard let display = content.displays.first else { return }
+
+            var excludedApps: [SCRunningApplication] = []
+            if let bundleID = Bundle.main.bundleIdentifier {
+                excludedApps = content.applications.filter { $0.bundleIdentifier == bundleID }
+            }
+
+            let filter = SCContentFilter(
+                display: display,
+                excludingApplications: excludedApps,
+                exceptingWindows: []
+            )
+            try await activeStream.updateContentFilter(filter)
+        } catch {
+            print("⚠️ Failed to revert content filter: \(error)")
+        }
+    }
+
     // MARK: - Helpers
 
     private func findDisplay(for rect: CGRect, in content: SCShareableContent) -> (SCDisplay?, NSScreen?) {
@@ -485,8 +546,10 @@ final class ScreenRecordingService: NSObject {
     private func startTimer() {
         timerTask = Task { [weak self] in
             while !Task.isCancelled {
-                try? await Task.sleep(for: .seconds(1))
+                try? await Task.sleep(for: .milliseconds(100))
                 guard !Task.isCancelled else { break }
+                self?.audioLevel = self?.audioLevelMonitor.level ?? 0
+                // Update elapsed time every full second
                 self?.updateElapsedTime()
             }
         }
@@ -513,6 +576,13 @@ final class ScreenRecordingService: NSObject {
         stream = nil
     }
 
+    /// Release sandbox scoped access to the recording directory.
+    /// Call this after all post-recording file operations (e.g. GIF conversion) are complete.
+    func releaseDirectoryAccess() {
+        directoryAccess?.stop()
+        directoryAccess = nil
+    }
+
     private func cleanup() {
         timerTask?.cancel()
         timerTask = nil
@@ -522,8 +592,8 @@ final class ScreenRecordingService: NSObject {
         registeredOutputTypes.removeAll()
         session.reset()
         outputURL = nil
-        directoryAccess?.stop()
-        directoryAccess = nil
+        // Note: directoryAccess is NOT released here — caller must call
+        // releaseDirectoryAccess() after post-recording operations complete.
         state = .idle
         elapsedSeconds = 0
     }

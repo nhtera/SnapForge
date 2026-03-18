@@ -33,7 +33,10 @@ struct RecordingGeneralSubTab: View {
     @AppStorage("highlightClicks") private var highlightClicks = false
     @AppStorage("showKeystrokes") private var showKeystrokes = false
     @AppStorage("dimScreenWhileRecording") private var dimScreen = true
-    @AppStorage("showRecordingCountdown") private var showCountdown = false
+    @AppStorage("recordingCountdownSeconds") private var countdownSeconds = 3
+    @AppStorage("recordingTimerLimit") private var timerLimit = 0
+    @AppStorage("autoOpenRecording") private var autoOpen = false
+    @AppStorage("autoCopyRecording") private var autoCopy = false
 
     var body: some View {
         Form {
@@ -54,7 +57,26 @@ struct RecordingGeneralSubTab: View {
 
             Section("Recording Area") {
                 Toggle("Dim screen while recording", isOn: $dimScreen)
-                Toggle("Show countdown before recording", isOn: $showCountdown)
+
+                Picker("Countdown", selection: $countdownSeconds) {
+                    Text("None").tag(0)
+                    Text("3 seconds").tag(3)
+                    Text("5 seconds").tag(5)
+                    Text("10 seconds").tag(10)
+                }
+
+                Picker("Auto-stop after", selection: $timerLimit) {
+                    Text("Off").tag(0)
+                    Text("30 seconds").tag(30)
+                    Text("1 minute").tag(60)
+                    Text("5 minutes").tag(300)
+                    Text("10 minutes").tag(600)
+                }
+            }
+
+            Section("After Recording") {
+                Toggle("Automatically open recording", isOn: $autoOpen)
+                Toggle("Copy file to clipboard", isOn: $autoCopy)
             }
         }
         .formStyle(.grouped)

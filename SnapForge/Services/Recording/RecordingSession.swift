@@ -16,8 +16,14 @@ final class RecordingSession: @unchecked Sendable {
     private var _sessionStarted = false
     private var _isCapturing = false
     private var _firstTimestamp: CMTime?
+    private var _audioLevelMonitor: AudioLevelMonitor?
 
     init() {}
+
+    var audioLevelMonitor: AudioLevelMonitor? {
+        get { lock.withLock { _audioLevelMonitor } }
+        set { lock.withLock { _audioLevelMonitor = newValue } }
+    }
 
     // MARK: - Thread-safe accessors
 
@@ -106,12 +112,14 @@ final class RecordingSession: @unchecked Sendable {
         let timestamp = CMSampleBufferGetPresentationTimeStamp(sampleBuffer)
         guard timestamp.isValid else { return }
 
-        let (audioInput, firstTs): (AVAssetWriterInput?, CMTime?) = lock.withLock {
+        let (audioInput, firstTs, monitor): (AVAssetWriterInput?, CMTime?, AudioLevelMonitor?) = lock.withLock {
             guard _isCapturing, let writer = _assetWriter, writer.status == .writing else {
-                return (nil, nil)
+                return (nil, nil, nil)
             }
-            return (_audioInput, _firstTimestamp)
+            return (_audioInput, _firstTimestamp, _audioLevelMonitor)
         }
+
+        monitor?.processSampleBuffer(sampleBuffer)
 
         guard let audioInput, let firstTs else { return }
         guard CMTimeCompare(timestamp, firstTs) >= 0 else { return }
@@ -125,12 +133,14 @@ final class RecordingSession: @unchecked Sendable {
         let timestamp = CMSampleBufferGetPresentationTimeStamp(sampleBuffer)
         guard timestamp.isValid else { return }
 
-        let (micInput, firstTs): (AVAssetWriterInput?, CMTime?) = lock.withLock {
+        let (micInput, firstTs, monitor): (AVAssetWriterInput?, CMTime?, AudioLevelMonitor?) = lock.withLock {
             guard _isCapturing, let writer = _assetWriter, writer.status == .writing else {
-                return (nil, nil)
+                return (nil, nil, nil)
             }
-            return (_microphoneInput, _firstTimestamp)
+            return (_microphoneInput, _firstTimestamp, _audioLevelMonitor)
         }
+
+        monitor?.processSampleBuffer(sampleBuffer)
 
         guard let micInput, let firstTs else { return }
         guard CMTimeCompare(timestamp, firstTs) >= 0 else { return }
@@ -172,6 +182,7 @@ final class RecordingSession: @unchecked Sendable {
             _sessionStarted = false
             _isCapturing = false
             _firstTimestamp = nil
+            _audioLevelMonitor = nil
         }
     }
 }

@@ -52,6 +52,21 @@ enum SettingsKey {
     static let gifQuality = "gifQuality"
     static let gifLoopCount = "gifLoopCount"
 
+    // Recording Toolbar (Phase 1)
+    static let recordingOutputMode = "recordingOutputMode"
+    static let recordingSystemAudioEnabled = "recordingSystemAudioEnabled"
+    static let recordingMicEnabled = "recordingMicEnabled"
+    static let recordingVideoFormat = "recordingVideoFormat"
+
+    // Recording Settings (Phase 4)
+    static let recordingCountdownSeconds = "recordingCountdownSeconds"
+    static let recordingTimerLimit = "recordingTimerLimit"
+    static let autoOpenRecording = "autoOpenRecording"
+    static let autoCopyRecording = "autoCopyRecording"
+
+    // Region Overlay (Phase 3)
+    static let lastRecordingArea = "lastRecordingArea"
+
     // Color Picker
     static let colorPickerCopyFormat = "colorPickerCopyFormat"
 
