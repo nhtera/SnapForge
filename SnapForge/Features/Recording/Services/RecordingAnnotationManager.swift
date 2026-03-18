@@ -60,7 +60,11 @@ final class RecordingAnnotationManager {
         toolbarWindow?.close()
         toolbarWindow = nil
         annotationState?.stopCleanupTimer()
-        Task { await ScreenRecordingService.shared.removeExceptedWindows() }
+    }
+
+    /// Update the anchor panel reference without recreating state
+    func updateAnchorPanel(_ panel: RecordingToolbarWindow) {
+        toolbarWindow?.setAnchor(window: panel, buttonCenterX: panel.frame.midX)
     }
 
     /// Tear down everything

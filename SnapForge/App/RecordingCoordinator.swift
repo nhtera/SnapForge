@@ -298,11 +298,8 @@ final class RecordingCoordinator {
         panel.orderFrontRegardless()
         recordingToolbarPanel = panel
 
-        // Update annotation manager with the actual panel reference
-        annotationManager.setup(
-            anchorPanel: panel, recordingRect: rect,
-            cocoaRectProvider: { [weak self] r in self?.cgToCocoaRect(r) ?? r }
-        )
+        // Update annotation toolbar anchor to the actual panel
+        annotationManager.updateAnchorPanel(panel)
 
         setupStopHotkey()
         showDimOverlayIfEnabled(recordingRect: rect)
