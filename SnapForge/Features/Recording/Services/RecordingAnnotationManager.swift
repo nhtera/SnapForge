@@ -12,6 +12,9 @@ final class RecordingAnnotationManager {
     func setup(anchorPanel: RecordingToolbarWindow?, recordingRect: CGRect, cocoaRectProvider: @escaping (CGRect) -> CGRect) {
         let state = RecordingAnnotationState()
         annotationState = state
+        self.anchorPanel = anchorPanel
+        self.recordingRect = recordingRect
+        self.cocoaRectProvider = cocoaRectProvider
 
         observerTask?.cancel()
         observerTask = Task { [weak self] in
@@ -21,7 +24,7 @@ final class RecordingAnnotationManager {
                 if isEnabled != wasEnabled {
                     wasEnabled = isEnabled
                     if isEnabled {
-                        self?.showUI(rect: recordingRect, cocoaRect: cocoaRectProvider(recordingRect), anchorPanel: anchorPanel)
+                        self?.showAnnotationUI()
                     } else {
                         self?.hideUI()
                     }
@@ -31,9 +34,14 @@ final class RecordingAnnotationManager {
         }
     }
 
+    private var anchorPanel: RecordingToolbarWindow?
+    private var recordingRect: CGRect = .zero
+    private var cocoaRectProvider: ((CGRect) -> CGRect)?
+
     /// Show canvas and toolbar windows
-    private func showUI(rect: CGRect, cocoaRect: CGRect, anchorPanel: RecordingToolbarWindow?) {
-        guard let annState = annotationState else { return }
+    private func showAnnotationUI() {
+        guard let annState = annotationState,
+              let cocoaRect = cocoaRectProvider?(recordingRect) else { return }
 
         let canvas = RecordingAnnotationCanvasWindow(frame: cocoaRect, state: annState)
         canvas.makeKeyAndOrderFront(nil)

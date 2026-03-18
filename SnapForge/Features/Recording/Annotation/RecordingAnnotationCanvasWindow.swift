@@ -17,9 +17,11 @@ final class RecordingAnnotationCanvasWindow: NSWindow {
         )
 
         contentView = canvasView
-        level = .statusBar + 2
+        // Between recording border (.statusBar) and toolbar (.statusBar + 1)
+        level = NSWindow.Level(rawValue: NSWindow.Level.floating.rawValue + 1)
         isOpaque = false
         backgroundColor = .clear
+        hasShadow = false
         ignoresMouseEvents = false
         isReleasedWhenClosed = false
         collectionBehavior = [.canJoinAllSpaces, .stationary]
