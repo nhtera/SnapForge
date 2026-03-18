@@ -124,17 +124,14 @@ private final class ClickHighlightOverlayWindow: NSWindow {
         guard let contentView else { return }
         let pt = viewPoint(from: screenPoint)
 
-        // Spawn expanding ripple rings (3 staggered rings)
-        for i in 0..<3 {
-            let delay = CFTimeInterval(i) * 0.1
-            let ripple = ClickRippleRingView(center: pt)
-            contentView.addSubview(ripple)
-            ripple.animateExpand(delay: delay) { [weak ripple] in
-                ripple?.removeFromSuperview()
-            }
+        // Filled ripple effect (original SnapForge style)
+        let ripple = ClickRippleView(center: pt)
+        contentView.addSubview(ripple)
+        ripple.animateExpandAndFade { [weak ripple] in
+            ripple?.removeFromSuperview()
         }
 
-        // Show persistent hold circle
+        // Persistent hold circle while mouse is held
         holdCircleView?.removeFromSuperview()
         let hold = ClickHoldCircleView(center: pt)
         contentView.addSubview(hold)
@@ -154,14 +151,12 @@ private final class ClickHighlightOverlayWindow: NSWindow {
     }
 }
 
-// MARK: - Ripple Ring View
+// MARK: - Ripple View (Original SnapForge Style)
 
-/// A single hollow ring that expands outward and fades. Positioned at click point.
-private final class ClickRippleRingView: NSView {
-    private let ringLayer = CAShapeLayer()
-    private static let diameter: CGFloat = 50
-    private static let ringWidth: CGFloat = 2
-    private static let duration: CFTimeInterval = 0.6
+/// Filled circle with stroke border + center dot that expands and fades.
+private final class ClickRippleView: NSView {
+    private let container = CALayer()
+    private static let diameter: CGFloat = 44
     private static let color = NSColor.systemYellow
 
     init(center: NSPoint) {
@@ -169,57 +164,69 @@ private final class ClickRippleRingView: NSView {
         let frame = CGRect(x: center.x - size / 2, y: center.y - size / 2, width: size, height: size)
         super.init(frame: frame)
         wantsLayer = true
-        layer?.masksToBounds = false
 
-        let inset = Self.ringWidth / 2
-        let path = CGPath(ellipseIn: bounds.insetBy(dx: inset, dy: inset), transform: nil)
-        ringLayer.path = path
-        ringLayer.fillColor = nil
-        ringLayer.strokeColor = Self.color.withAlphaComponent(0.6).cgColor
-        ringLayer.lineWidth = Self.ringWidth
-        ringLayer.frame = bounds
-        ringLayer.opacity = 0
-        ringLayer.transform = CATransform3DMakeScale(0.15, 0.15, 1)
-        layer?.addSublayer(ringLayer)
+        // Container with center anchor for proper scale animation
+        container.frame = bounds
+        container.anchorPoint = CGPoint(x: 0.5, y: 0.5)
+        container.position = CGPoint(x: bounds.midX, y: bounds.midY)
+
+        // Outer filled circle with stroke
+        let circleLayer = CAShapeLayer()
+        let circleRect = bounds.insetBy(dx: 4, dy: 4)
+        circleLayer.path = CGPath(ellipseIn: circleRect, transform: nil)
+        circleLayer.fillColor = Self.color.withAlphaComponent(0.2).cgColor
+        circleLayer.strokeColor = Self.color.withAlphaComponent(0.7).cgColor
+        circleLayer.lineWidth = 2.5
+        container.addSublayer(circleLayer)
+
+        // Center dot
+        let dotSize: CGFloat = 10
+        let dotRect = CGRect(x: bounds.midX - dotSize / 2, y: bounds.midY - dotSize / 2,
+                             width: dotSize, height: dotSize)
+        let dotLayer = CAShapeLayer()
+        dotLayer.path = CGPath(ellipseIn: dotRect, transform: nil)
+        dotLayer.fillColor = Self.color.withAlphaComponent(0.85).cgColor
+        container.addSublayer(dotLayer)
+
+        layer?.addSublayer(container)
     }
 
     @available(*, unavailable) required init?(coder: NSCoder) { fatalError() }
 
-    func animateExpand(delay: CFTimeInterval, completion: @escaping () -> Void) {
+    func animateExpandAndFade(completion: @escaping () -> Void) {
         CATransaction.begin()
         CATransaction.setCompletionBlock(completion)
 
+        // Scale: small → full
         let scaleAnim = CABasicAnimation(keyPath: "transform.scale")
-        scaleAnim.fromValue = 0.15
+        scaleAnim.fromValue = 0.3
         scaleAnim.toValue = 1.0
-        scaleAnim.duration = Self.duration
-        scaleAnim.beginTime = CACurrentMediaTime() + delay
+        scaleAnim.duration = 0.3
         scaleAnim.timingFunction = CAMediaTimingFunction(name: .easeOut)
-        scaleAnim.fillMode = .both
+        scaleAnim.fillMode = .forwards
         scaleAnim.isRemovedOnCompletion = false
+        container.add(scaleAnim, forKey: "expand")
 
+        // Opacity: appear then fade out
         let opacityAnim = CAKeyframeAnimation(keyPath: "opacity")
-        opacityAnim.values = [0.0, 0.8, 0.0]
-        opacityAnim.keyTimes = [0, 0.25, 1.0]
-        opacityAnim.duration = Self.duration
-        opacityAnim.beginTime = CACurrentMediaTime() + delay
+        opacityAnim.values = [1.0, 1.0, 0.0]
+        opacityAnim.keyTimes = [0, 0.5, 1.0]
+        opacityAnim.duration = 0.5
         opacityAnim.timingFunction = CAMediaTimingFunction(name: .easeOut)
-        opacityAnim.fillMode = .both
+        opacityAnim.fillMode = .forwards
         opacityAnim.isRemovedOnCompletion = false
+        container.add(opacityAnim, forKey: "fade")
 
-        ringLayer.add(scaleAnim, forKey: "rippleScale")
-        ringLayer.add(opacityAnim, forKey: "rippleFade")
         CATransaction.commit()
     }
 }
 
 // MARK: - Hold Circle View
 
-/// Persistent hollow circle that follows cursor while mouse is held down.
+/// Persistent filled circle that follows cursor while mouse is held down.
 private final class ClickHoldCircleView: NSView {
-    private let ringLayer = CAShapeLayer()
-    private static let diameter: CGFloat = 36
-    private static let ringWidth: CGFloat = 2
+    private let container = CALayer()
+    private static let diameter: CGFloat = 30
     private static let color = NSColor.systemYellow
 
     init(center: NSPoint) {
@@ -227,18 +234,22 @@ private final class ClickHoldCircleView: NSView {
         let frame = CGRect(x: center.x - size / 2, y: center.y - size / 2, width: size, height: size)
         super.init(frame: frame)
         wantsLayer = true
-        layer?.masksToBounds = false
 
-        let inset = Self.ringWidth / 2
-        let path = CGPath(ellipseIn: bounds.insetBy(dx: inset, dy: inset), transform: nil)
-        ringLayer.path = path
-        ringLayer.fillColor = nil
-        ringLayer.strokeColor = Self.color.withAlphaComponent(0.5).cgColor
-        ringLayer.lineWidth = Self.ringWidth
-        ringLayer.frame = bounds
-        ringLayer.opacity = 0
-        ringLayer.transform = CATransform3DMakeScale(0.5, 0.5, 1)
-        layer?.addSublayer(ringLayer)
+        container.frame = bounds
+        container.anchorPoint = CGPoint(x: 0.5, y: 0.5)
+        container.position = CGPoint(x: bounds.midX, y: bounds.midY)
+        container.opacity = 0
+
+        // Filled circle with subtle stroke
+        let circleLayer = CAShapeLayer()
+        let circleRect = bounds.insetBy(dx: 2, dy: 2)
+        circleLayer.path = CGPath(ellipseIn: circleRect, transform: nil)
+        circleLayer.fillColor = Self.color.withAlphaComponent(0.15).cgColor
+        circleLayer.strokeColor = Self.color.withAlphaComponent(0.5).cgColor
+        circleLayer.lineWidth = 2
+        container.addSublayer(circleLayer)
+
+        layer?.addSublayer(container)
     }
 
     @available(*, unavailable) required init?(coder: NSCoder) { fatalError() }
@@ -262,8 +273,8 @@ private final class ClickHoldCircleView: NSView {
         opacityAnim.duration = 0.15
         opacityAnim.fillMode = .forwards; opacityAnim.isRemovedOnCompletion = false
 
-        ringLayer.add(scaleAnim, forKey: "holdScaleIn")
-        ringLayer.add(opacityAnim, forKey: "holdFadeIn")
+        container.add(scaleAnim, forKey: "holdScaleIn")
+        container.add(opacityAnim, forKey: "holdFadeIn")
     }
 
     func animateOut(completion: @escaping () -> Void) {
@@ -273,7 +284,7 @@ private final class ClickHoldCircleView: NSView {
         anim.fromValue = 1.0; anim.toValue = 0.0
         anim.duration = 0.25
         anim.fillMode = .forwards; anim.isRemovedOnCompletion = false
-        ringLayer.add(anim, forKey: "holdFadeOut")
+        container.add(anim, forKey: "holdFadeOut")
         CATransaction.commit()
     }
 }
