@@ -19,7 +19,7 @@ final class RecordingAnnotationCanvasWindow: NSWindow {
         )
 
         contentView = canvasView
-        level = NSWindow.Level(rawValue: NSWindow.Level.floating.rawValue + 1)
+        level = .statusBar
         isOpaque = false
         backgroundColor = .clear
         hasShadow = false
