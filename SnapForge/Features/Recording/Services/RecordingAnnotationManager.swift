@@ -9,12 +9,14 @@ final class RecordingAnnotationManager {
     private var observerTask: Task<Void, Never>?
 
     /// Create annotation state and start observing toggle
-    func setup(anchorPanel: RecordingToolbarWindow?, recordingRect: CGRect, cocoaRectProvider: @escaping (CGRect) -> CGRect) {
+    /// - Parameters:
+    ///   - anchorPanel: Toolbar panel for positioning annotation toolbar
+    ///   - cocoaRect: Recording area in Cocoa coordinates (for canvas window frame)
+    func setup(anchorPanel: RecordingToolbarWindow?, cocoaRect: CGRect) {
         let state = RecordingAnnotationState()
         annotationState = state
         self.anchorPanel = anchorPanel
-        self.recordingRect = recordingRect
-        self.cocoaRectProvider = cocoaRectProvider
+        self.canvasCocoaRect = cocoaRect
 
         observerTask?.cancel()
         observerTask = Task { [weak self] in
@@ -35,13 +37,12 @@ final class RecordingAnnotationManager {
     }
 
     private var anchorPanel: RecordingToolbarWindow?
-    private var recordingRect: CGRect = .zero
-    private var cocoaRectProvider: ((CGRect) -> CGRect)?
+    private var canvasCocoaRect: CGRect = .zero
 
     /// Show canvas and toolbar windows
     private func showAnnotationUI() {
-        guard let annState = annotationState,
-              let cocoaRect = cocoaRectProvider?(recordingRect) else { return }
+        guard let annState = annotationState else { return }
+        let cocoaRect = canvasCocoaRect
 
         let canvas = RecordingAnnotationCanvasWindow(frame: cocoaRect, state: annState)
         canvas.makeKeyAndOrderFront(nil)
@@ -72,6 +73,7 @@ final class RecordingAnnotationManager {
 
     /// Update the anchor panel reference without recreating state
     func updateAnchorPanel(_ panel: RecordingToolbarWindow) {
+        self.anchorPanel = panel
         toolbarWindow?.setAnchor(window: panel, buttonCenterX: panel.frame.midX)
     }
 

@@ -277,11 +277,8 @@ final class RecordingCoordinator {
 
         guard UserDefaults.standard.bool(forKey: SettingsKey.showRecordingControls) else { return }
 
-        // Setup annotation manager
-        annotationManager.setup(
-            anchorPanel: nil, recordingRect: rect,
-            cocoaRectProvider: { [weak self] r in self?.cgToCocoaRect(r) ?? r }
-        )
+        // Setup annotation manager with pre-computed Cocoa rect
+        annotationManager.setup(anchorPanel: nil, cocoaRect: cocoaRect)
 
         let toolbarView = RecordingStatusBarView(
             isGIFMode: toolbarState?.outputMode == .gif,
