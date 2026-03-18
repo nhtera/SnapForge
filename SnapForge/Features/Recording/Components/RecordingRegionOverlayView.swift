@@ -20,6 +20,13 @@ final class RecordingRegionOverlayView: NSView {
     override var acceptsFirstResponder: Bool { true }
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 
+    /// Only accept mouse events inside the selection rect + handle padding.
+    /// Clicks outside pass through to apps below.
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        let hitArea = state.rect.insetBy(dx: -20, dy: -20) // Expand for handle hit zones
+        return hitArea.contains(point) ? self : nil
+    }
+
     override func updateTrackingAreas() {
         super.updateTrackingAreas()
         trackingAreas.forEach { removeTrackingArea($0) }
