@@ -473,7 +473,8 @@ final class ScreenRecordingService: NSObject {
         accumulatedExceptedWindowIDs.formUnion(windowNumbers)
         guard let activeStream = stream else { return }
         do {
-            let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
+            // Use onScreenWindowsOnly: false to find windows that may not be fully rendered yet
+            let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: false)
             guard let display = content.displays.first else { return }
 
             var excludedApps: [SCRunningApplication] = []
