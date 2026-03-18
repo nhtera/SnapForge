@@ -360,7 +360,12 @@ final class RecordingCoordinator {
             pendingRecordingRect = rect
 
             if toolbarState?.highlightClicks ?? defaults.bool(forKey: SettingsKey.highlightClicks) {
-                ClickVisualizer.shared.start()
+                let cocoaRect = cgToCocoaRect(rect)
+                ClickVisualizer.shared.start(recordingRect: cocoaRect)
+                // Add click overlay to SCStream so effects appear in recording
+                if let windowID = ClickVisualizer.shared.overlayWindowID {
+                    await recorder.addExceptedWindows([windowID])
+                }
             }
             if toolbarState?.showKeystrokes ?? defaults.bool(forKey: SettingsKey.showKeystrokes) {
                 KeystrokeVisualizer.shared.start()
