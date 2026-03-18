@@ -8,6 +8,19 @@ enum VideoBackgroundStyle: Equatable, Hashable {
     case gradient(VideoGradientPreset)
     case solidColor(Color)
     case wallpaper(URL)
+
+    /// Stable identifier for compositor caching — same style produces same key.
+    var cacheKey: String {
+        switch self {
+        case .none: return "none"
+        case .gradient(let preset): return "gradient-\(preset.rawValue)"
+        case .solidColor(let color):
+            let ns = NSColor(color)
+            let c = ns.usingColorSpace(.sRGB) ?? ns
+            return "color-\(c.redComponent)-\(c.greenComponent)-\(c.blueComponent)-\(c.alphaComponent)"
+        case .wallpaper(let url): return "wallpaper-\(url.absoluteString)"
+        }
+    }
 }
 
 // MARK: - Video Gradient Preset

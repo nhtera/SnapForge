@@ -218,4 +218,70 @@ struct VideoExportIntegrationTests {
             #expect(fps >= 24, "Frame rate should be at least 24fps, got \(fps)")
         }
     }
+
+    // MARK: - Performance: Full Background Settings
+
+    /// Tests export with settings matching the user's real-world scenario:
+    /// padding=161, shadow=0.93, corners=128, gradient background.
+    /// Verifies the compositor caching optimizations produce valid output.
+    @Test func exportWithHeavyBackgroundSettingsProducesValidFile() async throws {
+        let videoURL = try await createTestVideo()
+        defer { try? FileManager.default.removeItem(at: videoURL) }
+
+        let state = VideoEditorState(url: videoURL)
+        await state.loadVideo()
+
+        // Settings matching the reported issue screenshot
+        state.backgroundStyle = .gradient(.midnight)
+        state.backgroundPadding = 161
+        state.backgroundCornerRadius = 128
+        state.backgroundShadowIntensity = 0.93
+
+        let outputURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("export_heavy_bg_\(UUID().uuidString).mp4")
+        defer { try? FileManager.default.removeItem(at: outputURL) }
+
+        let startTime = CFAbsoluteTimeGetCurrent()
+
+        try await VideoEditorExporter.exportTrimmed(
+            state: state,
+            to: outputURL,
+            progress: { _ in }
+        )
+
+        let elapsed = CFAbsoluteTimeGetCurrent() - startTime
+
+        #expect(FileManager.default.fileExists(atPath: outputURL.path), "Heavy background export should produce file")
+
+        let fileSize = try FileManager.default.attributesOfItem(atPath: outputURL.path)[.size] as? Int64 ?? 0
+        #expect(fileSize > 0, "Exported file should have content")
+
+        // Verify output dimensions include the large padding
+        let outputAsset = AVURLAsset(url: outputURL)
+        if let track = try await outputAsset.loadTracks(withMediaType: .video).first {
+            let size = try await track.load(.naturalSize)
+            // 640 + 161*2 = 962, 480 + 161*2 = 802
+            #expect(size.width >= 900, "Width should include padding: \(size.width)")
+            #expect(size.height >= 750, "Height should include padding: \(size.height)")
+        }
+
+        print("✅ Heavy background export completed in \(String(format: "%.1f", elapsed))s")
+    }
+
+    // MARK: - Background Style Cache Key
+
+    @Test func backgroundStyleCacheKeyIsStable() {
+        let gradient1 = VideoBackgroundStyle.gradient(.ocean)
+        let gradient2 = VideoBackgroundStyle.gradient(.ocean)
+        #expect(gradient1.cacheKey == gradient2.cacheKey, "Same style should produce same cache key")
+
+        let gradient3 = VideoBackgroundStyle.gradient(.sunset)
+        #expect(gradient1.cacheKey != gradient3.cacheKey, "Different presets should produce different keys")
+
+        let solid = VideoBackgroundStyle.solidColor(.red)
+        #expect(solid.cacheKey != gradient1.cacheKey, "Different types should produce different keys")
+
+        let none = VideoBackgroundStyle.none
+        #expect(none.cacheKey == "none")
+    }
 }

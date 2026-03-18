@@ -159,9 +159,14 @@ enum VideoEditorExporter {
                 scaledPadding = padding * scaleFactor
             }
 
+            // Cap compositor framerate at 60fps — screen recordings with background
+            // effects are visually identical at 60 vs 120fps, but 120fps doubles
+            // per-frame GPU work and memory pressure for no visible benefit.
+            let compositorTimescale = min(frameTimescale, 60)
+
             let vc = AVMutableVideoComposition()
             vc.renderSize = paddedSize
-            vc.frameDuration = CMTime(value: 1, timescale: frameTimescale)
+            vc.frameDuration = CMTime(value: 1, timescale: compositorTimescale)
             vc.customVideoCompositorClass = VideoBackgroundCompositor.self
 
             let bgInstruction = BackgroundCompositionInstruction(

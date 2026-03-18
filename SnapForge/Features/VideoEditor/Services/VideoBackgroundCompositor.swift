@@ -5,6 +5,12 @@ import SwiftUI
 /// Custom video compositor that renders background (gradient/solid color),
 /// padding, corner radius, and shadow into exported video frames.
 /// Based on AVVideoCompositing protocol for per-frame rendering.
+///
+/// Performance optimizations:
+/// - Corner radius mask cached across frames (same size = same mask)
+/// - Shadow rendered from shape (rounded rect), not video content — cached across frames
+/// - Background image cached (gradient/solid/wallpaper are static)
+/// - autoreleasepool per frame to prevent intermediate CIImage/CGImage accumulation
 class VideoBackgroundCompositor: NSObject, @unchecked Sendable, AVVideoCompositing {
 
     // MARK: - AVVideoCompositing Protocol
@@ -30,23 +36,54 @@ class VideoBackgroundCompositor: NSObject, @unchecked Sendable, AVVideoCompositi
     private let ciContext = CIContext(options: [.useSoftwareRenderer: false])
     private let queue = DispatchQueue(label: "com.snapforge.backgroundcompositor")
 
+    // MARK: - Cached Assets (created once, reused every frame)
+
+    /// Wallpaper image cache
     private var cachedWallpaperURL: URL?
     private var cachedWallpaperSize: CGSize?
     private var cachedWallpaperImage: CIImage?
 
+    /// Corner radius mask — identical for every frame at the same video size
+    private var cachedMaskImage: CIImage?
+    private var cachedMaskSize: CGSize?
+    private var cachedMaskRadius: CGFloat?
+
+    /// Pre-computed shadow from rounded rectangle shape — identical every frame
+    private var cachedShadowImage: CIImage?
+    private var cachedShadowVideoSize: CGSize?
+    private var cachedShadowPadding: CGFloat?
+    private var cachedShadowRadius: CGFloat?
+    private var cachedShadowIntensity: CGFloat?
+
+    /// Background image cache (gradient/solid are static)
+    private var cachedBackground: CIImage?
+    private var cachedBackgroundSize: CGSize?
+    private var cachedBackgroundStyleID: String?
+
     func renderContextChanged(_ newRenderContext: AVVideoCompositionRenderContext) {
         queue.sync {
+            let sizeChanged = renderContext?.size != newRenderContext.size
             renderContext = newRenderContext
-            // Clear cache if size changed
-            if cachedWallpaperSize != newRenderContext.size {
+
+            // Only clear caches if render size changed
+            if sizeChanged {
+                cachedWallpaperURL = nil
+                cachedWallpaperSize = nil
                 cachedWallpaperImage = nil
+                cachedMaskImage = nil
+                cachedShadowImage = nil
+                cachedBackground = nil
             }
         }
     }
 
     func startRequest(_ request: AVAsynchronousVideoCompositionRequest) {
         queue.async { [weak self] in
-            self?.processRequest(request)
+            // autoreleasepool prevents CIImage/CGImage intermediates from accumulating
+            // across frames — without this, memory grows unbounded during export
+            autoreleasepool {
+                self?.processRequest(request)
+            }
         }
     }
 
@@ -114,7 +151,7 @@ class VideoBackgroundCompositor: NSObject, @unchecked Sendable, AVVideoCompositi
             videoImage = videoImage.transformed(by: CGAffineTransform(scaleX: scaleX, y: scaleY))
         }
 
-        // Apply corner radius to video frame
+        // Apply corner radius to video frame (mask is cached)
         if instruction.cornerRadius > 0 {
             videoImage = applyCornerRadius(
                 to: videoImage,
@@ -131,26 +168,18 @@ class VideoBackgroundCompositor: NSObject, @unchecked Sendable, AVVideoCompositi
             )
         )
 
-        // Create background
-        let background = createBackground(
+        // Get cached background
+        let background = getOrCreateBackground(
             style: instruction.backgroundStyle,
             size: instruction.paddedSize
         )
 
-        // Apply shadow if needed
+        // Compose with cached shadow or direct composition
         var composedImage: CIImage
         if instruction.shadowIntensity > 0 {
-            let shadowRadius = instruction.shadowIntensity * 40
-            let shadowImage = translatedVideo.applyingGaussianBlur(sigma: Double(shadowRadius))
-                .cropped(to: CGRect(origin: .zero, size: instruction.paddedSize))
-            let shadowWithOpacity = shadowImage.applyingFilter(
-                "CIColorMatrix",
-                parameters: [
-                    "inputAVector": CIVector(x: 0, y: 0, z: 0, w: CGFloat(instruction.shadowIntensity * 0.8)),
-                ]
-            )
+            let shadow = getOrCreateShadow(instruction: instruction)
             composedImage = translatedVideo
-                .composited(over: shadowWithOpacity)
+                .composited(over: shadow)
                 .composited(over: background)
         } else {
             composedImage = translatedVideo.composited(over: background)
@@ -165,38 +194,11 @@ class VideoBackgroundCompositor: NSObject, @unchecked Sendable, AVVideoCompositi
         return outputBuffer
     }
 
-    // MARK: - Corner Radius
+    // MARK: - Corner Radius (Cached Mask)
 
     private func applyCornerRadius(to image: CIImage, cornerRadius: CGFloat, videoSize: CGSize) -> CIImage {
         let extent = image.extent
-
-        // Create rounded rect mask using CGContext
-        guard let cgContext = CGContext(
-            data: nil,
-            width: Int(extent.width),
-            height: Int(extent.height),
-            bitsPerComponent: 8,
-            bytesPerRow: Int(extent.width) * 4,
-            space: CGColorSpaceCreateDeviceRGB(),
-            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
-        ) else { return image }
-
-        // Scale corner radius proportionally
-        let scaleFactor = min(extent.width, extent.height) / min(videoSize.width, videoSize.height)
-        let scaledRadius = min(cornerRadius * scaleFactor, min(extent.width, extent.height) / 2)
-
-        cgContext.setFillColor(CGColor.white)
-        let path = CGPath(
-            roundedRect: CGRect(origin: .zero, size: CGSize(width: extent.width, height: extent.height)),
-            cornerWidth: scaledRadius,
-            cornerHeight: scaledRadius,
-            transform: nil
-        )
-        cgContext.addPath(path)
-        cgContext.fillPath()
-
-        guard let maskCGImage = cgContext.makeImage() else { return image }
-        let maskImage = CIImage(cgImage: maskCGImage)
+        let maskImage = getOrCreateMask(extent: extent, cornerRadius: cornerRadius, videoSize: videoSize)
 
         guard let blendFilter = CIFilter(name: "CIBlendWithAlphaMask") else { return image }
         let transparent = CIImage(color: .clear).cropped(to: extent)
@@ -207,7 +209,157 @@ class VideoBackgroundCompositor: NSObject, @unchecked Sendable, AVVideoCompositi
         return blendFilter.outputImage ?? image
     }
 
-    // MARK: - Background Creation
+    /// Returns cached mask or creates a new one. The mask is a white rounded
+    /// rectangle — identical for every frame at the same size and corner radius.
+    private func getOrCreateMask(extent: CGRect, cornerRadius: CGFloat, videoSize: CGSize) -> CIImage {
+        let size = extent.size
+        if let cached = cachedMaskImage,
+           cachedMaskSize == size,
+           cachedMaskRadius == cornerRadius {
+            return cached
+        }
+
+        guard let cgContext = CGContext(
+            data: nil,
+            width: Int(size.width),
+            height: Int(size.height),
+            bitsPerComponent: 8,
+            bytesPerRow: Int(size.width) * 4,
+            space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ) else {
+            return CIImage(color: .white).cropped(to: extent)
+        }
+
+        // Scale corner radius proportionally
+        let scaleFactor = min(size.width, size.height) / min(videoSize.width, videoSize.height)
+        let scaledRadius = min(cornerRadius * scaleFactor, min(size.width, size.height) / 2)
+
+        cgContext.setFillColor(CGColor.white)
+        let path = CGPath(
+            roundedRect: CGRect(origin: .zero, size: size),
+            cornerWidth: scaledRadius,
+            cornerHeight: scaledRadius,
+            transform: nil
+        )
+        cgContext.addPath(path)
+        cgContext.fillPath()
+
+        guard let maskCGImage = cgContext.makeImage() else {
+            return CIImage(color: .white).cropped(to: extent)
+        }
+
+        let maskImage = CIImage(cgImage: maskCGImage)
+        cachedMaskImage = maskImage
+        cachedMaskSize = size
+        cachedMaskRadius = cornerRadius
+        return maskImage
+    }
+
+    // MARK: - Shadow (Cached Shape-Based)
+
+    /// Returns cached shadow or creates one from the rounded rectangle shape.
+    /// The shadow is derived from the video SHAPE (rounded rect silhouette),
+    /// not the video content — so it's identical every frame and only computed once.
+    private func getOrCreateShadow(instruction: BackgroundCompositionInstruction) -> CIImage {
+        let shadowRadius = instruction.shadowIntensity * 40
+
+        if let cached = cachedShadowImage,
+           cachedShadowVideoSize == instruction.videoSize,
+           cachedShadowPadding == instruction.padding,
+           cachedShadowRadius == instruction.cornerRadius,
+           cachedShadowIntensity == instruction.shadowIntensity {
+            return cached
+        }
+
+        // Create an opaque rounded rectangle silhouette at the video position
+        let videoRect = CGRect(
+            x: instruction.padding,
+            y: instruction.padding,
+            width: instruction.videoSize.width,
+            height: instruction.videoSize.height
+        )
+
+        // Clamp corner radius to half the video size (no scaling needed —
+        // shadow is drawn directly at instruction.videoSize coordinates)
+        let scaledRadius = instruction.cornerRadius > 0
+            ? min(instruction.cornerRadius, min(instruction.videoSize.width, instruction.videoSize.height) / 2)
+            : 0
+
+        // Draw black rounded rect silhouette on transparent canvas
+        let canvasSize = instruction.paddedSize
+        guard let cgContext = CGContext(
+            data: nil,
+            width: Int(canvasSize.width),
+            height: Int(canvasSize.height),
+            bitsPerComponent: 8,
+            bytesPerRow: Int(canvasSize.width) * 4,
+            space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ) else {
+            return CIImage(color: .clear).cropped(to: CGRect(origin: .zero, size: canvasSize))
+        }
+
+        cgContext.clear(CGRect(origin: .zero, size: canvasSize))
+        cgContext.setFillColor(CGColor.black)
+
+        if scaledRadius > 0 {
+            let path = CGPath(
+                roundedRect: videoRect,
+                cornerWidth: scaledRadius,
+                cornerHeight: scaledRadius,
+                transform: nil
+            )
+            cgContext.addPath(path)
+        } else {
+            cgContext.addRect(videoRect)
+        }
+        cgContext.fillPath()
+
+        guard let silhouetteCGImage = cgContext.makeImage() else {
+            return CIImage(color: .clear).cropped(to: CGRect(origin: .zero, size: canvasSize))
+        }
+
+        // Blur the silhouette to create shadow, then adjust opacity
+        let silhouette = CIImage(cgImage: silhouetteCGImage)
+        let blurredShadow = silhouette
+            .applyingGaussianBlur(sigma: Double(shadowRadius))
+            .cropped(to: CGRect(origin: .zero, size: canvasSize))
+
+        let shadowWithOpacity = blurredShadow.applyingFilter(
+            "CIColorMatrix",
+            parameters: [
+                "inputAVector": CIVector(x: 0, y: 0, z: 0, w: CGFloat(instruction.shadowIntensity * 0.8)),
+            ]
+        )
+
+        // Cache the shadow — it's static for all frames
+        cachedShadowImage = shadowWithOpacity
+        cachedShadowVideoSize = instruction.videoSize
+        cachedShadowPadding = instruction.padding
+        cachedShadowRadius = instruction.cornerRadius
+        cachedShadowIntensity = instruction.shadowIntensity
+        return shadowWithOpacity
+    }
+
+    // MARK: - Background Creation (Cached)
+
+    /// Returns cached background or creates one. Gradient and solid color backgrounds
+    /// are static — no need to recreate per frame.
+    private func getOrCreateBackground(style: VideoBackgroundStyle, size: CGSize) -> CIImage {
+        let styleID = style.cacheKey
+        if let cached = cachedBackground,
+           cachedBackgroundSize == size,
+           cachedBackgroundStyleID == styleID {
+            return cached
+        }
+
+        let background = createBackground(style: style, size: size)
+        cachedBackground = background
+        cachedBackgroundSize = size
+        cachedBackgroundStyleID = styleID
+        return background
+    }
 
     private func createBackground(style: VideoBackgroundStyle, size: CGSize) -> CIImage {
         let rect = CGRect(origin: .zero, size: size)

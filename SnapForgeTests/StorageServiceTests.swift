@@ -46,7 +46,7 @@ struct StorageServiceTests {
     }
 
     @Test func defaultSaveURLIsNotEmpty() {
-        let url = sut.defaultSaveURL
+        let url = sut.resolvedSaveURL
         #expect(url.path.isEmpty == false)
     }
 
