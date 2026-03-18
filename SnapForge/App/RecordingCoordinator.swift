@@ -205,8 +205,25 @@ final class RecordingCoordinator {
         let cocoaRect = cgToCocoaRect(rect)
         let isFullscreen = (rect == NSScreen.main?.frame)
 
-        // Simple border rectangle around selected area (no dim overlay)
-        showBorderWindow(cocoaRect: cocoaRect, isPreRecord: true)
+        if !isFullscreen, let screen = NSScreen.main {
+            // Interactive region overlay — drag to move, handles to resize
+            let rState = RecordingRegionState(rect: cocoaRect)
+            rState.onRectChanged = { [weak self] newCocoaRect in
+                self?.handleRegionRectChanged(newCocoaRect)
+            }
+            rState.onCancel = { [weak self] in
+                self?.dismissRecordingIndicator()
+                self?.pendingRecordingRect = nil
+            }
+            regionState = rState
+
+            let overlay = RecordingRegionOverlayWindow(screen: screen, state: rState)
+            overlay.makeKeyAndOrderFront(nil)
+            regionOverlayWindow = overlay
+        } else {
+            // Fullscreen: simple non-interactive border
+            showBorderWindow(cocoaRect: cocoaRect, isPreRecord: true)
+        }
 
         let state = RecordingToolbarState()
         state.captureMode = isFullscreen ? .fullscreen : .area
