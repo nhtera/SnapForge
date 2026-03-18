@@ -263,6 +263,9 @@ struct VideoQuickAccessView: View {
 
     private func extractThumbnail() {
         Task {
+            let access = SandboxFileAccessManager.shared.beginAccessingURL(videoURL)
+            defer { access.stop() }
+
             let asset = AVURLAsset(url: videoURL)
             let generator = AVAssetImageGenerator(asset: asset)
             generator.appliesPreferredTrackTransform = true
@@ -304,6 +307,9 @@ struct VideoQuickAccessView: View {
         savePanel.canCreateDirectories = true
 
         guard savePanel.runModal() == .OK, let destinationURL = savePanel.url else { return }
+
+        let access = SandboxFileAccessManager.shared.beginAccessingURL(videoURL)
+        defer { access.stop() }
 
         do {
             if FileManager.default.fileExists(atPath: destinationURL.path) {

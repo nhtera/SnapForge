@@ -69,8 +69,9 @@ final class AutoRedactService: Sendable {
   /// Detect all sensitive regions in an image (runs on background thread).
   func detectSensitiveRegions(in image: NSImage) async -> [RedactRegion] {
     guard let tiffData = image.tiffRepresentation,
-          let bitmapRep = NSBitmapImageRep(data: tiffData),
-          let cgImage = bitmapRep.cgImage else {
+      let bitmapRep = NSBitmapImageRep(data: tiffData),
+      let cgImage = bitmapRep.cgImage
+    else {
       return []
     }
 
@@ -149,7 +150,7 @@ final class AutoRedactService: Sendable {
     request.recognitionLanguages = [
       "en-US", "fr-FR", "it-IT", "de-DE", "es-ES", "pt-BR",
       "zh-Hans", "zh-Hant", "ko-KR", "ja-JP",
-      "ru-RU", "uk-UA", "th-TH", "vi-VT", "ar-SA",
+      "ru-RU", "uk-UA", "th-TH", "vi-VN", "ar-SA",
     ]
     request.automaticallyDetectsLanguage = true
 

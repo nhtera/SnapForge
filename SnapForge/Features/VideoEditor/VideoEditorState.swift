@@ -16,6 +16,7 @@ final class VideoEditorState {
     let videoURL: URL
     let asset: AVURLAsset
     let player: AVPlayer
+    private let playerItem: AVPlayerItem
 
     // MARK: - Metadata
 
@@ -23,6 +24,7 @@ final class VideoEditorState {
     private(set) var naturalSize: CGSize = .zero
     private(set) var currentTime: Double = 0
     private(set) var isPlaying = false
+    private(set) var isPlayerReady = false
 
     // MARK: - Trim Range
 
@@ -165,7 +167,9 @@ final class VideoEditorState {
     init(url: URL) {
         self.videoURL = url
         self.asset = AVURLAsset(url: url)
-        self.player = AVPlayer(url: url)
+        let item = AVPlayerItem(asset: self.asset)
+        self.playerItem = item
+        self.player = AVPlayer(playerItem: item)
 
         // Cache file attributes once at init
         cachedFileAttributes = try? FileManager.default.attributesOfItem(atPath: url.path)
@@ -216,6 +220,18 @@ final class VideoEditorState {
             }
 
             recalculateEstimatedFileSize()
+
+            // Wait for player item to become ready (shares same asset, usually instant)
+            var waitAttempts = 0
+            while playerItem.status == .unknown && waitAttempts < 100 {
+                try await Task.sleep(for: .milliseconds(25))
+                waitAttempts += 1
+            }
+            isPlayerReady = playerItem.status == .readyToPlay
+
+            if !isPlayerReady {
+                print("⚠️ Player not ready: \(playerItem.error?.localizedDescription ?? "unknown")")
+            }
         } catch {
             print("⚠️ Failed to load video metadata: \(error)")
         }
@@ -252,6 +268,7 @@ final class VideoEditorState {
     // MARK: - Playback Control
 
     func play() {
+        guard isPlayerReady else { return }
         if currentTime >= trimEnd || currentTime < trimStart {
             seek(to: trimStart)
         }
@@ -277,10 +294,13 @@ final class VideoEditorState {
     func seek(to time: Double) {
         let clamped = max(trimStart, min(time, trimEnd))
         currentTime = clamped
+        guard isPlayerReady else { return }
+        // Small tolerance for reliable rendering (zero tolerance stalls on VFR recordings)
+        let tolerance = CMTime(seconds: 0.05, preferredTimescale: 600)
         player.seek(
             to: CMTime(seconds: clamped, preferredTimescale: 600),
-            toleranceBefore: .zero,
-            toleranceAfter: .zero
+            toleranceBefore: tolerance,
+            toleranceAfter: tolerance
         )
     }
 

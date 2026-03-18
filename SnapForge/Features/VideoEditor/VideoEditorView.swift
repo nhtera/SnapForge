@@ -126,8 +126,9 @@ struct VideoEditorView: View {
     private var playerSection: some View {
         GeometryReader { geo in
             let hasBackground = state.backgroundStyle != .none && state.backgroundPadding > 0
+            let hasValidSize = state.naturalSize.width > 0 && state.naturalSize.height > 0
 
-            if hasBackground {
+            if hasValidSize && hasBackground {
                 backgroundPlayerView(in: geo.size)
             } else {
                 plainPlayerView(in: geo.size)
@@ -184,18 +185,24 @@ struct VideoEditorView: View {
     }
 
     private func plainPlayerView(in containerSize: CGSize) -> some View {
-        let videoW = max(1, state.naturalSize.width)
-        let videoH = max(1, state.naturalSize.height)
-        let videoAspect = videoW / videoH
+        let videoW = state.naturalSize.width
+        let videoH = state.naturalSize.height
 
         let fitW: CGFloat
         let fitH: CGFloat
-        if containerSize.width / containerSize.height > videoAspect {
-            fitH = containerSize.height
-            fitW = fitH * videoAspect
+        if videoW > 0 && videoH > 0 {
+            let videoAspect = videoW / videoH
+            if containerSize.width / containerSize.height > videoAspect {
+                fitH = containerSize.height
+                fitW = fitH * videoAspect
+            } else {
+                fitW = containerSize.width
+                fitH = fitW / videoAspect
+            }
         } else {
+            // Before metadata loads, fill the container so the player has non-zero bounds
             fitW = containerSize.width
-            fitH = fitW / videoAspect
+            fitH = containerSize.height
         }
 
         return ZStack {
@@ -392,9 +399,14 @@ struct VideoEditorView: View {
     /// Shared export logic
     private func runExport(to outputURL: URL, onSuccess: @escaping () -> Void) {
         Task {
+            state.pause()
             state.isExporting = true
             state.exportProgress = 0
             state.exportStatusMessage = "Exporting video..."
+
+            // Ensure sandbox file access for source video during export + post-export file ops
+            let access = SandboxFileAccessManager.shared.beginAccessingURL(state.videoURL)
+            defer { access.stop() }
 
             do {
                 try await VideoEditorExporter.exportTrimmed(
