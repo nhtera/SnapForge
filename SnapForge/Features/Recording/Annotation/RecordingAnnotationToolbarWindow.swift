@@ -1,9 +1,10 @@
-import SwiftUI
 import AppKit
+import SwiftUI
 
-/// NSPanel popover hosting the annotation toolbar, anchored to the recording status bar
+/// NSWindow popover hosting the annotation toolbar, anchored to the recording status bar.
+/// Uses .popUpMenu level to stay above annotation canvas and receive clicks properly.
 @MainActor
-final class RecordingAnnotationToolbarWindow: NSPanel {
+final class RecordingAnnotationToolbarWindow: NSWindow {
     private let state: RecordingAnnotationState
     private weak var anchorWindow: NSWindow?
     private var anchorButtonCenterX: CGFloat = 0
@@ -12,19 +13,18 @@ final class RecordingAnnotationToolbarWindow: NSPanel {
         self.state = state
         super.init(
             contentRect: .zero,
-            styleMask: [.borderless, .nonactivatingPanel],
+            styleMask: [.borderless],
             backing: .buffered,
             defer: false
         )
 
-        level = .statusBar + 3
+        // Above canvas (.floating+1) — matches Snapzy
+        level = .popUpMenu
         isOpaque = false
         backgroundColor = .clear
-        isFloatingPanel = true
         hidesOnDeactivate = false
         isReleasedWhenClosed = false
-        becomesKeyOnlyIfNeeded = true
-        collectionBehavior = [.canJoinAllSpaces, .stationary]
+        collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
 
         let toolbarView = RecordingAnnotationToolbarView(state: state)
         let hostingView = FirstMouseHostingView(rootView: toolbarView)

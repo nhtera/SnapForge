@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Recording settings popover styled like Snapzy — icons, toggle switches, dark appearance
+/// Recording settings popover styled — icons, toggle switches, dark appearance
 struct RecordingOptionsPopover: View {
     @Bindable var state: RecordingToolbarState
 

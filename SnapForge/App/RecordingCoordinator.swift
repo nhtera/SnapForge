@@ -459,7 +459,8 @@ final class RecordingCoordinator {
         )
         let dimView = RecordingDimOverlayNSView(cutoutRect: cocoaRect)
         window.contentView = dimView
-        window.level = NSWindow.Level(rawValue: NSWindow.Level.statusBar.rawValue - 1)
+        // Below border (.floating) and canvas (.floating + 1); toolbars at .popUpMenu
+        window.level = NSWindow.Level(rawValue: NSWindow.Level.floating.rawValue - 1)
         window.isOpaque = false
         window.backgroundColor = .clear
         window.ignoresMouseEvents = true
@@ -480,9 +481,8 @@ final class RecordingCoordinator {
             backing: .buffered, defer: false
         )
         window.contentView = hostingView
-        // Pre-record: use .floating so popovers can appear above it
-        // Recording: use .statusBar so it stays above everything
-        window.level = isPreRecord ? .floating : .statusBar
+        // Always .floating — canvas at .floating+1 renders above, toolbars at .popUpMenu
+        window.level = .floating
         window.isOpaque = false
         window.backgroundColor = .clear
         window.ignoresMouseEvents = true

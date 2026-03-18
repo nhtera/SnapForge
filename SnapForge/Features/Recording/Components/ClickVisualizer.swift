@@ -77,8 +77,13 @@ final class ClickVisualizer {
     }
 
     private func handleMouseDown() {
+        let location = NSEvent.mouseLocation
+        // Skip click effects on toolbar windows (recording/annotation toolbars at .popUpMenu)
+        for window in NSApp.windows where window.isVisible && window.level >= .popUpMenu {
+            if window.frame.contains(location) { return }
+        }
         isMouseDown = true
-        overlayWindow?.showClickEffect(at: NSEvent.mouseLocation)
+        overlayWindow?.showClickEffect(at: location)
     }
 
     private func handleMouseUp() {

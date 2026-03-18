@@ -1,27 +1,26 @@
-import SwiftUI
 import AppKit
+import SwiftUI
 
-/// NSPanel wrapper for recording toolbars.
-/// Non-activating, accepts first mouse, optional dragging.
+/// NSWindow wrapper for recording toolbars.
+/// Uses .popUpMenu level to stay above annotation canvas and receive clicks properly.
 @MainActor
-final class RecordingToolbarWindow: NSPanel {
+final class RecordingToolbarWindow: NSWindow {
     private var contentSize: CGSize = .zero
 
     init() {
         super.init(
             contentRect: .zero,
-            styleMask: [.borderless, .nonactivatingPanel],
+            styleMask: [.borderless],
             backing: .buffered,
             defer: false
         )
-        level = .statusBar + 1
+        // Above canvas (.floating+1) and border (.floating) — matches Snapzy
+        level = .popUpMenu
         isOpaque = false
         backgroundColor = .clear
-        isFloatingPanel = true
         hidesOnDeactivate = false
         isReleasedWhenClosed = false
-        becomesKeyOnlyIfNeeded = true
-        collectionBehavior = [.canJoinAllSpaces, .stationary]
+        collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
     }
 
     /// Set the SwiftUI content and compute intrinsic size
@@ -29,7 +28,8 @@ final class RecordingToolbarWindow: NSPanel {
         isMovableByWindowBackground = draggable
 
         // Wrap content with dark material background and rounded corners in SwiftUI
-        let styledView = view
+        let styledView =
+            view
             .padding(.horizontal, 4)
             .padding(.vertical, 2)
             .background(.black.opacity(0.78), in: RoundedRectangle(cornerRadius: 12))
@@ -46,7 +46,8 @@ final class RecordingToolbarWindow: NSPanel {
     func positionBelowRect(_ cocoaRect: CGRect) {
         let size = contentSize
         let gap = RecordingToolbarConstants.toolbarGap
-        let visibleFrame = NSScreen.main?.visibleFrame ?? CGRect(x: 0, y: 0, width: 1920, height: 1080)
+        let visibleFrame =
+            NSScreen.main?.visibleFrame ?? CGRect(x: 0, y: 0, width: 1920, height: 1080)
         let minSafeY = visibleFrame.origin.y
         let maxSafeY = visibleFrame.maxY
 

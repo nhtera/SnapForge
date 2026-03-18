@@ -59,13 +59,16 @@ struct AnnotationRenderer {
       drawPath(points: points, isHighlight: annotation.type.isHighlight)
 
     case .counter(let value):
-      drawCounter(value: value, at: annotation.bounds.origin, color: annotation.properties.strokeColor)
+      drawCounter(
+        value: value, at: annotation.bounds.origin, color: annotation.properties.strokeColor)
 
     case .blur(let blurType):
-      let ps = annotation.properties.pixelSize > 0
+      let ps =
+        annotation.properties.pixelSize > 0
         ? annotation.properties.pixelSize
         : BlurEffectRenderer.defaultPixelSize
-      drawBlur(bounds: annotation.bounds, annotationId: annotation.id, blurType: blurType, pixelSize: ps)
+      drawBlur(
+        bounds: annotation.bounds, annotationId: annotation.id, blurType: blurType, pixelSize: ps)
 
     case .text(let content):
       drawText(content, in: annotation.bounds, properties: annotation.properties)
@@ -88,6 +91,7 @@ struct AnnotationRenderer {
     context.setStrokeColor(NSColor(strokeColor).cgColor)
     context.setLineWidth(strokeWidth)
     context.setLineCap(.round)
+    context.setLineJoin(.round)
 
     switch tool {
     case .pencil, .highlighter:
@@ -142,11 +146,10 @@ struct AnnotationRenderer {
 
   // MARK: - Private Drawing Helpers
 
-  private func drawPath(points: [CGPoint], isHighlight: Bool, strokeWidth: CGFloat = 3) {
+  private func drawPath(points: [CGPoint], isHighlight: Bool) {
     guard points.count > 1 else { return }
     if isHighlight {
       context.setAlpha(0.4)
-      context.setLineWidth(strokeWidth * 3)
     }
     context.move(to: points[0])
     for point in points.dropFirst() {
@@ -293,25 +296,28 @@ struct AnnotationRenderer {
     )
   }
 
-  private func drawBlur(bounds: CGRect, annotationId: UUID, blurType: BlurType, pixelSize: CGFloat) {
+  private func drawBlur(bounds: CGRect, annotationId: UUID, blurType: BlurType, pixelSize: CGFloat)
+  {
     // Skip zero-size regions
     guard bounds.width > 0, bounds.height > 0 else { return }
 
     guard let sourceImage else {
-      print("⚠️ Blur fallback: sourceImage is nil for annotation \(annotationId) — content will appear lost")
+      print(
+        "⚠️ Blur fallback: sourceImage is nil for annotation \(annotationId) — content will appear lost"
+      )
       BlurEffectRenderer.drawFallback(in: context, region: bounds)
       return
     }
 
     // Try cached version first for performance
     if let cacheManager = blurCacheManager,
-       let cachedImage = cacheManager.getCachedBlur(
-         for: annotationId,
-         bounds: bounds,
-         sourceImage: sourceImage,
-         blurType: blurType,
-         pixelSize: pixelSize
-       )
+      let cachedImage = cacheManager.getCachedBlur(
+        for: annotationId,
+        bounds: bounds,
+        sourceImage: sourceImage,
+        blurType: blurType,
+        pixelSize: pixelSize
+      )
     {
       context.draw(cachedImage, in: bounds)
       return
@@ -336,7 +342,9 @@ struct AnnotationRenderer {
   }
 
   /// Draw blur preview during drag operation
-  func drawBlurPreview(start: CGPoint, currentPoint: CGPoint, strokeColor: Color, blurType: BlurType) {
+  func drawBlurPreview(
+    start: CGPoint, currentPoint: CGPoint, strokeColor: Color, blurType: BlurType
+  ) {
     let rect = makeRect(from: start, to: currentPoint)
     guard rect.width > 0, rect.height > 0 else { return }
 
@@ -368,10 +376,12 @@ struct AnnotationRenderer {
 
   private func drawSticker(_ sticker: StickerItem, in bounds: CGRect, color: Color) {
     let config = NSImage.SymbolConfiguration(pointSize: bounds.height * 0.8, weight: .regular)
-    guard let symbolImage = NSImage(
-      systemSymbolName: sticker.symbol,
-      accessibilityDescription: sticker.name
-    )?.withSymbolConfiguration(config) else { return }
+    guard
+      let symbolImage = NSImage(
+        systemSymbolName: sticker.symbol,
+        accessibilityDescription: sticker.name
+      )?.withSymbolConfiguration(config)
+    else { return }
 
     // Tint the symbol with the annotation color
     let tintedImage = NSImage(size: bounds.size, flipped: false) { drawRect in

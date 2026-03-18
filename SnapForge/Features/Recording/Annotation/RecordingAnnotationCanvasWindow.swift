@@ -19,14 +19,15 @@ final class RecordingAnnotationCanvasWindow: NSWindow {
         )
 
         contentView = canvasView
-        level = .statusBar
+        // Between border (.floating) and toolbars (.popUpMenu) — matches Snapzy
+        level = NSWindow.Level(rawValue: NSWindow.Level.floating.rawValue + 1)
         isOpaque = false
         backgroundColor = .clear
         hasShadow = false
         // Start click-through; enable when drawing tool selected
         ignoresMouseEvents = true
         isReleasedWhenClosed = false
-        collectionBehavior = [.canJoinAllSpaces, .stationary]
+        collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
 
         // Observe tool changes to toggle mouse event handling
         observerTask = Task { [weak self] in
@@ -35,8 +36,12 @@ final class RecordingAnnotationCanvasWindow: NSWindow {
                 let tool = state.selectedTool
                 if tool != lastTool {
                     lastTool = tool
-                    // Selection mode = click-through; drawing tools = accept mouse
-                    self?.ignoresMouseEvents = (tool == .selection)
+                    let isSelection = (tool == .selection)
+                    self?.ignoresMouseEvents = isSelection
+                    if !isSelection {
+                        self?.makeKeyAndOrderFront(nil)
+                        self?.makeFirstResponder(self?.canvasView)
+                    }
                 }
                 try? await Task.sleep(for: .milliseconds(50))
             }
@@ -44,6 +49,7 @@ final class RecordingAnnotationCanvasWindow: NSWindow {
     }
 
     override var canBecomeKey: Bool { true }
+    override var canBecomeMain: Bool { false }
 
     override func close() {
         observerTask?.cancel()
