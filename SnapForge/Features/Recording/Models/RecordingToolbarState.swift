@@ -39,6 +39,9 @@ final class RecordingToolbarState {
     var showKeystrokes: Bool {
         didSet { guard !isReloading else { return }; UserDefaults.standard.set(showKeystrokes, forKey: SettingsKey.showKeystrokes) }
     }
+    var webcamEnabled: Bool {
+        didSet { guard !isReloading else { return }; UserDefaults.standard.set(webcamEnabled, forKey: SettingsKey.webcamEnabled) }
+    }
 
     /// Callback when capture mode changes (area/fullscreen)
     var onCaptureModeChanged: ((RecordingMode) -> Void)?
@@ -58,6 +61,7 @@ final class RecordingToolbarState {
         videoQuality = VideoQuality(rawValue: qualRaw) ?? .high
         highlightClicks = defaults.bool(forKey: SettingsKey.highlightClicks)
         showKeystrokes = defaults.bool(forKey: SettingsKey.showKeystrokes)
+        webcamEnabled = defaults.bool(forKey: SettingsKey.webcamEnabled)
     }
 
     /// Re-read all persistent properties from UserDefaults (for sync with Settings window)
@@ -74,5 +78,31 @@ final class RecordingToolbarState {
         isMicEnabled = defaults.bool(forKey: SettingsKey.recordingMicEnabled)
         highlightClicks = defaults.bool(forKey: SettingsKey.highlightClicks)
         showKeystrokes = defaults.bool(forKey: SettingsKey.showKeystrokes)
+        webcamEnabled = defaults.bool(forKey: SettingsKey.webcamEnabled)
+    }
+
+    /// Apply all settings from a preset
+    func applyPreset(_ preset: RecordingPreset) {
+        isReloading = true
+        defer { isReloading = false }
+        outputMode = RecordingOutputMode(rawValue: preset.outputMode) ?? .video
+        videoFormat = VideoFormat(rawValue: preset.videoFormat) ?? .mov
+        videoQuality = VideoQuality(rawValue: preset.videoQuality) ?? .high
+        isSystemAudioEnabled = preset.systemAudio
+        isMicEnabled = preset.microphone
+        highlightClicks = preset.highlightClicks
+        showKeystrokes = preset.showKeystrokes
+        webcamEnabled = preset.webcamEnabled
+
+        // Persist all values at once after defer releases isReloading
+        let ud = UserDefaults.standard
+        ud.set(outputMode.rawValue, forKey: SettingsKey.recordingOutputMode)
+        ud.set(videoFormat.rawValue, forKey: SettingsKey.recordingVideoFormat)
+        ud.set(videoQuality.rawValue, forKey: SettingsKey.recordingVideoQuality)
+        ud.set(isSystemAudioEnabled, forKey: SettingsKey.recordingSystemAudioEnabled)
+        ud.set(isMicEnabled, forKey: SettingsKey.recordingMicEnabled)
+        ud.set(highlightClicks, forKey: SettingsKey.highlightClicks)
+        ud.set(showKeystrokes, forKey: SettingsKey.showKeystrokes)
+        ud.set(webcamEnabled, forKey: SettingsKey.webcamEnabled)
     }
 }

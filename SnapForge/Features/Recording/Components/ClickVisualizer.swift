@@ -27,7 +27,8 @@ final class ClickVisualizer {
         guard !isActive else { return }
         isActive = true
 
-        let window = ClickHighlightOverlayWindow(recordingRect: recordingRect)
+        let config = ClickHighlightConfiguration()
+        let window = ClickHighlightOverlayWindow(recordingRect: recordingRect, config: config)
         window.orderFrontRegardless()
         overlayWindow = window
 
@@ -105,8 +106,10 @@ final class ClickVisualizer {
 @MainActor
 private final class ClickHighlightOverlayWindow: NSWindow {
     private var holdCircleView: ClickHoldCircleView?
+    private let config: ClickHighlightConfiguration
 
-    init(recordingRect: CGRect) {
+    init(recordingRect: CGRect, config: ClickHighlightConfiguration) {
+        self.config = config
         super.init(contentRect: recordingRect, styleMask: .borderless, backing: .buffered, defer: false)
         isOpaque = false
         backgroundColor = .clear
@@ -120,7 +123,6 @@ private final class ClickHighlightOverlayWindow: NSWindow {
     override var canBecomeKey: Bool { false }
     override var canBecomeMain: Bool { false }
 
-    /// Convert screen point to window-local view coordinates
     private func viewPoint(from screenPoint: NSPoint) -> NSPoint {
         convertPoint(fromScreen: screenPoint)
     }
@@ -129,16 +131,24 @@ private final class ClickHighlightOverlayWindow: NSWindow {
         guard let contentView else { return }
         let pt = viewPoint(from: screenPoint)
 
-        // Filled ripple effect (original SnapForge style)
-        let ripple = ClickRippleView(center: pt)
-        contentView.addSubview(ripple)
-        ripple.animateExpandAndFade { [weak ripple] in
-            ripple?.removeFromSuperview()
+        // Spawn ripple(s) with staggered delays
+        for i in 0..<config.rippleCount {
+            let delay = Double(i) * 0.08
+            let ripple = ClickRippleView(center: pt, config: config)
+            contentView.addSubview(ripple)
+            if delay > 0 {
+                Task { @MainActor in
+                    try? await Task.sleep(for: .seconds(delay))
+                    ripple.animateExpandAndFade { [weak ripple] in ripple?.removeFromSuperview() }
+                }
+            } else {
+                ripple.animateExpandAndFade { [weak ripple] in ripple?.removeFromSuperview() }
+            }
         }
 
         // Persistent hold circle while mouse is held
         holdCircleView?.removeFromSuperview()
-        let hold = ClickHoldCircleView(center: pt)
+        let hold = ClickHoldCircleView(center: pt, config: config)
         contentView.addSubview(hold)
         hold.animateIn()
         holdCircleView = hold
@@ -156,41 +166,43 @@ private final class ClickHighlightOverlayWindow: NSWindow {
     }
 }
 
-// MARK: - Ripple View (Original SnapForge Style)
+// MARK: - Ripple View (Configurable)
 
 /// Filled circle with stroke border + center dot that expands and fades.
 private final class ClickRippleView: NSView {
     private let container = CALayer()
-    private static let diameter: CGFloat = 44
-    private static let color = NSColor.systemYellow
+    private let config: ClickHighlightConfiguration
 
-    init(center: NSPoint) {
-        let size = Self.diameter
+    init(center: NSPoint, config: ClickHighlightConfiguration) {
+        self.config = config
+        let size = config.highlightSize
         let frame = CGRect(x: center.x - size / 2, y: center.y - size / 2, width: size, height: size)
         super.init(frame: frame)
         wantsLayer = true
 
-        // Container with center anchor for proper scale animation
         container.frame = bounds
         container.anchorPoint = CGPoint(x: 0.5, y: 0.5)
         container.position = CGPoint(x: bounds.midX, y: bounds.midY)
+
+        let color = config.highlightColor
+        let opacity = CGFloat(config.highlightOpacity)
 
         // Outer filled circle with stroke
         let circleLayer = CAShapeLayer()
         let circleRect = bounds.insetBy(dx: 4, dy: 4)
         circleLayer.path = CGPath(ellipseIn: circleRect, transform: nil)
-        circleLayer.fillColor = Self.color.withAlphaComponent(0.2).cgColor
-        circleLayer.strokeColor = Self.color.withAlphaComponent(0.7).cgColor
+        circleLayer.fillColor = color.withAlphaComponent(0.2 * opacity).cgColor
+        circleLayer.strokeColor = color.withAlphaComponent(0.7 * opacity).cgColor
         circleLayer.lineWidth = 2.5
         container.addSublayer(circleLayer)
 
         // Center dot
-        let dotSize: CGFloat = 10
+        let dotSize: CGFloat = max(8, size * 0.22)
         let dotRect = CGRect(x: bounds.midX - dotSize / 2, y: bounds.midY - dotSize / 2,
                              width: dotSize, height: dotSize)
         let dotLayer = CAShapeLayer()
         dotLayer.path = CGPath(ellipseIn: dotRect, transform: nil)
-        dotLayer.fillColor = Self.color.withAlphaComponent(0.85).cgColor
+        dotLayer.fillColor = color.withAlphaComponent(0.85 * opacity).cgColor
         container.addSublayer(dotLayer)
 
         layer?.addSublayer(container)
@@ -202,21 +214,22 @@ private final class ClickRippleView: NSView {
         CATransaction.begin()
         CATransaction.setCompletionBlock(completion)
 
-        // Scale: small → full
+        let expandDuration = config.animationDuration * 0.6
+        let totalDuration = config.animationDuration
+
         let scaleAnim = CABasicAnimation(keyPath: "transform.scale")
         scaleAnim.fromValue = 0.3
         scaleAnim.toValue = 1.0
-        scaleAnim.duration = 0.3
+        scaleAnim.duration = expandDuration
         scaleAnim.timingFunction = CAMediaTimingFunction(name: .easeOut)
         scaleAnim.fillMode = .forwards
         scaleAnim.isRemovedOnCompletion = false
         container.add(scaleAnim, forKey: "expand")
 
-        // Opacity: appear then fade out
         let opacityAnim = CAKeyframeAnimation(keyPath: "opacity")
         opacityAnim.values = [1.0, 1.0, 0.0]
         opacityAnim.keyTimes = [0, 0.5, 1.0]
-        opacityAnim.duration = 0.5
+        opacityAnim.duration = totalDuration
         opacityAnim.timingFunction = CAMediaTimingFunction(name: .easeOut)
         opacityAnim.fillMode = .forwards
         opacityAnim.isRemovedOnCompletion = false
@@ -226,17 +239,17 @@ private final class ClickRippleView: NSView {
     }
 }
 
-// MARK: - Hold Circle View
+// MARK: - Hold Circle View (Configurable)
 
 /// Persistent filled circle that follows cursor while mouse is held down.
 private final class ClickHoldCircleView: NSView {
     private let container = CALayer()
-    private static let diameter: CGFloat = 30
-    private static let color = NSColor.systemYellow
+    private let diameter: CGFloat
 
-    init(center: NSPoint) {
-        let size = Self.diameter
-        let frame = CGRect(x: center.x - size / 2, y: center.y - size / 2, width: size, height: size)
+    init(center: NSPoint, config: ClickHighlightConfiguration) {
+        self.diameter = config.holdCircleSize
+        let frame = CGRect(x: center.x - diameter / 2, y: center.y - diameter / 2,
+                           width: diameter, height: diameter)
         super.init(frame: frame)
         wantsLayer = true
 
@@ -245,12 +258,14 @@ private final class ClickHoldCircleView: NSView {
         container.position = CGPoint(x: bounds.midX, y: bounds.midY)
         container.opacity = 0
 
-        // Filled circle with subtle stroke
+        let color = config.highlightColor
+        let opacity = CGFloat(config.highlightOpacity)
+
         let circleLayer = CAShapeLayer()
         let circleRect = bounds.insetBy(dx: 2, dy: 2)
         circleLayer.path = CGPath(ellipseIn: circleRect, transform: nil)
-        circleLayer.fillColor = Self.color.withAlphaComponent(0.15).cgColor
-        circleLayer.strokeColor = Self.color.withAlphaComponent(0.5).cgColor
+        circleLayer.fillColor = color.withAlphaComponent(0.15 * opacity).cgColor
+        circleLayer.strokeColor = color.withAlphaComponent(0.5 * opacity).cgColor
         circleLayer.lineWidth = 2
         container.addSublayer(circleLayer)
 
@@ -262,8 +277,8 @@ private final class ClickHoldCircleView: NSView {
     func updateCenter(_ point: NSPoint) {
         CATransaction.begin()
         CATransaction.setDisableActions(true)
-        frame = CGRect(x: point.x - Self.diameter / 2, y: point.y - Self.diameter / 2,
-                       width: Self.diameter, height: Self.diameter)
+        frame = CGRect(x: point.x - diameter / 2, y: point.y - diameter / 2,
+                       width: diameter, height: diameter)
         CATransaction.commit()
     }
 

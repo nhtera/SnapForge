@@ -107,6 +107,12 @@ struct RecordingAnnotationToolbarView: View {
                     .onTapGesture { state.strokeColor = color }
                     .accessibilityLabel("Color: \(color.description)")
             }
+
+            // Custom color picker
+            ColorPicker("", selection: $state.strokeColor, supportsOpacity: false)
+                .labelsHidden()
+                .frame(width: 16, height: 16)
+                .accessibilityLabel("Custom color")
         }
     }
 

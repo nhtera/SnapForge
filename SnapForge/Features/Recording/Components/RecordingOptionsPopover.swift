@@ -42,36 +42,54 @@ struct RecordingOptionsPopover: View {
                 }
             }
 
-            Divider().padding(.vertical, 8)
+            Divider().padding(.vertical, 10)
 
             // Audio section
             SettingsSection(title: "Audio", icon: "speaker.wave.2") {
                 VStack(spacing: 8) {
-                    Toggle("System Audio", isOn: $state.isSystemAudioEnabled)
-                        .toggleStyle(.switch)
-                        .controlSize(.small)
-                    Toggle("Microphone", isOn: $state.isMicEnabled)
-                        .toggleStyle(.switch)
-                        .controlSize(.small)
+                    Toggle(isOn: $state.isSystemAudioEnabled) {
+                        Label("System Audio", systemImage: "speaker.wave.2")
+                            .font(.system(size: 12))
+                    }
+                    .toggleStyle(.switch)
+                    .controlSize(.small)
+                    Toggle(isOn: $state.isMicEnabled) {
+                        Label("Microphone", systemImage: "mic")
+                            .font(.system(size: 12))
+                    }
+                    .toggleStyle(.switch)
+                    .controlSize(.small)
                 }
             }
 
-            Divider().padding(.vertical, 8)
+            Divider().padding(.vertical, 10)
 
             // Overlays section
             SettingsSection(title: "Overlays", icon: "square.3.layers.3d") {
                 VStack(spacing: 8) {
-                    Toggle("Highlight Clicks", isOn: $state.highlightClicks)
-                        .toggleStyle(.switch)
-                        .controlSize(.small)
-                    Toggle("Show Keystrokes", isOn: $state.showKeystrokes)
-                        .toggleStyle(.switch)
-                        .controlSize(.small)
+                    Toggle(isOn: $state.highlightClicks) {
+                        Label("Highlight Clicks", systemImage: "cursorarrow.click.2")
+                            .font(.system(size: 12))
+                    }
+                    .toggleStyle(.switch)
+                    .controlSize(.small)
+                    Toggle(isOn: $state.showKeystrokes) {
+                        Label("Show Keystrokes", systemImage: "keyboard")
+                            .font(.system(size: 12))
+                    }
+                    .toggleStyle(.switch)
+                    .controlSize(.small)
+                    Toggle(isOn: $state.webcamEnabled) {
+                        Label("Webcam Overlay", systemImage: "web.camera")
+                            .font(.system(size: 12))
+                    }
+                    .toggleStyle(.switch)
+                    .controlSize(.small)
                 }
             }
         }
-        .padding(14)
-        .frame(width: 240)
+        .padding(16)
+        .frame(width: 260)
         .font(.system(size: 12))
         .tint(.accentColor)
         .modifier(ForceDarkAppearance())

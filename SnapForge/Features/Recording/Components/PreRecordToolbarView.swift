@@ -45,10 +45,23 @@ struct PreRecordToolbarView: View {
             // Mic toggle
             RecordingMicToggleButton(state: state)
 
+            // Webcam toggle
+            RecordingToolbarIconButton(
+                systemName: state.webcamEnabled ? "web.camera.fill" : "web.camera",
+                action: { state.webcamEnabled.toggle() },
+                accessibilityLabel: state.webcamEnabled ? "Disable webcam" : "Enable webcam",
+                isSelected: state.webcamEnabled
+            )
+
             RecordingToolbarDivider()
 
             // Aspect ratio + size presets
             RecordingAspectRatioMenu(toolbarState: state)
+
+            RecordingToolbarDivider()
+
+            // Presets
+            RecordingPresetMenu(state: state)
 
             RecordingToolbarDivider()
 
@@ -68,17 +81,17 @@ struct PreRecordToolbarView: View {
             state.showOptionsPopover.toggle()
         } label: {
             HStack(spacing: 4) {
-                Text("Options")
+                Image(systemName: "gearshape")
                     .font(.system(size: 12))
                 Image(systemName: "chevron.down")
-                    .font(.system(size: 8, weight: .bold))
+                    .font(.system(size: 7, weight: .bold))
             }
             .foregroundStyle(.white.opacity(0.85))
-            .padding(.horizontal, 8)
-            .padding(.vertical, 6)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 7)
             .background(
                 RoundedRectangle(cornerRadius: 6)
-                    .fill(.white.opacity(isOptionsHovered || state.showOptionsPopover ? 0.1 : 0))
+                    .fill(.white.opacity(isOptionsHovered || state.showOptionsPopover ? 0.12 : 0.04))
             )
             .contentShape(Rectangle())
         }

@@ -37,6 +37,19 @@ struct RecordingGeneralSubTab: View {
     @AppStorage("recordingTimerLimit") private var timerLimit = 0
     @AppStorage("autoOpenRecording") private var autoOpen = false
     @AppStorage("autoCopyRecording") private var autoCopy = false
+    @AppStorage("regionSnappingEnabled") private var snapEnabled = true
+    @AppStorage("recordingBorderStyle") private var borderStyle = "solid"
+
+    // Click highlight settings
+    @AppStorage("clickHighlightSize") private var clickSize: Double = 44
+    @AppStorage("clickHighlightRippleCount") private var clickRipples = 1
+    @AppStorage("clickHighlightOpacity") private var clickOpacity: Double = 0.7
+    @AppStorage("clickHighlightAnimationDuration") private var clickDuration: Double = 0.5
+
+    // Keystroke overlay settings
+    @AppStorage("keystrokeFontSize") private var keystrokeFontSize: Double = 22
+    @AppStorage("keystrokePosition") private var keystrokePosition = "bottomCenter"
+    @AppStorage("keystrokeDisplayDuration") private var keystrokeDuration: Double = 1.5
 
     var body: some View {
         Form {
@@ -49,14 +62,29 @@ struct RecordingGeneralSubTab: View {
                 Toggle("Show cursor", isOn: $showCursor)
                 Toggle("Highlight clicks", isOn: $highlightClicks)
                     .disabled(!showCursor)
+
+                if highlightClicks && showCursor {
+                    clickHighlightSettings
+                }
             }
 
             Section("Keyboard") {
                 Toggle("Show keystrokes", isOn: $showKeystrokes)
+
+                if showKeystrokes {
+                    keystrokeSettings
+                }
             }
 
             Section("Recording Area") {
                 Toggle("Dim screen while recording", isOn: $dimScreen)
+                Toggle("Snap to window edges", isOn: $snapEnabled)
+
+                Picker("Border Style", selection: $borderStyle) {
+                    ForEach(RecordingBorderStyle.allCases) { style in
+                        Text(style.displayName).tag(style.rawValue)
+                    }
+                }
 
                 Picker("Countdown", selection: $countdownSeconds) {
                     Text("None").tag(0)
@@ -80,6 +108,61 @@ struct RecordingGeneralSubTab: View {
             }
         }
         .formStyle(.grouped)
+    }
+
+    // MARK: - Click Highlight Sub-Settings
+
+    private var clickHighlightSettings: some View {
+        Group {
+            HStack {
+                Text("Size")
+                Slider(value: $clickSize, in: 20...100, step: 2)
+                Text("\(Int(clickSize))px")
+                    .font(.system(.body, design: .monospaced))
+                    .frame(width: 48, alignment: .trailing)
+            }
+            Stepper("Ripple Count: \(clickRipples)", value: $clickRipples, in: 1...5)
+            HStack {
+                Text("Opacity")
+                Slider(value: $clickOpacity, in: 0.2...1.0, step: 0.1)
+                Text("\(Int(clickOpacity * 100))%")
+                    .font(.system(.body, design: .monospaced))
+                    .frame(width: 40, alignment: .trailing)
+            }
+            HStack {
+                Text("Duration")
+                Slider(value: $clickDuration, in: 0.3...2.0, step: 0.1)
+                Text("\(String(format: "%.1f", clickDuration))s")
+                    .font(.system(.body, design: .monospaced))
+                    .frame(width: 36, alignment: .trailing)
+            }
+        }
+    }
+
+    // MARK: - Keystroke Overlay Sub-Settings
+
+    private var keystrokeSettings: some View {
+        Group {
+            HStack {
+                Text("Font Size")
+                Slider(value: $keystrokeFontSize, in: 12...32, step: 2)
+                Text("\(Int(keystrokeFontSize))pt")
+                    .font(.system(.body, design: .monospaced))
+                    .frame(width: 40, alignment: .trailing)
+            }
+            Picker("Position", selection: $keystrokePosition) {
+                ForEach(KeystrokeOverlayPosition.allCases) { pos in
+                    Text(pos.displayName).tag(pos.rawValue)
+                }
+            }
+            HStack {
+                Text("Display Duration")
+                Slider(value: $keystrokeDuration, in: 0.5...3.0, step: 0.5)
+                Text("\(String(format: "%.1f", keystrokeDuration))s")
+                    .font(.system(.body, design: .monospaced))
+                    .frame(width: 36, alignment: .trailing)
+            }
+        }
     }
 }
 

@@ -18,10 +18,9 @@ xcodebuild -project SnapForge.xcodeproj -scheme SnapForge -configuration Release
   CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO \
   ONLY_ACTIVE_ARCH=NO build
 
-# Run tests
+# Run tests (don't override code signing — UI tests need matching team IDs)
 xcodebuild -project SnapForge.xcodeproj -scheme SnapForgeTests -configuration Debug \
   -derivedDataPath build/DerivedData \
-  CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO \
   test
 
 # Build DMG for distribution

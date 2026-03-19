@@ -52,11 +52,21 @@ struct RecordingStatusBarView: View {
 
                 if UserDefaults.standard.bool(forKey: SettingsKey.showRecordingTimer) {
                     Text(recorder.formattedDuration)
-                        .font(.system(size: 12, weight: .medium, design: .monospaced))
+                        .font(.system(size: 13, weight: .semibold, design: .monospaced))
                         .foregroundStyle(.white)
-                        .frame(minWidth: 40)
+                        .frame(minWidth: 44)
                         .contentTransition(.numericText())
                         .animation(.linear(duration: 0.2), value: recorder.formattedDuration)
+                }
+
+                // Paused badge
+                if recorder.isPaused {
+                    Text("PAUSED")
+                        .font(.system(size: 8, weight: .bold))
+                        .foregroundStyle(.orange)
+                        .padding(.horizontal, 4)
+                        .padding(.vertical, 1)
+                        .background(.orange.opacity(0.15), in: RoundedRectangle(cornerRadius: 3))
                 }
 
                 // Resolution label
@@ -66,21 +76,27 @@ struct RecordingStatusBarView: View {
                         .foregroundStyle(.white.opacity(0.3))
                 }
 
-                // FPS indicator — colored dot signals health, exact number on hover
+                // FPS indicator — colored dot + value, exact number on hover
                 HStack(spacing: 3) {
                     Circle()
                         .fill(fpsIndicatorColor)
-                        .frame(width: 6, height: 6)
-                    Text("fps")
-                        .font(.system(size: 8, design: .monospaced))
-                        .foregroundStyle(.white.opacity(0.25))
+                        .frame(width: 7, height: 7)
+                    if recorder.currentFPS > 0 {
+                        Text("\(recorder.currentFPS)")
+                            .font(.system(size: 9, weight: .medium, design: .monospaced))
+                            .foregroundStyle(fpsIndicatorColor)
+                    } else {
+                        Text("fps")
+                            .font(.system(size: 8, design: .monospaced))
+                            .foregroundStyle(.white.opacity(0.25))
+                    }
                 }
                 .help(recorder.currentFPS > 0 ? "\(recorder.currentFPS) fps" : "Measuring…")
 
                 RecordingAudioLevelIndicator()
             }
             .padding(.horizontal, 8)
-            .opacity(recorder.isPaused ? 0.5 : 1.0)
+            .opacity(recorder.isPaused ? 0.4 : 1.0)
             .animation(.easeInOut(duration: 0.3), value: recorder.isPaused)
 
             RecordingToolbarDivider()

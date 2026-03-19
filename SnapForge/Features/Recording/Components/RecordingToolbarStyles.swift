@@ -40,6 +40,7 @@ struct TextToolbarButtonStyle: ButtonStyle {
             .padding(.horizontal, 12)
             .padding(.vertical, 6)
             .background(backgroundColor.opacity(configuration.isPressed ? 0.7 : 1.0), in: RoundedRectangle(cornerRadius: 6))
+            .scaleEffect(configuration.isPressed ? 0.95 : 1.0)
             .animation(RecordingToolbarConstants.hoverAnimation, value: configuration.isPressed)
     }
 }

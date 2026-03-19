@@ -7,6 +7,8 @@ final class RecordingRegionOverlayView: NSView {
     private let state: RecordingRegionState
     private var dragStartPoint: CGPoint = .zero
     private var dragStartRect: CGRect = .zero
+    private let snapService = RecordingRegionSnapService()
+    private var snapGuides: [RecordingRegionSnapService.SnapGuideLine] = []
 
     init(state: RecordingRegionState) {
         self.state = state
@@ -123,6 +125,24 @@ final class RecordingRegionOverlayView: NSView {
         ctx.fillPath()
 
         label.draw(at: NSPoint(x: labelX, y: labelY), withAttributes: attrs)
+
+        // Draw snap guide lines (thin blue dashed lines)
+        if !snapGuides.isEmpty {
+            ctx.setStrokeColor(NSColor.systemBlue.withAlphaComponent(0.5).cgColor)
+            ctx.setLineWidth(1)
+            ctx.setLineDash(phase: 0, lengths: [4, 4])
+            for guide in snapGuides {
+                switch guide.orientation {
+                case .vertical:
+                    ctx.move(to: CGPoint(x: guide.position, y: bounds.minY))
+                    ctx.addLine(to: CGPoint(x: guide.position, y: bounds.maxY))
+                case .horizontal:
+                    ctx.move(to: CGPoint(x: bounds.minX, y: guide.position))
+                    ctx.addLine(to: CGPoint(x: bounds.maxX, y: guide.position))
+                }
+                ctx.strokePath()
+            }
+        }
     }
 
     // MARK: - Mouse Events
@@ -135,6 +155,9 @@ final class RecordingRegionOverlayView: NSView {
             state.onDoubleClick?()
             return
         }
+
+        // Cache window frames at drag start for snap service
+        snapService.beginDragSession()
 
         // Hit-test handles first
         for handle in RecordingResizeHandle.allCases {
@@ -194,6 +217,11 @@ final class RecordingRegionOverlayView: NSView {
             if r.width < minSize { r.size.width = minSize }
             if r.height < minSize { r.size.height = minSize }
 
+            // Apply snap-to guides for resizing
+            let snapResult = snapService.snap(proposedRect: r, isResizing: true)
+            r = snapResult.adjustedRect
+            snapGuides = snapResult.guideLines
+
             state.rect = r
             state.onRectChanged?(r)
             needsDisplay = true
@@ -202,6 +230,12 @@ final class RecordingRegionOverlayView: NSView {
             // Clamp to bounds
             r.origin.x = max(bounds.minX, min(r.origin.x, bounds.maxX - r.width))
             r.origin.y = max(bounds.minY, min(r.origin.y, bounds.maxY - r.height))
+
+            // Apply snap-to guides for dragging
+            let snapResult = snapService.snap(proposedRect: r, isResizing: false)
+            r = snapResult.adjustedRect
+            snapGuides = snapResult.guideLines
+
             state.rect = r
             state.onRectChanged?(r)
             needsDisplay = true
@@ -212,6 +246,8 @@ final class RecordingRegionOverlayView: NSView {
         state.isDragging = false
         state.isResizing = false
         state.activeHandle = nil
+        snapGuides = []
+        needsDisplay = true
     }
 
     override func mouseMoved(with event: NSEvent) {

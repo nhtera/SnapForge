@@ -38,6 +38,9 @@ final class RecordingCoordinator {
     private let annotationManager = RecordingAnnotationManager()
     var annotationState: RecordingAnnotationState? { annotationManager.annotationState }
 
+    // MARK: - Webcam Overlay
+    private var webcamManager: WebcamOverlayManager?
+
     // MARK: - Phase 3 Region Overlay
     private var regionOverlayWindow: RecordingRegionOverlayWindow?
     private var regionState: RecordingRegionState?
@@ -79,6 +82,8 @@ final class RecordingCoordinator {
         AppEnvironment.shared.isRecording = false
         ClickVisualizer.shared.stop()
         KeystrokeVisualizer.shared.stop()
+        webcamManager?.hide()
+        webcamManager = nil
         dismissRecordingIndicator()
 
         guard let savedURL else {
@@ -416,6 +421,13 @@ final class RecordingCoordinator {
                 KeystrokeVisualizer.shared.start()
             }
 
+            // Start webcam overlay if enabled
+            if toolbarState?.webcamEnabled ?? defaults.bool(forKey: SettingsKey.webcamEnabled) {
+                let manager = WebcamOverlayManager()
+                manager.show()
+                webcamManager = manager
+            }
+
             // Save last recording area (dictionary format for readability)
             let areaDict: [String: Double] = [
                 "x": rect.origin.x, "y": rect.origin.y,
@@ -562,7 +574,10 @@ final class RecordingCoordinator {
 
     private func showBorderWindow(cocoaRect: CGRect, isPreRecord: Bool) {
         recordingBorderWindow?.close()
-        let borderView = RecordingBorderView(isPreRecord: isPreRecord)
+        let borderConfig = isPreRecord ? nil : RecordingBorderConfiguration()
+        // Skip border window entirely if style is .none during active recording
+        if !isPreRecord, let config = borderConfig, config.style == .none { return }
+        let borderView = RecordingBorderView(isPreRecord: isPreRecord, borderConfig: borderConfig)
         let hostingView = NSHostingView(rootView: borderView)
         let window = NSWindow(
             contentRect: cocoaRect, styleMask: .borderless,

@@ -72,6 +72,31 @@ enum SettingsKey {
     static let annotationShortcutModifier = "annotationShortcutModifier"
     static let annotationShortcutHoldDuration = "annotationShortcutHoldDuration"
 
+    // Click Highlight Customization
+    static let clickHighlightSize = "clickHighlightSize"
+    static let clickHighlightRippleCount = "clickHighlightRippleCount"
+    static let clickHighlightOpacity = "clickHighlightOpacity"
+    static let clickHighlightColor = "clickHighlightColor"
+    static let clickHighlightAnimationDuration = "clickHighlightAnimationDuration"
+
+    // Keystroke Overlay Customization
+    static let keystrokeFontSize = "keystrokeFontSize"
+    static let keystrokePosition = "keystrokePosition"
+    static let keystrokeDisplayDuration = "keystrokeDisplayDuration"
+
+    // Webcam Overlay
+    static let webcamEnabled = "webcamEnabled"
+
+    // Recording Border
+    static let recordingBorderStyle = "recordingBorderStyle"
+    static let recordingBorderColor = "recordingBorderColor"
+
+    // Region Snapping
+    static let regionSnappingEnabled = "regionSnappingEnabled"
+
+    // Recording Presets
+    static let recordingPresets = "recordingPresets"
+
     // Color Picker
     static let colorPickerCopyFormat = "colorPickerCopyFormat"
 

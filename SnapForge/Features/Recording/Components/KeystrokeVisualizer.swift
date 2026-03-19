@@ -2,7 +2,7 @@ import AppKit
 import SwiftUI
 
 /// Displays a floating keystroke overlay during recording.
-/// Similar to ClickVisualizer but for keyboard input.
+/// Configurable font size, position, and display duration via KeystrokeOverlayConfiguration.
 /// Requires Accessibility permissions (AXIsProcessTrusted).
 @MainActor
 final class KeystrokeVisualizer {
@@ -11,7 +11,7 @@ final class KeystrokeVisualizer {
     private var monitor: Any?
     private var keystrokeWindow: NSWindow?
     private var dismissTask: Task<Void, Never>?
-    private let fadeDuration: TimeInterval = 1.5
+    private var config = KeystrokeOverlayConfiguration()
 
     func start() {
         guard AXIsProcessTrusted() else {
@@ -20,6 +20,7 @@ final class KeystrokeVisualizer {
         }
 
         stop()
+        config = KeystrokeOverlayConfiguration()
         monitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
             Task { @MainActor [weak self] in
                 self?.showKeystroke(event)
@@ -41,22 +42,15 @@ final class KeystrokeVisualizer {
         let keyText = formatKeystroke(event)
         guard !keyText.isEmpty else { return }
 
-        // Cancel previous dismiss timer
         dismissTask?.cancel()
 
         guard let screen = NSScreen.main else { return }
 
-        let keystrokeView = KeystrokeOverlayView(text: keyText)
+        let keystrokeView = KeystrokeOverlayView(text: keyText, fontSize: config.fontSize)
         let hostingView = NSHostingView(rootView: keystrokeView)
         let size = hostingView.fittingSize
 
-        // Position at bottom-center of screen
-        let windowRect = CGRect(
-            x: screen.frame.midX - size.width / 2,
-            y: screen.frame.minY + 80,
-            width: max(size.width, 60),
-            height: size.height
-        )
+        let windowRect = computeWindowRect(size: size, screen: screen)
 
         if let window = keystrokeWindow {
             window.contentView = hostingView
@@ -81,15 +75,48 @@ final class KeystrokeVisualizer {
 
         keystrokeWindow?.alphaValue = 1.0
 
-        // Auto-dismiss after delay
+        // Auto-dismiss after configured delay
         dismissTask = Task { @MainActor in
-            try? await Task.sleep(for: .seconds(fadeDuration))
+            try? await Task.sleep(for: .seconds(config.displayDuration))
             guard !Task.isCancelled else { return }
             NSAnimationContext.runAnimationGroup({ context in
                 context.duration = 0.3
                 self.keystrokeWindow?.animator().alphaValue = 0.0
             }, completionHandler: nil)
         }
+    }
+
+    /// Compute window position based on configured position
+    private func computeWindowRect(size: CGSize, screen: NSScreen) -> CGRect {
+        let frame = screen.visibleFrame
+        let edgeOffset: CGFloat = 40
+        let width = max(size.width, 60)
+
+        let x: CGFloat
+        let y: CGFloat
+
+        switch config.position {
+        case .bottomCenter:
+            x = frame.midX - width / 2
+            y = frame.minY + edgeOffset
+        case .bottomLeft:
+            x = frame.minX + edgeOffset
+            y = frame.minY + edgeOffset
+        case .bottomRight:
+            x = frame.maxX - width - edgeOffset
+            y = frame.minY + edgeOffset
+        case .topCenter:
+            x = frame.midX - width / 2
+            y = frame.maxY - size.height - edgeOffset
+        case .topLeft:
+            x = frame.minX + edgeOffset
+            y = frame.maxY - size.height - edgeOffset
+        case .topRight:
+            x = frame.maxX - width - edgeOffset
+            y = frame.maxY - size.height - edgeOffset
+        }
+
+        return CGRect(x: x, y: y, width: width, height: size.height)
     }
 
     private func formatKeystroke(_ event: NSEvent) -> String {
@@ -101,7 +128,6 @@ final class KeystrokeVisualizer {
         if modifiers.contains(.shift)    { parts.append("⇧") }
         if modifiers.contains(.command)  { parts.append("⌘") }
 
-        // Map special keys
         let specialKeys: [UInt16: String] = [
             36: "⏎", 48: "⇥", 49: "Space", 51: "⌫", 53: "⎋",
             123: "←", 124: "→", 125: "↓", 126: "↑",
@@ -112,7 +138,6 @@ final class KeystrokeVisualizer {
         if let special = specialKeys[event.keyCode] {
             parts.append(special)
         } else if let chars = event.charactersIgnoringModifiers?.uppercased(), !chars.isEmpty {
-            // Skip standalone modifier key presses
             if chars.unicodeScalars.first?.value ?? 0 >= 32 {
                 parts.append(chars)
             }
@@ -126,10 +151,11 @@ final class KeystrokeVisualizer {
 
 struct KeystrokeOverlayView: View {
     let text: String
+    var fontSize: CGFloat = 22
 
     var body: some View {
         Text(text)
-            .font(.system(size: 22, weight: .medium, design: .rounded))
+            .font(.system(size: fontSize, weight: .medium, design: .rounded))
             .foregroundStyle(.white)
             .padding(.horizontal, 16)
             .padding(.vertical, 10)
