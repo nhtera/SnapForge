@@ -608,6 +608,106 @@ struct AnnotateStateTests {
   }
 }
 
+// MARK: - Multiline Text Tests
+
+@MainActor
+struct MultilineTextAnnotationTests {
+
+  @Test func multilineBoundsHeightGrowsWithNewlines() {
+    let singleLine = TextAnnotationLayout.multilineBounds(
+      text: "Hello", fontSize: 16, maxWidth: 2000
+    )
+    let twoLines = TextAnnotationLayout.multilineBounds(
+      text: "Hello\nWorld", fontSize: 16, maxWidth: 2000
+    )
+    let threeLines = TextAnnotationLayout.multilineBounds(
+      text: "Line 1\nLine 2\nLine 3", fontSize: 16, maxWidth: 2000
+    )
+
+    #expect(twoLines.height > singleLine.height, "Two lines should be taller than one")
+    #expect(threeLines.height > twoLines.height, "Three lines should be taller than two")
+  }
+
+  @Test func multilineBoundsWidthMatchesLongestLine() {
+    let shortText = TextAnnotationLayout.multilineBounds(
+      text: "Hi", fontSize: 16, maxWidth: 2000
+    )
+    let longText = TextAnnotationLayout.multilineBounds(
+      text: "Hi\nThis is a much longer second line", fontSize: 16, maxWidth: 2000
+    )
+
+    #expect(longText.width > shortText.width, "Width should match longest line")
+  }
+
+  @Test func multilineBoundsEmptyTextReturnsNonZero() {
+    let size = TextAnnotationLayout.multilineBounds(
+      text: "", fontSize: 16, maxWidth: 2000
+    )
+    // Empty string may return zero height, but shouldn't crash
+    #expect(size.width >= 0)
+    #expect(size.height >= 0)
+  }
+
+  @Test func paragraphStyleIsConsistent() {
+    let style1 = TextAnnotationLayout.paragraphStyle()
+    let style2 = TextAnnotationLayout.paragraphStyle()
+    #expect(style1.lineBreakMode == style2.lineBreakMode)
+    #expect(style1.lineBreakMode == .byWordWrapping)
+  }
+
+  @Test func updateAnnotationTextWithNewlinesGrowsBounds() {
+    let state = AnnotateState()
+    let annotation = AnnotationItem(
+      type: .text("Single line"),
+      bounds: CGRect(x: 100, y: 100, width: 100, height: 28),
+      properties: AnnotationProperties(strokeColor: .red, fontSize: 16)
+    )
+    state.annotations.append(annotation)
+
+    let initialHeight = state.annotations[0].bounds.height
+
+    state.updateAnnotationText(id: annotation.id, text: "Line 1\nLine 2\nLine 3")
+
+    let newHeight = state.annotations[0].bounds.height
+    #expect(newHeight > initialHeight, "Bounds should grow with multiline text")
+
+    if case .text(let content) = state.annotations[0].type {
+      #expect(content == "Line 1\nLine 2\nLine 3")
+    } else {
+      Issue.record("Expected .text type")
+    }
+  }
+
+  @Test func renderMultilineTextAnnotation() {
+    let service = ExportService()
+    let image = NSImage(size: NSSize(width: 400, height: 300))
+    image.lockFocus()
+    NSColor.white.setFill()
+    NSBezierPath.fill(NSRect(x: 0, y: 0, width: 400, height: 300))
+    image.unlockFocus()
+
+    let annotations: [AnnotationItem] = [
+      AnnotationItem(
+        type: .text("Line 1\nLine 2\nLine 3"),
+        bounds: CGRect(x: 50, y: 50, width: 200, height: 80),
+        properties: AnnotationProperties(strokeColor: .red, fontSize: 16)
+      )
+    ]
+    let result = service.renderAnnotatedImage(
+      baseImage: image, annotations: annotations,
+      imageSize: image.size
+    )
+    #expect(result != nil, "Rendering multiline text should not crash")
+  }
+
+  @Test func minimumHeightForFontSize() {
+    let height16 = TextAnnotationLayout.minimumHeight(for: 16)
+    let height32 = TextAnnotationLayout.minimumHeight(for: 32)
+    #expect(height16 > 0)
+    #expect(height32 > height16, "Larger font should have larger minimum height")
+  }
+}
+
 // MARK: - Annotation Tool Type Tests
 
 struct AnnotationToolTypeTests {

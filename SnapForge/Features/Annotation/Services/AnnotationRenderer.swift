@@ -279,16 +279,10 @@ struct AnnotationRenderer {
       fontSize: properties.fontSize,
       color: NSColor(properties.strokeColor)
     )
-    let text = displayText as NSString
-    let textSize = text.size(withAttributes: attributes)
 
-    // Center text vertically in bounds, left-align with padding.
-    // Explicit centering matches SwiftUI TextField's vertical centering.
-    let textPoint = CGPoint(
-      x: bounds.origin.x + TextAnnotationLayout.horizontalPadding,
-      y: bounds.origin.y + (bounds.height - textSize.height) / 2
-    )
-    text.draw(at: textPoint, withAttributes: attributes)
+    // Draw multiline text within padded rect (respects \n and word wrapping)
+    let textRect = TextAnnotationLayout.textRect(in: bounds)
+    (displayText as NSString).draw(in: textRect, withAttributes: attributes)
   }
 
   private func makeRect(from start: CGPoint, to end: CGPoint) -> CGRect {

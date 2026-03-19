@@ -27,6 +27,7 @@ struct ToolButton: View {
     .buttonStyle(.plain)
     .focusable(false)
     .help(tool.displayName)
+    .accessibilityIdentifier("annotationTool_\(tool.rawValue)")
   }
 }
 

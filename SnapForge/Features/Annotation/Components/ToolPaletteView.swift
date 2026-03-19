@@ -85,6 +85,7 @@ struct ToolPaletteView: View {
               .fill(color)
               .frame(width: 18, height: 18)
               .overlay { Circle().stroke(.secondary.opacity(0.3), lineWidth: 1) }
+              .accessibilityIdentifier("colorSwatch_\(color.description)")
               .onTapGesture {
                 state.strokeColor = color
                 // Also update selected annotation in real-time
@@ -131,7 +132,10 @@ struct ToolPaletteView: View {
               .font(.caption)
               .foregroundStyle(.secondary)
             Slider(value: $localFontSize, in: 12...72, step: 1)
+              .accessibilityIdentifier("fontSizeSlider")
               .onChange(of: localFontSize) { _, newSize in
+                // Always persist to state so new annotations use this size
+                state.fontSize = newSize
                 if let id = state.selectedAnnotationId {
                   state.updateAnnotationProperties(id: id, fontSize: newSize)
                 }
@@ -142,9 +146,14 @@ struct ToolPaletteView: View {
               localFontSize = annotation.properties.fontSize
             }
           }
+          .onChange(of: state.fontSize) {
+            localFontSize = state.fontSize
+          }
           .onAppear {
             if let annotation = state.selectedTextAnnotation {
               localFontSize = annotation.properties.fontSize
+            } else {
+              localFontSize = state.fontSize
             }
           }
         }

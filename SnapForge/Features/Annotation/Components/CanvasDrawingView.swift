@@ -36,6 +36,7 @@ final class DrawingCanvasNSView: NSView {
   private var activeResizeHandle: ResizeHandle?
   private var dragOffset: CGPoint = .zero
   private var originalBounds: CGRect = .zero
+  private var originalFontSize: CGFloat = 0
 
   // Crop interaction state
   private var isCropDragging = false
@@ -62,6 +63,9 @@ final class DrawingCanvasNSView: NSView {
   private func setupView() {
     wantsLayer = true
     layer?.backgroundColor = NSColor.clear.cgColor
+    setAccessibilityIdentifier("annotationCanvas")
+    setAccessibilityElement(true)
+    setAccessibilityRole(.group)
 
     let trackingArea = NSTrackingArea(
       rect: .zero,
@@ -285,6 +289,22 @@ final class DrawingCanvasNSView: NSView {
       }
     }
 
+    // Check resize handles on selected annotation BEFORE committing text.
+    // This keeps the text overlay active during resize so font scales live.
+    if let selectedId = state.selectedAnnotationId,
+       let annotation = state.annotations.first(where: { $0.id == selectedId })
+    {
+      let displayBounds = imageToDisplay(annotation.bounds)
+      if let handle = hitTestHandle(at: displayPoint, for: displayBounds) {
+        state.saveState()
+        isResizingAnnotation = true
+        activeResizeHandle = handle
+        originalBounds = annotation.bounds
+        originalFontSize = annotation.properties.fontSize
+        return
+      }
+    }
+
     // Commit and finalize current text editing.
     // TextEditOverlay live-syncs editingText → annotation on every keystroke,
     // so the annotation already has the latest text. We just need to:
@@ -304,22 +324,6 @@ final class DrawingCanvasNSView: NSView {
         }
       }
       needsDisplay = true
-    }
-
-    // Check resize handles on selected annotation (only in selection mode)
-    if state.selectedTool == .selection,
-       let selectedId = state.selectedAnnotationId,
-       let annotation = state.annotations.first(where: { $0.id == selectedId })
-    {
-      let displayBounds = imageToDisplay(annotation.bounds)
-      if let handle = hitTestHandle(at: displayPoint, for: displayBounds) {
-        // Save undo state before resize begins so undo restores pre-resize position
-        state.saveState()
-        isResizingAnnotation = true
-        activeResizeHandle = handle
-        originalBounds = annotation.bounds
-        return
-      }
     }
 
     // Crop tool
@@ -393,6 +397,19 @@ final class DrawingCanvasNSView: NSView {
     {
       let newBounds = calculateResizedBounds(handle: handle, currentPoint: imagePoint)
       state.updateAnnotationBounds(id: selectedId, bounds: newBounds)
+
+      // Scale font size proportionally to height change for text annotations
+      if let annotation = state.annotations.first(where: { $0.id == selectedId }),
+         case .text = annotation.type,
+         originalBounds.height > 0
+      {
+        let scale = newBounds.height / originalBounds.height
+        let newFontSize = min(max(originalFontSize * scale, 8), 144)
+        state.updateAnnotationProperties(id: selectedId, fontSize: newFontSize)
+        // Sync to state.fontSize so slider updates live during drag
+        state.fontSize = newFontSize
+      }
+
       needsDisplay = true
       return
     }
@@ -446,10 +463,15 @@ final class DrawingCanvasNSView: NSView {
 
     if isResizingAnnotation {
       if let selectedId = state.selectedAnnotationId,
-         let annotation = state.annotations.first(where: { $0.id == selectedId }),
-         case .blur = annotation.type
+         let annotation = state.annotations.first(where: { $0.id == selectedId })
       {
-        blurCacheManager.invalidate(id: selectedId)
+        if case .blur = annotation.type {
+          blurCacheManager.invalidate(id: selectedId)
+        }
+        // Sync font size to state so slider and future annotations reflect it
+        if case .text = annotation.type {
+          state.fontSize = annotation.properties.fontSize
+        }
       }
       // saveState() already called in mouseDown before resize started
       isResizingAnnotation = false
@@ -535,9 +557,8 @@ final class DrawingCanvasNSView: NSView {
   }
 
   private func createTextAnnotation(at point: CGPoint) {
-    // Scale-aware font size: ensure text appears at ~16pt on screen
-    // regardless of the image-to-canvas scale factor
-    let desiredScreenSize: CGFloat = 16
+    // Use user-selected font size, scale-aware so text appears correct on screen
+    let desiredScreenSize = state.fontSize
     let fontSize = max(desiredScreenSize / displayScale, desiredScreenSize)
 
     let initialWidth = max(150 / displayScale, 150)

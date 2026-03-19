@@ -13,12 +13,42 @@ enum TextAnnotationLayout {
     NSFont.systemFont(ofSize: size, weight: .regular)
   }
 
-  /// Text rendering attributes with consistent font and color
+  /// Shared paragraph style for consistent line breaking between overlay and renderer
+  static func paragraphStyle() -> NSMutableParagraphStyle {
+    let style = NSMutableParagraphStyle()
+    style.lineBreakMode = .byWordWrapping
+    return style
+  }
+
+  /// Text rendering attributes with consistent font, color, and paragraph style
   static func attributes(fontSize: CGFloat, color: NSColor) -> [NSAttributedString.Key: Any] {
     [
       .font: font(size: fontSize),
       .foregroundColor: color,
+      .paragraphStyle: paragraphStyle(),
     ]
+  }
+
+  /// Calculate bounding rect for multiline text within a max width
+  static func multilineBounds(
+    text: String,
+    fontSize: CGFloat,
+    maxWidth: CGFloat
+  ) -> CGSize {
+    let attributes: [NSAttributedString.Key: Any] = [
+      .font: font(size: fontSize),
+      .paragraphStyle: paragraphStyle(),
+    ]
+    let constraintSize = CGSize(width: maxWidth, height: .greatestFiniteMagnitude)
+    let boundingRect = (text as NSString).boundingRect(
+      with: constraintSize,
+      options: [.usesLineFragmentOrigin, .usesFontLeading],
+      attributes: attributes
+    )
+    return CGSize(
+      width: ceil(boundingRect.width),
+      height: ceil(boundingRect.height)
+    )
   }
 
   /// Inner text rect within bounds (subtracts padding on all sides).

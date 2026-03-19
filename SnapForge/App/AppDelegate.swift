@@ -8,6 +8,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         coordinator = AppCoordinator.shared
 
+        // UI test mode: show annotation editor with test image, skip normal startup
+        if ProcessInfo.processInfo.arguments.contains("--ui-test") {
+            NSApp.setActivationPolicy(.regular)
+            let testImage = NSImage(size: NSSize(width: 800, height: 600))
+            testImage.lockFocus()
+            NSColor.darkGray.setFill()
+            NSBezierPath.fill(NSRect(x: 0, y: 0, width: 800, height: 600))
+            testImage.unlockFocus()
+            coordinator?.showAnnotationEditor(for: testImage)
+            return
+        }
+
         // Hide dock icon — menu bar only app
         NSApp.setActivationPolicy(.accessory)
 

@@ -25,6 +25,7 @@ final class AnnotateState {
   var strokeColor: Color = .red
   var fillColor: Color = .clear
   var blurType: BlurType = .pixelated
+  var fontSize: CGFloat = 16
 
   // MARK: - Annotation Storage
 
@@ -358,12 +359,20 @@ final class AnnotateState {
   func updateAnnotationText(id: UUID, text: String) {
     if let index = annotations.firstIndex(where: { $0.id == id }) {
       annotations[index].type = .text(text)
+      // Keep top edge (maxY) fixed so first line stays in place.
+      // Height grows downward in CG coords (origin.y decreases).
+      let oldMaxY = annotations[index].bounds.maxY
       let newBounds = calculateTextBounds(
         text: text,
         fontSize: annotations[index].properties.fontSize,
         origin: annotations[index].bounds.origin
       )
-      annotations[index].bounds = newBounds
+      annotations[index].bounds = CGRect(
+        x: newBounds.origin.x,
+        y: oldMaxY - newBounds.height,
+        width: newBounds.width,
+        height: newBounds.height
+      )
       bumpRevision()
     }
   }
@@ -401,24 +410,31 @@ final class AnnotateState {
   }
 
   /// Calculate text bounds based on content and font size.
-  /// Uses shared TextAnnotationLayout for consistent metrics with renderer.
+  /// Uses shared TextAnnotationLayout for consistent multiline metrics with renderer.
   private func calculateTextBounds(text: String, fontSize: CGFloat, origin: CGPoint) -> CGRect {
     let clampedFontSize = min(max(fontSize, 8), 144)
-    let font = TextAnnotationLayout.font(size: clampedFontSize)
-    let attributes: [NSAttributedString.Key: Any] = [.font: font]
-    let displayText = text.isEmpty ? "Text" : text
-    let textSize = (displayText as NSString).size(withAttributes: attributes)
-
-    let height = TextAnnotationLayout.minimumHeight(for: clampedFontSize)
     let padding = TextAnnotationLayout.horizontalPadding
-    let maxWidth: CGFloat = 2000
-    let maxHeight: CGFloat = 500
+    let verticalPadding = TextAnnotationLayout.verticalPadding
+    let minHeight = TextAnnotationLayout.minimumHeight(for: clampedFontSize)
+    let minWidth = TextAnnotationLayout.minWidth
+
+    let displayText = text.isEmpty ? "Text" : text
+    let maxTextWidth: CGFloat = 2000
+
+    let textSize = TextAnnotationLayout.multilineBounds(
+      text: displayText,
+      fontSize: clampedFontSize,
+      maxWidth: maxTextWidth
+    )
+
+    let width = max(textSize.width + padding * 2, minWidth)
+    let height = max(textSize.height + verticalPadding * 2, minHeight)
 
     return CGRect(
       x: origin.x,
       y: origin.y,
-      width: min(textSize.width + padding * 2, maxWidth),
-      height: min(max(height, textSize.height + padding * 2), maxHeight)
+      width: min(width, maxTextWidth + padding * 2),
+      height: min(height, 2000)
     )
   }
 

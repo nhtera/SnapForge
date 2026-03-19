@@ -64,3 +64,18 @@ targets:
         GENERATE_INFOPLIST_FILE: YES
     dependencies:
       - target: SnapForge
+
+  SnapForgeUITests:
+    type: bundle.ui-testing
+    platform: macOS
+    sources:
+      - path: SnapForgeUITests
+        excludes:
+          - "**/.DS_Store"
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.snapforge.uitests
+        PRODUCT_NAME: SnapForgeUITests
+        GENERATE_INFOPLIST_FILE: YES
+    dependencies:
+      - target: SnapForge
