@@ -282,8 +282,12 @@ struct AnnotationRenderer {
       .foregroundColor: NSColor(properties.strokeColor),
     ]
     let text = displayText as NSString
-    // Draw text inset by padding within the padded bounds
-    let textPoint = CGPoint(x: bounds.origin.x + padding, y: bounds.origin.y + padding)
+    let textSize = text.size(withAttributes: attributes)
+    // Center text vertically in bounds, left-align with padding
+    let textPoint = CGPoint(
+      x: bounds.origin.x + padding,
+      y: bounds.origin.y + (bounds.height - textSize.height) / 2
+    )
     text.draw(at: textPoint, withAttributes: attributes)
   }
 

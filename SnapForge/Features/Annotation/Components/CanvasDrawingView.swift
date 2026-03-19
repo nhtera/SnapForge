@@ -547,8 +547,8 @@ final class DrawingCanvasNSView: NSView {
     let totalHeight = textHeight + padding * 2
     let initialWidth = max(150 / displayScale, 150)
 
-    // Position bounds so text appears at the click point
-    let bounds = CGRect(x: point.x, y: point.y - padding, width: initialWidth, height: totalHeight)
+    // Position bounds centered on click point vertically
+    let bounds = CGRect(x: point.x, y: point.y - totalHeight / 2, width: initialWidth, height: totalHeight)
     let properties = AnnotationProperties(
       strokeColor: state.strokeColor,
       fillColor: .clear,
