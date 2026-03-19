@@ -55,6 +55,8 @@ struct RecordingStatusBarView: View {
                         .font(.system(size: 12, weight: .medium, design: .monospaced))
                         .foregroundStyle(.white)
                         .frame(minWidth: 40)
+                        .contentTransition(.numericText())
+                        .animation(.linear(duration: 0.2), value: recorder.formattedDuration)
                 }
 
                 // Resolution label
@@ -64,14 +66,16 @@ struct RecordingStatusBarView: View {
                         .foregroundStyle(.white.opacity(0.3))
                 }
 
-                // FPS counter — only highlight when dropping below target
-                if recorder.currentFPS > 0 {
-                    let targetFPS = max(UserDefaults.standard.integer(forKey: SettingsKey.recordingFPS), 24)
-                    let isDropping = recorder.currentFPS < targetFPS - 3
-                    Text("\(recorder.currentFPS)fps")
-                        .font(.system(size: 9, design: .monospaced))
-                        .foregroundStyle(isDropping ? fpsColor(recorder.currentFPS) : .white.opacity(0.25))
+                // FPS indicator — colored dot signals health, exact number on hover
+                HStack(spacing: 3) {
+                    Circle()
+                        .fill(fpsIndicatorColor)
+                        .frame(width: 6, height: 6)
+                    Text("fps")
+                        .font(.system(size: 8, design: .monospaced))
+                        .foregroundStyle(.white.opacity(0.25))
                 }
+                .help(recorder.currentFPS > 0 ? "\(recorder.currentFPS) fps" : "Measuring…")
 
                 RecordingAudioLevelIndicator()
             }
@@ -153,10 +157,13 @@ struct RecordingStatusBarView: View {
         .onAppear { isBlinking = true }
     }
 
-    private func fpsColor(_ fps: Int) -> Color {
+    /// FPS indicator dot color: gray when not measured, green/yellow/red based on performance.
+    private var fpsIndicatorColor: Color {
+        let fps = recorder.currentFPS
+        guard fps > 0 else { return .white.opacity(0.15) }
         let targetFPS = max(UserDefaults.standard.integer(forKey: SettingsKey.recordingFPS), 30)
-        if fps >= targetFPS - 2 { return .green.opacity(0.6) }
-        if fps >= targetFPS / 2 { return .yellow.opacity(0.6) }
-        return .red.opacity(0.6)
+        if fps >= targetFPS - 3 { return .green.opacity(0.7) }
+        if fps >= targetFPS / 2 { return .yellow.opacity(0.7) }
+        return .red.opacity(0.7)
     }
 }
