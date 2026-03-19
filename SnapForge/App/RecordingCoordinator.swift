@@ -426,6 +426,10 @@ final class RecordingCoordinator {
                 let manager = WebcamOverlayManager()
                 manager.show()
                 webcamManager = manager
+                // Add webcam overlay to SCStream so it appears in recording
+                if let windowID = manager.overlayWindowID {
+                    await recorder.addExceptedWindows([windowID])
+                }
             }
 
             // Save last recording area (dictionary format for readability)

@@ -97,6 +97,11 @@ final class WebcamOverlayManager: NSObject {
         print("📷 Webcam overlay hidden")
     }
 
+    /// Window ID for adding to SCStream exceptingWindows (makes webcam visible in recording)
+    var overlayWindowID: Int? {
+        panel.map { Int($0.windowNumber) }
+    }
+
     func toggle() {
         isVisible ? hide() : show()
     }

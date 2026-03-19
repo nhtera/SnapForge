@@ -6,6 +6,7 @@ struct RecordingAnnotationToolbarView: View {
 
     private let colorPresets: [Color] = [.red, .blue, .green, .yellow, .white]
     private let widthPresets: [CGFloat] = [2, 4, 8]
+    @State private var colorObserverTask: Task<Void, Never>?
 
     var body: some View {
         HStack(spacing: 8) {
@@ -108,13 +109,35 @@ struct RecordingAnnotationToolbarView: View {
                     .accessibilityLabel("Color: \(color.description)")
             }
 
-            // Custom color picker — scaled down to match preset circles
-            ColorPicker("", selection: $state.strokeColor, supportsOpacity: false)
-                .labelsHidden()
-                .scaleEffect(0.55)
-                .frame(width: 16, height: 16)
-                .clipShape(Circle())
-                .accessibilityLabel("Custom color")
+            // Custom color picker — rainbow circle button that opens NSColorPanel
+            Button {
+                let panel = NSColorPanel.shared
+                panel.showsAlpha = false
+                panel.color = NSColor(state.strokeColor)
+                panel.setTarget(nil)
+                panel.makeKeyAndOrderFront(nil)
+                // Observe color changes via timer since NSColorPanel doesn't have SwiftUI binding
+                colorObserverTask?.cancel()
+                colorObserverTask = Task { @MainActor in
+                    while !Task.isCancelled {
+                        try? await Task.sleep(for: .milliseconds(100))
+                        let panelColor = NSColorPanel.shared.color
+                        state.strokeColor = Color(nsColor: panelColor)
+                    }
+                }
+            } label: {
+                Circle()
+                    .fill(
+                        AngularGradient(
+                            colors: [.red, .yellow, .green, .cyan, .blue, .purple, .red],
+                            center: .center
+                        )
+                    )
+                    .frame(width: 16, height: 16)
+                    .overlay(Circle().stroke(.white.opacity(0.3), lineWidth: 1))
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Custom color")
         }
     }
 
