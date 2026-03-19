@@ -42,6 +42,11 @@ final class RecordingCoordinator {
     private var regionOverlayWindow: RecordingRegionOverlayWindow?
     private var regionState: RecordingRegionState?
 
+    // MARK: - Screen Lock Auto-Pause
+    private var screenSleepObserver: NSObjectProtocol?
+    private var screenWakeObserver: NSObjectProtocol?
+    private var wasPausedBySleep = false
+
     private init() {}
 
     // MARK: - Public API
@@ -65,6 +70,7 @@ final class RecordingCoordinator {
         timerLimitTask?.cancel()
         timerLimitTask = nil
         annotationManager.dismiss()
+        removeScreenLockObservers()
 
         let recorder = ScreenRecordingService.shared
         let savedURL = await recorder.stopRecording()
@@ -97,6 +103,7 @@ final class RecordingCoordinator {
         timerLimitTask?.cancel()
         timerLimitTask = nil
         annotationManager.dismiss()
+        removeScreenLockObservers()
         await ScreenRecordingService.shared.cancelRecording()
         AppEnvironment.shared.isRecording = false
         dismissRecordingIndicator()
@@ -427,6 +434,7 @@ final class RecordingCoordinator {
             }
 
             showRecordingIndicator(in: rect)
+            registerScreenLockObservers()
         } catch {
             print("❌ Recording failed: \(error)")
         }
@@ -473,6 +481,42 @@ final class RecordingCoordinator {
     }
 
     // MARK: - Post-Recording Actions
+
+    // MARK: - Screen Lock Auto-Pause
+
+    private func registerScreenLockObservers() {
+        let nc = NSWorkspace.shared.notificationCenter
+        screenSleepObserver = nc.addObserver(
+            forName: NSWorkspace.screensDidSleepNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in
+                let recorder = ScreenRecordingService.shared
+                if recorder.state == .recording, !recorder.isPaused {
+                    recorder.pauseRecording()
+                    self?.wasPausedBySleep = true
+                }
+            }
+        }
+        screenWakeObserver = nc.addObserver(
+            forName: NSWorkspace.screensDidWakeNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in
+                if self?.wasPausedBySleep == true {
+                    ScreenRecordingService.shared.resumeRecording()
+                    self?.wasPausedBySleep = false
+                }
+            }
+        }
+    }
+
+    private func removeScreenLockObservers() {
+        let nc = NSWorkspace.shared.notificationCenter
+        if let obs = screenSleepObserver { nc.removeObserver(obs) }
+        if let obs = screenWakeObserver { nc.removeObserver(obs) }
+        screenSleepObserver = nil
+        screenWakeObserver = nil
+        wasPausedBySleep = false
+    }
 
     private func handlePostRecordingActions(fileURL: URL) {
         let defaults = UserDefaults.standard

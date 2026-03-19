@@ -1,8 +1,9 @@
 import Foundation
 
-/// Handles GIF conversion from recorded video files
+/// Handles GIF conversion from recorded video files with progress UI
 @MainActor
 final class RecordingGIFConverter {
+    private let progressPanel = RecordingGIFProgressPanel()
 
     /// Convert video to GIF, delete source on success. Returns GIF URL on success.
     func convert(videoURL: URL) async -> URL? {
@@ -15,13 +16,22 @@ final class RecordingGIFConverter {
             loopCount: defaults.integer(forKey: SettingsKey.gifLoopCount),
             quality: Float(defaults.double(forKey: SettingsKey.gifQuality))
         )
+
+        progressPanel.show()
+        defer { progressPanel.dismiss() }
+
         do {
             try await encoder.encode(
                 inputURL: videoURL,
                 outputURL: gifURL,
                 config: config
-            ) { @Sendable framesProcessed, totalFrames in
-                print("GIF encoding: \(framesProcessed)/\(totalFrames)")
+            ) { @Sendable [weak self] framesProcessed, totalFrames in
+                Task { @MainActor in
+                    self?.progressPanel.update(
+                        framesProcessed: framesProcessed,
+                        totalFrames: totalFrames
+                    )
+                }
             }
             print("✅ GIF saved: \(gifURL.lastPathComponent)")
             try? FileManager.default.removeItem(at: videoURL)

@@ -64,6 +64,15 @@ struct RecordingStatusBarView: View {
                         .foregroundStyle(.white.opacity(0.3))
                 }
 
+                // FPS counter — only highlight when dropping below target
+                if recorder.currentFPS > 0 {
+                    let targetFPS = max(UserDefaults.standard.integer(forKey: SettingsKey.recordingFPS), 24)
+                    let isDropping = recorder.currentFPS < targetFPS - 3
+                    Text("\(recorder.currentFPS)fps")
+                        .font(.system(size: 9, design: .monospaced))
+                        .foregroundStyle(isDropping ? fpsColor(recorder.currentFPS) : .white.opacity(0.25))
+                }
+
                 RecordingAudioLevelIndicator()
             }
             .padding(.horizontal, 8)
@@ -142,5 +151,12 @@ struct RecordingStatusBarView: View {
         .padding(.vertical, RecordingToolbarConstants.verticalPadding)
         .fixedSize()
         .onAppear { isBlinking = true }
+    }
+
+    private func fpsColor(_ fps: Int) -> Color {
+        let targetFPS = max(UserDefaults.standard.integer(forKey: SettingsKey.recordingFPS), 30)
+        if fps >= targetFPS - 2 { return .green.opacity(0.6) }
+        if fps >= targetFPS / 2 { return .yellow.opacity(0.6) }
+        return .red.opacity(0.6)
     }
 }

@@ -93,6 +93,13 @@ final class ScreenRecordingService: NSObject {
     private var pausedDuration: TimeInterval = 0
     private var pauseStartTime: Date?
 
+    // MARK: - FPS Counter
+
+    private(set) var currentFPS: Int = 0
+    /// Atomic frame counter accessed from nonisolated stream callback
+    private let frameCounter = FrameCounter()
+    private var fpsTimer: Timer?
+
     // MARK: - Configuration
 
     private var recordingRect: CGRect = .zero
@@ -218,6 +225,7 @@ final class ScreenRecordingService: NSObject {
         state = .recording
         startTime = Date()
         elapsedSeconds = 0
+        startFPSTimer()
         pausedDuration = 0
         startTimer()
 
@@ -587,9 +595,28 @@ final class ScreenRecordingService: NSObject {
         directoryAccess = nil
     }
 
+    private func startFPSTimer() {
+        frameCounter.reset()
+        currentFPS = 0
+        fpsTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
+            Task { @MainActor in
+                guard let self else { return }
+                self.currentFPS = self.frameCounter.getAndReset()
+            }
+        }
+    }
+
+    private func stopFPSTimer() {
+        fpsTimer?.invalidate()
+        fpsTimer = nil
+        currentFPS = 0
+        frameCounter.reset()
+    }
+
     private func cleanup() {
         timerTask?.cancel()
         timerTask = nil
+        stopFPSTimer()
         startTime = nil
         pauseStartTime = nil
         pausedDuration = 0
@@ -606,6 +633,35 @@ final class ScreenRecordingService: NSObject {
 // MARK: - SCStreamOutput
 
 extension ScreenRecordingService: SCStreamOutput {
+}
+
+/// Thread-safe frame counter for FPS measurement from nonisolated stream callbacks
+final class FrameCounter: @unchecked Sendable {
+    private let lock = NSLock()
+    private var _count: Int = 0
+
+    func increment() {
+        lock.lock()
+        _count += 1
+        lock.unlock()
+    }
+
+    func getAndReset() -> Int {
+        lock.lock()
+        let val = _count
+        _count = 0
+        lock.unlock()
+        return val
+    }
+
+    func reset() {
+        lock.lock()
+        _count = 0
+        lock.unlock()
+    }
+}
+
+extension ScreenRecordingService {
     nonisolated func stream(
         _ stream: SCStream,
         didOutputSampleBuffer sampleBuffer: CMSampleBuffer,
@@ -616,6 +672,7 @@ extension ScreenRecordingService: SCStreamOutput {
 
             switch type {
             case .screen:
+                frameCounter.increment()
                 session.appendVideoSample(sampleBuffer)
             case .audio:
                 session.appendAudioSample(sampleBuffer)
