@@ -2,26 +2,21 @@ import AppKit
 import SwiftUI
 
 /// Manages an inline NSTextField on the annotation canvas for text input.
-/// Shows at click point, commits on Enter, dismisses on Escape.
-/// Auto-resizes width as user types. Supports editing existing text annotations.
+/// At commit, stores the field frame so the canvas can render text at the exact same position.
 @MainActor
 final class RecordingAnnotationTextOverlay: NSObject, NSTextFieldDelegate {
     private var textField: NSTextField?
-    /// Stored origin for the annotation bounds (matches text field frame origin)
-    private var fieldOrigin: CGPoint = .zero
     private weak var state: RecordingAnnotationState?
     private weak var parentView: NSView?
-    /// Called when new text is committed (text, bounds origin)
-    var onCommit: ((String, CGPoint) -> Void)?
+    /// Called when new text is committed (text, field frame in view coords)
+    var onCommit: ((String, CGRect) -> Void)?
     /// Called when editing an existing annotation (annotationId, newText)
     var onEditCommit: ((UUID, String) -> Void)?
     private var editingAnnotationId: UUID?
-    /// Font size used for current field (may differ from state when editing)
     private var currentFontSize: CGFloat = 20
 
     private static let minWidth: CGFloat = 80
     private static let maxWidth: CGFloat = 500
-    private static let padding: CGFloat = 4
 
     init(state: RecordingAnnotationState) {
         self.state = state
@@ -37,38 +32,36 @@ final class RecordingAnnotationTextOverlay: NSObject, NSTextFieldDelegate {
 
         let fontSize = state.selectedFontSize
         currentFontSize = fontSize
-        let height = fontSize + Self.padding * 2 + 4
-        // Place text field so the text baseline aligns near the click point
-        let frameOrigin = CGPoint(x: point.x, y: point.y - Self.padding)
+        let height = fontSize + 12
 
         let field = createField(fontSize: fontSize, color: NSColor(state.strokeColor))
-        field.frame = CGRect(x: frameOrigin.x, y: frameOrigin.y, width: Self.minWidth, height: height)
+        // Center vertically on click point
+        field.frame = CGRect(x: point.x, y: point.y - height / 2, width: Self.minWidth, height: height)
 
         view.addSubview(field)
         view.window?.makeFirstResponder(field)
         textField = field
-        fieldOrigin = frameOrigin
     }
 
     /// Show text field pre-filled for editing an existing text annotation
-    func showForEditing(annotationId: UUID, text: String, at boundsOrigin: CGPoint, fontSize: CGFloat, color: NSColor, in view: NSView) {
+    func showForEditing(annotationId: UUID, text: String, bounds: CGRect, fontSize: CGFloat, color: NSColor, in view: NSView) {
         dismiss()
         parentView = view
         editingAnnotationId = annotationId
         currentFontSize = fontSize
 
-        let height = fontSize + Self.padding * 2 + 4
+        let height = fontSize + 12
         let textWidth = measureTextWidth(text, fontSize: fontSize)
 
         let field = createField(fontSize: fontSize, color: color)
         field.stringValue = text
-        field.frame = CGRect(x: boundsOrigin.x, y: boundsOrigin.y, width: max(Self.minWidth, textWidth + 16), height: height)
+        // Place field at the annotation bounds (bounds IS the field frame from original commit)
+        field.frame = CGRect(x: bounds.origin.x, y: bounds.origin.y, width: max(Self.minWidth, textWidth + 16), height: height)
 
         view.addSubview(field)
         view.window?.makeFirstResponder(field)
         field.currentEditor()?.selectAll(nil)
         textField = field
-        fieldOrigin = boundsOrigin
     }
 
     func commit() {
@@ -78,7 +71,8 @@ final class RecordingAnnotationTextOverlay: NSObject, NSTextFieldDelegate {
             if let editId = editingAnnotationId {
                 onEditCommit?(editId, text)
             } else {
-                onCommit?(text, fieldOrigin)
+                // Pass the field frame directly — canvas renders text using this frame
+                onCommit?(text, field.frame)
             }
         }
         dismiss()
@@ -95,6 +89,7 @@ final class RecordingAnnotationTextOverlay: NSObject, NSTextFieldDelegate {
     }
 
     var isActive: Bool { textField != nil }
+    var currentEditingId: UUID? { editingAnnotationId }
 
     // MARK: - Private
 
@@ -113,7 +108,6 @@ final class RecordingAnnotationTextOverlay: NSObject, NSTextFieldDelegate {
         field.delegate = self
         field.cell?.wraps = false
         field.cell?.isScrollable = true
-        // Subtle rounded corners
         field.wantsLayer = true
         field.layer?.cornerRadius = 3
         return field

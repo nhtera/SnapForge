@@ -79,14 +79,21 @@ final class RecordingAnnotationCanvasView: NSView {
 
         // Draw existing annotations with opacity
         for entry in state.annotations {
+            // Skip annotation being edited (text overlay handles display)
+            if entry.id == textOverlay.currentEditingId { continue }
+
             cgContext.saveGState()
             cgContext.setAlpha(entry.opacity)
-            // Use recording-specific blur renderer (no source image on transparent canvas)
+
             if case .blur(let blurType) = entry.item.type {
                 switch blurType {
                 case .pixelated: RecordingBlurRenderer.drawPixelated(in: cgContext, bounds: entry.item.bounds)
                 case .gaussian: RecordingBlurRenderer.drawGaussian(in: cgContext, bounds: entry.item.bounds)
                 }
+            } else if case .text(let content) = entry.item.type {
+                // Render text using NSTextField-compatible positioning
+                // bounds = original field frame, so draw text inside it like NSTextField would
+                drawTextAnnotation(in: cgContext, content: content, item: entry.item)
             } else {
                 renderer.draw(entry.item)
             }
@@ -135,6 +142,29 @@ final class RecordingAnnotationCanvasView: NSView {
         if state.selectedTool == .counter, let hover = hoverPoint {
             drawCounterPreview(in: cgContext, at: hover)
         }
+    }
+
+    /// Draw text annotation matching NSTextField's internal text layout.
+    /// bounds = original NSTextField frame, so we use draw(in:) for automatic vertical alignment.
+    private func drawTextAnnotation(in ctx: CGContext, content: String, item: AnnotationItem) {
+        let fontSize = item.properties.fontSize
+        let font = NSFont.systemFont(ofSize: fontSize)
+        let color = NSColor(item.properties.strokeColor)
+
+        let paragraphStyle = NSMutableParagraphStyle()
+        paragraphStyle.alignment = .left
+        paragraphStyle.lineBreakMode = .byClipping
+
+        let attrs: [NSAttributedString.Key: Any] = [
+            .font: font,
+            .foregroundColor: color,
+            .paragraphStyle: paragraphStyle,
+        ]
+
+        // Inset to match NSTextField's internal cell padding (~2px horizontal)
+        let drawRect = item.bounds.insetBy(dx: 2, dy: 0)
+        let attrStr = NSAttributedString(string: content, attributes: attrs)
+        attrStr.draw(in: drawRect)
     }
 
     /// Draw a semi-transparent counter circle preview at hover position
@@ -252,19 +282,12 @@ final class RecordingAnnotationCanvasView: NSView {
 
     private func handleTextClick(at point: CGPoint) {
         guard !textOverlay.isActive else { return }
-        textOverlay.onCommit = { [weak self] text, boundsOrigin in
+        textOverlay.onCommit = { [weak self] text, fieldFrame in
             guard let self else { return }
             let fontSize = self.state.selectedFontSize
-            let padding: CGFloat = 4
-            let attrs: [NSAttributedString.Key: Any] = [.font: NSFont.systemFont(ofSize: fontSize)]
-            let textSize = (text as NSString).size(withAttributes: attrs)
-            // Bounds match renderer's expectation: origin + padding = text draw point
-            let bounds = CGRect(
-                origin: boundsOrigin,
-                size: CGSize(width: textSize.width + padding * 2, height: textSize.height + padding * 2)
-            )
+            // Store the field frame as bounds — canvas renders text matching NSTextField layout
             let props = AnnotationProperties(strokeColor: self.state.strokeColor, fontSize: fontSize)
-            let item = AnnotationItem(type: .text(text), bounds: bounds, properties: props)
+            let item = AnnotationItem(type: .text(text), bounds: fieldFrame, properties: props)
             self.state.appendAnnotation(item, tool: .text)
         }
         textOverlay.show(at: point, in: self)
@@ -273,7 +296,6 @@ final class RecordingAnnotationCanvasView: NSView {
     /// Click on existing text annotation while in text tool to edit it
     private func handleTextEdit(entry: RecordingAnnotationEntry, existingText: String) {
         guard !textOverlay.isActive else { return }
-        let origin = entry.item.bounds.origin
         let fontSize = entry.item.properties.fontSize
         let color = NSColor(entry.item.properties.strokeColor)
 
@@ -281,18 +303,19 @@ final class RecordingAnnotationCanvasView: NSView {
             guard let self,
                   let idx = self.state.annotations.firstIndex(where: { $0.id == annotationId }) else { return }
             let fs = self.state.annotations[idx].item.properties.fontSize
-            let padding: CGFloat = 4
             let attrs: [NSAttributedString.Key: Any] = [.font: NSFont.systemFont(ofSize: fs)]
             let textSize = (newText as NSString).size(withAttributes: attrs)
             var item = self.state.annotations[idx].item
             item.type = .text(newText)
-            item.bounds.size = CGSize(width: textSize.width + padding * 2, height: textSize.height + padding * 2)
+            // Update width to fit new text, keep height
+            item.bounds.size.width = max(textSize.width + 8, 40)
             self.state.annotations[idx] = RecordingAnnotationEntry(item: item, tool: .text)
             self.needsDisplay = true
         }
+        // Pass bounds (= original field frame) so the edit field appears at the same position
         textOverlay.showForEditing(
             annotationId: entry.id, text: existingText,
-            at: origin, fontSize: fontSize, color: color, in: self
+            bounds: entry.item.bounds, fontSize: fontSize, color: color, in: self
         )
     }
 
