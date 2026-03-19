@@ -10,11 +10,27 @@ final class RecordingAnnotationState {
     var strokeWidth: CGFloat = 3
     var isAnnotationEnabled: Bool = false
     var toolClearModes: [AnnotationToolType: RecordingAnnotationClearMode] = [:]
+    /// Whether modifier-hold shortcut mode is active
+    var isShortcutModeActive: Bool = false
 
     /// Weak ref to canvas for triggering redraws
     weak var canvasView: RecordingAnnotationCanvasView?
 
     private var cleanupTimer: Timer?
+
+    // MARK: - Undo/Redo
+
+    /// Action-based undo: tracks both add and delete operations
+    enum UndoAction {
+        case added(RecordingAnnotationEntry)   // was added → undo removes it
+        case deleted(RecordingAnnotationEntry)  // was deleted → undo restores it
+    }
+
+    private static let maxUndoDepth = 50
+    private var undoStack: [UndoAction] = []
+    private var redoStack: [UndoAction] = []
+    var canUndo: Bool { !undoStack.isEmpty }
+    var canRedo: Bool { !redoStack.isEmpty }
 
     /// Tools available during recording (subset of all annotation tools)
     static let availableTools: [AnnotationToolType] = [
@@ -26,21 +42,67 @@ final class RecordingAnnotationState {
     func appendAnnotation(_ item: AnnotationItem, tool: AnnotationToolType) {
         let entry = RecordingAnnotationEntry(item: item, tool: tool)
         annotations.append(entry)
+        undoStack.append(.added(entry))
+        redoStack.removeAll()
+        trimUndoStack()
         enforceCountLimit(for: tool)
         canvasView?.refresh()
     }
 
     func clearAll() {
         annotations.removeAll()
+        undoStack.removeAll()
+        redoStack.removeAll()
         selectedAnnotationId = nil
         canvasView?.refresh()
     }
 
     func deleteSelected() {
-        guard let id = selectedAnnotationId else { return }
-        annotations.removeAll { $0.id == id }
+        guard let id = selectedAnnotationId,
+              let idx = annotations.firstIndex(where: { $0.id == id }) else { return }
+        let removed = annotations.remove(at: idx)
+        undoStack.append(.deleted(removed))
+        redoStack.removeAll()
+        trimUndoStack()
         selectedAnnotationId = nil
         canvasView?.refresh()
+    }
+
+    func undo() {
+        guard let action = undoStack.popLast() else { return }
+        switch action {
+        case .added(let entry):
+            // Was added → remove it
+            annotations.removeAll { $0.id == entry.id }
+            redoStack.append(.added(entry))
+        case .deleted(let entry):
+            // Was deleted → restore it
+            annotations.append(entry)
+            redoStack.append(.deleted(entry))
+        }
+        selectedAnnotationId = nil
+        canvasView?.refresh()
+    }
+
+    func redo() {
+        guard let action = redoStack.popLast() else { return }
+        switch action {
+        case .added(let entry):
+            // Was added → re-add it
+            annotations.append(entry)
+            undoStack.append(.added(entry))
+        case .deleted(let entry):
+            // Was deleted → re-delete it
+            annotations.removeAll { $0.id == entry.id }
+            undoStack.append(.deleted(entry))
+        }
+        canvasView?.refresh()
+    }
+
+    private func trimUndoStack() {
+        while undoStack.count > Self.maxUndoDepth {
+            undoStack.removeFirst()
+        }
     }
 
     func clearMode(for tool: AnnotationToolType) -> RecordingAnnotationClearMode {

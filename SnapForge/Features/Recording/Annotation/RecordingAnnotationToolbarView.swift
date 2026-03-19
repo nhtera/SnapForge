@@ -24,6 +24,11 @@ struct RecordingAnnotationToolbarView: View {
 
             divider
 
+            // Undo/Redo
+            undoRedoButtons
+
+            divider
+
             // Clear all
             Button(action: state.clearAll) {
                 Image(systemName: "trash")
@@ -62,6 +67,18 @@ struct RecordingAnnotationToolbarView: View {
                 .buttonStyle(.plain)
                 .accessibilityLabel(tool.displayName)
                 .help("\(tool.displayName) (\(String(tool.defaultShortcut).uppercased()))")
+                .overlay(alignment: .bottomTrailing) {
+                    if state.isShortcutModeActive {
+                        Text(String(tool.defaultShortcut).uppercased())
+                            .font(.system(size: 8, weight: .bold, design: .monospaced))
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 3)
+                            .padding(.vertical, 1)
+                            .background(.blue, in: RoundedRectangle(cornerRadius: 3))
+                            .transition(.scale.combined(with: .opacity))
+                    }
+                }
+                .animation(.easeInOut(duration: 0.15), value: state.isShortcutModeActive)
             }
         }
     }
@@ -90,6 +107,32 @@ struct RecordingAnnotationToolbarView: View {
                     .onTapGesture { state.strokeWidth = width }
                     .accessibilityLabel("Width: \(Int(width))px")
             }
+        }
+    }
+
+    private var undoRedoButtons: some View {
+        HStack(spacing: 2) {
+            Button(action: state.undo) {
+                Image(systemName: "arrow.uturn.backward")
+                    .font(.system(size: 12))
+                    .foregroundStyle(.white.opacity(state.canUndo ? 0.8 : 0.2))
+                    .frame(width: 26, height: 26)
+            }
+            .buttonStyle(.plain)
+            .disabled(!state.canUndo)
+            .help("Undo (⌘Z)")
+            .accessibilityLabel("Undo annotation")
+
+            Button(action: state.redo) {
+                Image(systemName: "arrow.uturn.forward")
+                    .font(.system(size: 12))
+                    .foregroundStyle(.white.opacity(state.canRedo ? 0.8 : 0.2))
+                    .frame(width: 26, height: 26)
+            }
+            .buttonStyle(.plain)
+            .disabled(!state.canRedo)
+            .help("Redo (⇧⌘Z)")
+            .accessibilityLabel("Redo annotation")
         }
     }
 

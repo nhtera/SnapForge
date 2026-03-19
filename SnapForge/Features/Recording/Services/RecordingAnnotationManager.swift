@@ -7,6 +7,7 @@ final class RecordingAnnotationManager {
     private var canvasWindow: RecordingAnnotationCanvasWindow?
     private var toolbarWindow: RecordingAnnotationToolbarWindow?
     private var observerTask: Task<Void, Never>?
+    private let shortcutMonitor = RecordingAnnotationShortcutMonitor()
 
     /// Create annotation state and start observing toggle
     /// - Parameters:
@@ -56,6 +57,7 @@ final class RecordingAnnotationManager {
         toolbarWindow = toolbar
 
         annState.startCleanupTimer()
+        shortcutMonitor.start(state: annState)
 
         Task {
             await ScreenRecordingService.shared.addExceptedWindows([canvas.windowNumber])
@@ -69,6 +71,7 @@ final class RecordingAnnotationManager {
         toolbarWindow?.close()
         toolbarWindow = nil
         annotationState?.stopCleanupTimer()
+        shortcutMonitor.stop()
     }
 
     /// Update the anchor panel reference without recreating state

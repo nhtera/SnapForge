@@ -135,6 +135,16 @@ final class RecordingAnnotationCanvasView: NSView {
     // MARK: - Keyboard
 
     override func keyDown(with event: NSEvent) {
+        // Cmd+Z / Cmd+Shift+Z for undo/redo
+        if event.modifierFlags.contains(.command), event.keyCode == 6 {
+            if event.modifierFlags.contains(.shift) {
+                state.redo()
+            } else {
+                state.undo()
+            }
+            return
+        }
+
         switch event.keyCode {
         case 51, 117: // Delete, Forward Delete
             state.deleteSelected()
@@ -142,7 +152,7 @@ final class RecordingAnnotationCanvasView: NSView {
             state.selectedAnnotationId = nil
             needsDisplay = true
         default:
-            // Tool shortcuts
+            // Tool shortcuts — when shortcut mode active or canvas is focused
             if let char = event.characters?.lowercased().first {
                 for tool in RecordingAnnotationState.availableTools {
                     if tool.defaultShortcut == char {

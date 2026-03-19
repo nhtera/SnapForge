@@ -68,6 +68,10 @@ enum SettingsKey {
     // Region Overlay (Phase 3)
     static let lastRecordingArea = "lastRecordingArea"
 
+    // Annotation Shortcuts
+    static let annotationShortcutModifier = "annotationShortcutModifier"
+    static let annotationShortcutHoldDuration = "annotationShortcutHoldDuration"
+
     // Color Picker
     static let colorPickerCopyFormat = "colorPickerCopyFormat"
 
