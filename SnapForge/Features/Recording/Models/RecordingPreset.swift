@@ -8,6 +8,7 @@ struct RecordingPreset: Codable, Identifiable, Equatable {
     var isBuiltIn: Bool
 
     var outputMode: String
+    var captureMode: String
     var videoFormat: String
     var videoQuality: String
     var systemAudio: Bool
@@ -23,6 +24,7 @@ struct RecordingPreset: Codable, Identifiable, Equatable {
         self.name = name
         self.isBuiltIn = isBuiltIn
         self.outputMode = state.outputMode.rawValue
+        self.captureMode = state.captureMode.rawValue
         self.videoFormat = state.videoFormat.rawValue
         self.videoQuality = state.videoQuality.rawValue
         self.systemAudio = state.isSystemAudioEnabled
@@ -33,13 +35,14 @@ struct RecordingPreset: Codable, Identifiable, Equatable {
     }
 
     /// Memberwise init for built-in presets
-    init(id: UUID, name: String, isBuiltIn: Bool, outputMode: String, videoFormat: String,
-         videoQuality: String, systemAudio: Bool, microphone: Bool, highlightClicks: Bool,
-         showKeystrokes: Bool, webcamEnabled: Bool) {
+    init(id: UUID, name: String, isBuiltIn: Bool, outputMode: String, captureMode: String = "Area",
+         videoFormat: String, videoQuality: String, systemAudio: Bool, microphone: Bool,
+         highlightClicks: Bool, showKeystrokes: Bool, webcamEnabled: Bool) {
         self.id = id; self.name = name; self.isBuiltIn = isBuiltIn
-        self.outputMode = outputMode; self.videoFormat = videoFormat
-        self.videoQuality = videoQuality; self.systemAudio = systemAudio
-        self.microphone = microphone; self.highlightClicks = highlightClicks
+        self.outputMode = outputMode; self.captureMode = captureMode
+        self.videoFormat = videoFormat; self.videoQuality = videoQuality
+        self.systemAudio = systemAudio; self.microphone = microphone
+        self.highlightClicks = highlightClicks
         self.showKeystrokes = showKeystrokes; self.webcamEnabled = webcamEnabled
     }
 

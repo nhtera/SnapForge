@@ -94,7 +94,14 @@ final class RecordingToolbarState {
         showKeystrokes = preset.showKeystrokes
         webcamEnabled = preset.webcamEnabled
 
-        // Persist all values at once after defer releases isReloading
+        // Apply capture mode and trigger callback to switch area/fullscreen
+        let newMode = RecordingMode(rawValue: preset.captureMode) ?? .area
+        if captureMode != newMode {
+            captureMode = newMode
+            onCaptureModeChanged?(newMode)
+        }
+
+        // Persist all values at once
         let ud = UserDefaults.standard
         ud.set(outputMode.rawValue, forKey: SettingsKey.recordingOutputMode)
         ud.set(videoFormat.rawValue, forKey: SettingsKey.recordingVideoFormat)
