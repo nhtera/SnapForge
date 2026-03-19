@@ -23,21 +23,31 @@ final class RecordingToolbarWindow: NSWindow {
         collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
     }
 
-    /// Set the SwiftUI content and compute intrinsic size
+    /// Set the SwiftUI content and compute intrinsic size.
+    /// Uses native NSVisualEffectView(.hudWindow) for macOS-native frosted glass appearance.
     func setContent<V: View>(_ view: V, draggable: Bool = false) {
         isMovableByWindowBackground = draggable
 
-        // Wrap content with dark material background and rounded corners in SwiftUI
-        let styledView =
-            view
+        let styledView = view
             .padding(.horizontal, 4)
             .padding(.vertical, 2)
-            .background(.black.opacity(0.78), in: RoundedRectangle(cornerRadius: 12))
             .environment(\.colorScheme, .dark)
 
         let hostingView = FirstMouseHostingView(rootView: styledView)
         contentSize = hostingView.fittingSize
-        contentView = hostingView
+
+        let effectView = NSVisualEffectView(frame: NSRect(origin: .zero, size: contentSize))
+        effectView.material = .hudWindow
+        effectView.blendingMode = .behindWindow
+        effectView.state = .active
+        effectView.wantsLayer = true
+        effectView.layer?.cornerRadius = RecordingToolbarConstants.toolbarCornerRadius
+        effectView.layer?.masksToBounds = true
+
+        hostingView.frame = effectView.bounds
+        hostingView.autoresizingMask = [.width, .height]
+        effectView.addSubview(hostingView)
+        contentView = effectView
 
         hasShadow = true
     }
