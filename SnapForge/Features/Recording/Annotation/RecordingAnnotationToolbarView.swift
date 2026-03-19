@@ -108,10 +108,12 @@ struct RecordingAnnotationToolbarView: View {
                     .accessibilityLabel("Color: \(color.description)")
             }
 
-            // Custom color picker
+            // Custom color picker — scaled down to match preset circles
             ColorPicker("", selection: $state.strokeColor, supportsOpacity: false)
                 .labelsHidden()
+                .scaleEffect(0.55)
                 .frame(width: 16, height: 16)
+                .clipShape(Circle())
                 .accessibilityLabel("Custom color")
         }
     }
