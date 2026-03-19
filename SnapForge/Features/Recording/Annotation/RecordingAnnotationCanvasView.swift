@@ -81,7 +81,15 @@ final class RecordingAnnotationCanvasView: NSView {
         for entry in state.annotations {
             cgContext.saveGState()
             cgContext.setAlpha(entry.opacity)
-            renderer.draw(entry.item)
+            // Use recording-specific blur renderer (no source image on transparent canvas)
+            if case .blur(let blurType) = entry.item.type {
+                switch blurType {
+                case .pixelated: RecordingBlurRenderer.drawPixelated(in: cgContext, bounds: entry.item.bounds)
+                case .gaussian: RecordingBlurRenderer.drawGaussian(in: cgContext, bounds: entry.item.bounds)
+                }
+            } else {
+                renderer.draw(entry.item)
+            }
             cgContext.restoreGState()
         }
 
@@ -97,7 +105,23 @@ final class RecordingAnnotationCanvasView: NSView {
         }
 
         // Draw in-progress stroke
-        if isDrawing && state.selectedTool != .selection {
+        if isDrawing && state.selectedTool == .blur {
+            // Live blur preview during drag
+            let last = currentPath.last ?? drawStart
+            let previewRect = CGRect(
+                x: min(drawStart.x, last.x), y: min(drawStart.y, last.y),
+                width: abs(last.x - drawStart.x), height: abs(last.y - drawStart.y)
+            )
+            if previewRect.width > 5, previewRect.height > 5 {
+                cgContext.saveGState()
+                cgContext.setAlpha(0.6)
+                switch state.selectedBlurType {
+                case .pixelated: RecordingBlurRenderer.drawPixelated(in: cgContext, bounds: previewRect)
+                case .gaussian: RecordingBlurRenderer.drawGaussian(in: cgContext, bounds: previewRect)
+                }
+                cgContext.restoreGState()
+            }
+        } else if isDrawing && state.selectedTool != .selection {
             renderer.drawCurrentStroke(
                 tool: state.selectedTool,
                 start: drawStart,
@@ -208,11 +232,15 @@ final class RecordingAnnotationCanvasView: NSView {
             handleCounterClick(at: point)
         } else if isDrawing {
             isDrawing = false
-            if let annotation = RecordingAnnotationFactory.createAnnotation(
+            if var annotation = RecordingAnnotationFactory.createAnnotation(
                 tool: state.selectedTool, from: drawStart, to: point,
                 path: currentPath, strokeColor: state.strokeColor,
                 strokeWidth: state.strokeWidth
             ) {
+                // Set the selected blur type for blur annotations
+                if state.selectedTool == .blur {
+                    annotation.type = .blur(state.selectedBlurType)
+                }
                 state.appendAnnotation(annotation, tool: state.selectedTool)
             }
             currentPath.removeAll()

@@ -46,6 +46,11 @@ enum RecordingAnnotationFactory {
             let highlightProps = AnnotationProperties(strokeColor: strokeColor, strokeWidth: strokeWidth * 3)
             return AnnotationItem(type: .highlight(path), bounds: bounds, properties: highlightProps)
 
+        case .blur:
+            let bounds = makeRect(from: start, to: end)
+            guard bounds.width >= 10, bounds.height >= 10 else { return nil }
+            return AnnotationItem(type: .blur(.pixelated), bounds: bounds, properties: props)
+
         default:
             return nil
         }

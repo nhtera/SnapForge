@@ -16,6 +16,8 @@ final class RecordingAnnotationState {
     var nextCounterValue: Int = 1
     /// Font size for text annotations
     var selectedFontSize: CGFloat = 20
+    /// Blur style for blur redaction tool
+    var selectedBlurType: BlurType = .pixelated
 
     /// Weak ref to canvas for triggering redraws
     weak var canvasView: RecordingAnnotationCanvasView?
@@ -39,7 +41,7 @@ final class RecordingAnnotationState {
     /// Tools available during recording (subset of all annotation tools)
     static let availableTools: [AnnotationToolType] = [
         .selection, .rectangle, .oval, .arrow, .line, .pencil, .highlighter,
-        .text, .counter,
+        .text, .counter, .blur,
     ]
 
     // MARK: - Mutation

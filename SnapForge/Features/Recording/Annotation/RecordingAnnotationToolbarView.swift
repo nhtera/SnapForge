@@ -19,14 +19,19 @@ struct RecordingAnnotationToolbarView: View {
 
             divider
 
-            // Width presets (hidden for text/counter tools)
-            if state.selectedTool != .text && state.selectedTool != .counter {
+            // Width presets (hidden for text/counter/blur tools)
+            if state.selectedTool != .text && state.selectedTool != .counter && state.selectedTool != .blur {
                 widthButtons
             }
 
             // Font size presets (shown for text tool only)
             if state.selectedTool == .text {
                 fontSizeButtons
+            }
+
+            // Blur type toggle (shown for blur tool only)
+            if state.selectedTool == .blur {
+                blurTypeButtons
             }
 
             divider
@@ -132,6 +137,29 @@ struct RecordingAnnotationToolbarView: View {
                     )
                     .onTapGesture { state.selectedFontSize = size }
                     .accessibilityLabel("Font size \(label)")
+            }
+        }
+    }
+
+    private var blurTypeButtons: some View {
+        HStack(spacing: 4) {
+            ForEach(BlurType.allCases) { blurType in
+                Button {
+                    state.selectedBlurType = blurType
+                } label: {
+                    Image(systemName: blurType.icon)
+                        .font(.system(size: 12))
+                        .foregroundStyle(
+                            state.selectedBlurType == blurType ? .white : .white.opacity(0.4)
+                        )
+                        .frame(width: 26, height: 26)
+                        .background(
+                            state.selectedBlurType == blurType ? .white.opacity(0.15) : .clear,
+                            in: RoundedRectangle(cornerRadius: 4)
+                        )
+                }
+                .buttonStyle(.plain)
+                .help(blurType.displayName)
             }
         }
     }
