@@ -82,16 +82,18 @@ struct VideoEditorToolbarView: View {
 
     private var rightSection: some View {
         HStack(spacing: DesignTokens.Spacing.sm) {
-            // Right sidebar toggle
-            toolbarButton(
-                label: "Sidebar",
-                icon: "sidebar.right",
-                action: state.toggleRightSidebar,
-                isActive: state.isRightSidebarVisible,
-                shortcut: ".",
-                modifiers: [.command],
-                help: state.isRightSidebarVisible ? "Hide Sidebar (⌘.)" : "Show Sidebar (⌘.)"
-            )
+            // Right sidebar toggle (video only — GIF has no background settings)
+            if !state.isGIF {
+                toolbarButton(
+                    label: "Sidebar",
+                    icon: "sidebar.right",
+                    action: state.toggleRightSidebar,
+                    isActive: state.isRightSidebarVisible,
+                    shortcut: ".",
+                    modifiers: [.command],
+                    help: state.isRightSidebarVisible ? "Hide Sidebar (⌘.)" : "Show Sidebar (⌘.)"
+                )
+            }
 
             // Unsaved changes indicator
             if state.hasUnsavedChanges {

@@ -18,6 +18,38 @@ final class VideoEditorState {
     let player: AVPlayer
     private let playerItem: AVPlayerItem
 
+    // MARK: - GIF Mode
+
+    /// Whether the source file is an animated GIF
+    var isGIF: Bool {
+        fileExtension == "gif"
+    }
+
+    /// GIF metadata (only populated when isGIF)
+    private(set) var gifMetadata: GIFMetadata?
+    private(set) var gifFrameCount: Int = 0
+    private(set) var gifDuration: Double = 0
+
+    /// GIF trim range (frame indices)
+    var gifTrimStartFrame: Int = 0
+    var gifTrimEndFrame: Int = 0
+    private var initialGifTrimStartFrame: Int = 0
+    private var initialGifTrimEndFrame: Int = 0
+    private var initialGifDimensionPreset: ExportDimensionPreset = .original
+
+    var gifTrimmedFrameCount: Int {
+        max(0, gifTrimEndFrame - gifTrimStartFrame + 1)
+    }
+
+    /// Duration of trimmed GIF based on per-frame delays
+    var gifTrimmedDuration: Double {
+        guard let delays = gifMetadata?.frameDelays else { return 0 }
+        let start = max(0, gifTrimStartFrame)
+        let end = min(delays.count - 1, gifTrimEndFrame)
+        guard start <= end else { return 0 }
+        return delays[start...end].reduce(0, +)
+    }
+
     // MARK: - Metadata
 
     private(set) var duration: Double = 0
@@ -202,6 +234,11 @@ final class VideoEditorState {
     // MARK: - Metadata Loading
 
     func loadVideo() async {
+        if isGIF {
+            loadGIFMetadata()
+            return
+        }
+
         do {
             let dur = try await asset.load(.duration)
             let seconds = CMTimeGetSeconds(dur)
@@ -237,9 +274,39 @@ final class VideoEditorState {
         }
     }
 
+    private func loadGIFMetadata() {
+        guard let meta = GIFProcessor.metadata(for: videoURL) else {
+            print("⚠️ Failed to load GIF metadata: \(videoURL.lastPathComponent)")
+            return
+        }
+        gifMetadata = meta
+        gifFrameCount = meta.frameCount
+        gifDuration = meta.duration
+        naturalSize = meta.size
+
+        // Initialize trim to full range
+        gifTrimStartFrame = 0
+        gifTrimEndFrame = meta.frameCount - 1
+        initialGifTrimStartFrame = 0
+        initialGifTrimEndFrame = meta.frameCount - 1
+
+        // For compatibility with shared UI
+        duration = meta.duration
+        trimStart = 0
+        trimEnd = meta.duration
+
+        isPlayerReady = true
+        recalculateEstimatedFileSize()
+    }
+
     // MARK: - Frame Extraction
 
     func extractFrames() async {
+        if isGIF {
+            extractGIFFrames()
+            return
+        }
+
         guard duration > 0 else { return }
 
         isExtractingFrames = true
@@ -263,6 +330,18 @@ final class VideoEditorState {
             }
         }
         frameThumbnails = images
+    }
+
+    private func extractGIFFrames() {
+        isExtractingFrames = true
+        defer { isExtractingFrames = false }
+
+        let thumbnails = GIFProcessor.extractThumbnails(
+            from: videoURL,
+            count: 30,
+            maxSize: CGSize(width: 120, height: 68)
+        )
+        frameThumbnails = thumbnails
     }
 
     // MARK: - Playback Control
@@ -351,6 +430,37 @@ final class VideoEditorState {
         recalculateEstimatedFileSize()
     }
 
+    // MARK: - GIF Trim
+
+    func setGIFTrimStart(_ frame: Int, recordUndo: Bool = true) {
+        guard gifFrameCount > 1 else { return }
+        let oldValue = gifTrimStartFrame
+        let maxStart = gifTrimEndFrame - 1
+        let newValue = max(0, min(frame, maxStart))
+        gifTrimStartFrame = newValue
+
+        if recordUndo && oldValue != newValue {
+            recordAction(.gifTrimStart(old: oldValue, new: newValue))
+        }
+        updateHasUnsavedChanges()
+        recalculateEstimatedFileSize()
+    }
+
+    func setGIFTrimEnd(_ frame: Int, recordUndo: Bool = true) {
+        guard gifFrameCount > 1 else { return }
+        let oldValue = gifTrimEndFrame
+        let minEnd = gifTrimStartFrame + 1
+        let maxEnd = gifFrameCount - 1
+        let newValue = max(minEnd, min(frame, maxEnd))
+        gifTrimEndFrame = newValue
+
+        if recordUndo && oldValue != newValue {
+            recordAction(.gifTrimEnd(old: oldValue, new: newValue))
+        }
+        updateHasUnsavedChanges()
+        recalculateEstimatedFileSize()
+    }
+
     // MARK: - Export Settings
 
     func updateExportSettings(_ settings: ExportSettings) {
@@ -360,15 +470,26 @@ final class VideoEditorState {
     }
 
     func recalculateEstimatedFileSize() {
-        guard duration > 0 else {
+        guard let sourceSize = cachedFileSize else {
             estimatedFileSize = 0
             return
         }
 
-        // Get source file size
-        guard let attrs = try? FileManager.default.attributesOfItem(atPath: videoURL.path),
-              let sourceSize = attrs[.size] as? Int64
-        else {
+        if isGIF {
+            // Estimate based on frame ratio * dimension ratio
+            let frameRatio = gifFrameCount > 0
+                ? Double(gifTrimmedFrameCount) / Double(gifFrameCount)
+                : 1.0
+            let exportSize = exportSettings.exportSize(from: naturalSize)
+            let originalPixels = naturalSize.width * naturalSize.height
+            let newPixels = exportSize.width * exportSize.height
+            let pixelRatio = originalPixels > 0 ? newPixels / originalPixels : 1.0
+            let estimated = Double(sourceSize) * frameRatio * pixelRatio
+            estimatedFileSize = Int64(max(estimated, 1024))
+            return
+        }
+
+        guard duration > 0 else {
             estimatedFileSize = 0
             return
         }
@@ -491,6 +612,12 @@ final class VideoEditorState {
                 oldShadow: newShadow, newShadow: oldShadow,
                 oldCorner: newCorner, newCorner: oldCorner
             ))
+        case .gifTrimStart(let old, let new):
+            gifTrimStartFrame = old
+            redoStack.append(.gifTrimStart(old: new, new: old))
+        case .gifTrimEnd(let old, let new):
+            gifTrimEndFrame = old
+            redoStack.append(.gifTrimEnd(old: new, new: old))
         }
     }
 
@@ -528,6 +655,12 @@ final class VideoEditorState {
                 oldShadow: newShadow, newShadow: oldShadow,
                 oldCorner: newCorner, newCorner: oldCorner
             ))
+        case .gifTrimStart(let old, let new):
+            gifTrimStartFrame = old
+            undoStack.append(.gifTrimStart(old: new, new: old))
+        case .gifTrimEnd(let old, let new):
+            gifTrimEndFrame = old
+            undoStack.append(.gifTrimEnd(old: new, new: old))
         }
     }
 
@@ -539,6 +672,14 @@ final class VideoEditorState {
     // MARK: - Unsaved Changes
 
     private func updateHasUnsavedChanges() {
+        if isGIF {
+            let trimStartChanged = gifTrimStartFrame != initialGifTrimStartFrame
+            let trimEndChanged = gifTrimEndFrame != initialGifTrimEndFrame
+            let dimensionChanged = exportSettings.dimensionPreset != initialGifDimensionPreset
+            hasUnsavedChanges = trimStartChanged || trimEndChanged || dimensionChanged
+            return
+        }
+
         let startChanged = abs(trimStart - initialTrimStart) > 0.01
         let endChanged = abs(trimEnd - initialTrimEnd) > 0.01
         let muteChanged = isMuted != initialIsMuted
@@ -553,13 +694,21 @@ final class VideoEditorState {
 
     func markAsSaved() {
         hasUnsavedChanges = false
-        initialTrimStart = trimStart
-        initialTrimEnd = trimEnd
-        initialIsMuted = isMuted
-        initialBackgroundStyle = backgroundStyle
-        initialBackgroundPadding = backgroundPadding
-        initialBackgroundShadowIntensity = backgroundShadowIntensity
-        initialBackgroundCornerRadius = backgroundCornerRadius
+
+        if isGIF {
+            initialGifTrimStartFrame = gifTrimStartFrame
+            initialGifTrimEndFrame = gifTrimEndFrame
+            initialGifDimensionPreset = exportSettings.dimensionPreset
+        } else {
+            initialTrimStart = trimStart
+            initialTrimEnd = trimEnd
+            initialIsMuted = isMuted
+            initialBackgroundStyle = backgroundStyle
+            initialBackgroundPadding = backgroundPadding
+            initialBackgroundShadowIntensity = backgroundShadowIntensity
+            initialBackgroundCornerRadius = backgroundCornerRadius
+        }
+
         undoStack.removeAll()
         redoStack.removeAll()
         updateUndoRedoState()

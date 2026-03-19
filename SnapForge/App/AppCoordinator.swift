@@ -290,7 +290,10 @@ final class AppCoordinator {
             defer: false
         )
         window.contentView = hostingView
-        window.title = "Video Editor — \(videoURL.lastPathComponent)"
+        let isGIF = videoURL.pathExtension.lowercased() == "gif"
+        window.title = isGIF
+            ? "GIF Editor — \(videoURL.lastPathComponent)"
+            : "Video Editor — \(videoURL.lastPathComponent)"
         window.center()
         window.isReleasedWhenClosed = false
         window.contentMinSize = NSSize(width: 700, height: 500)

@@ -11,7 +11,7 @@ struct VideoEditorDetailsSidebarView: View {
                 HStack {
                     Image(systemName: "info.circle.fill")
                         .foregroundStyle(.blue)
-                    Text("Video Details")
+                    Text(state.isGIF ? "GIF Details" : "Video Details")
                         .font(.system(size: 13, weight: .semibold))
                 }
 
@@ -31,11 +31,22 @@ struct VideoEditorDetailsSidebarView: View {
                     )
                 }
 
-                // Video Info
-                VideoEditorSidebarSection(title: "Video") {
-                    VideoEditorDetailRow(label: "Resolution", value: state.resolutionString)
-                    VideoEditorDetailRow(label: "Aspect Ratio", value: state.aspectRatioString)
-                    VideoEditorDetailRow(label: "Duration", value: state.formattedDuration)
+                // Video / GIF Info
+                if state.isGIF {
+                    VideoEditorSidebarSection(title: "GIF") {
+                        VideoEditorDetailRow(label: "Resolution", value: state.resolutionString)
+                        VideoEditorDetailRow(label: "Frames", value: "\(state.gifFrameCount)")
+                        VideoEditorDetailRow(label: "Duration", value: String(format: "%.1fs", state.gifDuration))
+                        if let meta = state.gifMetadata {
+                            VideoEditorDetailRow(label: "FPS", value: String(format: "%.0f", meta.fps))
+                        }
+                    }
+                } else {
+                    VideoEditorSidebarSection(title: "Video") {
+                        VideoEditorDetailRow(label: "Resolution", value: state.resolutionString)
+                        VideoEditorDetailRow(label: "Aspect Ratio", value: state.aspectRatioString)
+                        VideoEditorDetailRow(label: "Duration", value: state.formattedDuration)
+                    }
                 }
 
                 // Dates

@@ -11,4 +11,8 @@ enum EditorAction: Equatable {
         oldShadow: CGFloat, newShadow: CGFloat,
         oldCorner: CGFloat, newCorner: CGFloat
     )
+
+    // GIF-specific
+    case gifTrimStart(old: Int, new: Int)
+    case gifTrimEnd(old: Int, new: Int)
 }

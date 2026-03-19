@@ -7,12 +7,17 @@ enum VideoEditorExporter {
 
     // MARK: - Export Methods
 
-    /// Export trimmed video with full export settings (quality, dimensions, audio).
+    /// Export trimmed media — branches on GIF vs video.
     static func exportTrimmed(
         state: VideoEditorState,
         to outputURL: URL,
         progress: @escaping @Sendable (Double) -> Void
     ) async throws {
+        if state.isGIF {
+            try await exportGIF(state: state, to: outputURL, progress: progress)
+            return
+        }
+
         let timeRange = CMTimeRange(
             start: CMTime(seconds: state.trimStart, preferredTimescale: 600),
             end: CMTime(seconds: state.trimEnd, preferredTimescale: 600)
@@ -240,6 +245,51 @@ enum VideoEditorExporter {
         try await runExportSession(exportSession, progress: progress)
 
         print("✅ Exported video with settings: \(outputURL.lastPathComponent)")
+    }
+
+    // MARK: - GIF Export
+
+    private static func exportGIF(
+        state: VideoEditorState,
+        to outputURL: URL,
+        progress: @escaping @Sendable (Double) -> Void
+    ) async throws {
+        // Capture state values on main actor before hopping off
+        let sourceURL = state.videoURL
+        let startFrame = state.gifTrimStartFrame
+        let endFrame = state.gifTrimEndFrame
+        let gifFrameCount = state.gifFrameCount
+
+        let targetSize: CGSize?
+        if state.exportSettings.dimensionPreset != .original {
+            targetSize = state.exportSettings.exportSize(from: state.naturalSize)
+        } else {
+            targetSize = nil
+        }
+
+        // Optimization: if no trim and no resize, just copy
+        let isTrimmed = startFrame > 0 || endFrame < gifFrameCount - 1
+        if !isTrimmed && targetSize == nil {
+            try? FileManager.default.removeItem(at: outputURL)
+            try FileManager.default.copyItem(at: sourceURL, to: outputURL)
+            progress(1.0)
+            return
+        }
+
+        // Run heavy frame processing off the main actor
+        try await Task.detached {
+            try? FileManager.default.removeItem(at: outputURL)
+            try GIFProcessor.exportTrimmed(
+                sourceURL: sourceURL,
+                outputURL: outputURL,
+                startFrame: startFrame,
+                endFrame: endFrame,
+                targetSize: targetSize,
+                onProgress: progress
+            )
+        }.value
+
+        print("✅ Exported GIF: \(outputURL.lastPathComponent)")
     }
 
     // MARK: - Safe Export Runner

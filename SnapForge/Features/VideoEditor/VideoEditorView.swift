@@ -29,8 +29,8 @@ struct VideoEditorView: View {
                 centerContent
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-                // Right sidebar — Background
-                if state.isRightSidebarVisible {
+                // Right sidebar — Background (video only)
+                if state.isRightSidebarVisible && !state.isGIF {
                     Divider()
                     VideoEditorRightSidebar(state: state)
                         .transition(.move(edge: .trailing).combined(with: .opacity))
@@ -41,6 +41,7 @@ struct VideoEditorView: View {
 
             // Bottom bar
             VideoEditorBottomBar(
+                isGIF: state.isGIF,
                 onCancel: handleCancel,
                 onConvert: { showingSaveDialog = true }
             )
@@ -75,7 +76,7 @@ struct VideoEditorView: View {
 
     private var centerContent: some View {
         VStack(spacing: 0) {
-            // Video Player
+            // Player / Preview
             playerSection
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
 
@@ -83,37 +84,48 @@ struct VideoEditorView: View {
 
             // Controls + Timeline + Export Settings
             VStack(spacing: DesignTokens.Spacing.md) {
-                // Playback controls
-                VideoControlsView(state: state)
+                if state.isGIF {
+                    // GIF controls: frame info instead of play/pause
+                    GIFControlsView(state: state)
 
-                // Timeline
-                VideoTimelineView(state: state)
+                    // Timeline with frame-index trim handles
+                    GIFTimelineView(state: state)
 
-                // Expand/collapse export settings — entire row is clickable
-                VStack(spacing: 0) {
-                    Button {
-                        withAnimation(DesignTokens.Animation.fast) {
-                            showExportSettings.toggle()
+                    // GIF export settings (dimensions + info)
+                    GIFExportSettingsPanel(state: state)
+                } else {
+                    // Playback controls
+                    VideoControlsView(state: state)
+
+                    // Timeline
+                    VideoTimelineView(state: state)
+
+                    // Expand/collapse export settings — entire row is clickable
+                    VStack(spacing: 0) {
+                        Button {
+                            withAnimation(DesignTokens.Animation.fast) {
+                                showExportSettings.toggle()
+                            }
+                        } label: {
+                            HStack(spacing: DesignTokens.Spacing.xs) {
+                                Image(systemName: "chevron.right")
+                                    .font(.system(size: 10, weight: .semibold))
+                                    .rotationEffect(.degrees(showExportSettings ? 90 : 0))
+                                Image(systemName: "gearshape")
+                                    .font(.system(size: 11))
+                                Text("Export Settings")
+                                    .font(.system(size: 12, weight: .medium))
+                                Spacer()
+                            }
+                            .contentShape(Rectangle())
+                            .foregroundStyle(.secondary)
                         }
-                    } label: {
-                        HStack(spacing: DesignTokens.Spacing.xs) {
-                            Image(systemName: "chevron.right")
-                                .font(.system(size: 10, weight: .semibold))
-                                .rotationEffect(.degrees(showExportSettings ? 90 : 0))
-                            Image(systemName: "gearshape")
-                                .font(.system(size: 11))
-                            Text("Export Settings")
-                                .font(.system(size: 12, weight: .medium))
-                            Spacer()
-                        }
-                        .contentShape(Rectangle())
-                        .foregroundStyle(.secondary)
-                    }
-                    .buttonStyle(.plain)
+                        .buttonStyle(.plain)
 
-                    if showExportSettings {
-                        VideoEditorExportSettingsPanel(state: state)
-                            .transition(.opacity.combined(with: .move(edge: .top)))
+                        if showExportSettings {
+                            VideoEditorExportSettingsPanel(state: state)
+                                .transition(.opacity.combined(with: .move(edge: .top)))
+                        }
                     }
                 }
             }
@@ -125,15 +137,28 @@ struct VideoEditorView: View {
 
     private var playerSection: some View {
         GeometryReader { geo in
-            let hasBackground = state.backgroundStyle != .none && state.backgroundPadding > 0
-            let hasValidSize = state.naturalSize.width > 0 && state.naturalSize.height > 0
-
-            if hasValidSize && hasBackground {
-                backgroundPlayerView(in: geo.size)
+            if state.isGIF {
+                gifPreviewSection(in: geo.size)
             } else {
-                plainPlayerView(in: geo.size)
+                let hasBackground = state.backgroundStyle != .none && state.backgroundPadding > 0
+                let hasValidSize = state.naturalSize.width > 0 && state.naturalSize.height > 0
+
+                if hasValidSize && hasBackground {
+                    backgroundPlayerView(in: geo.size)
+                } else {
+                    plainPlayerView(in: geo.size)
+                }
             }
         }
+    }
+
+    private func gifPreviewSection(in containerSize: CGSize) -> some View {
+        ZStack {
+            Color.black.opacity(0.3)
+            GIFPreviewView(url: state.videoURL)
+                .frame(maxWidth: containerSize.width, maxHeight: containerSize.height)
+        }
+        .frame(width: containerSize.width, height: containerSize.height)
     }
 
     private func backgroundPlayerView(in containerSize: CGSize) -> some View {
@@ -290,12 +315,14 @@ struct VideoEditorView: View {
                 }
 
                 // Title
-                Text("Save Edited Video")
+                Text(state.isGIF ? "Save Edited GIF" : "Save Edited Video")
                     .font(.system(size: 15, weight: .bold))
                     .padding(.bottom, DesignTokens.Spacing.xs)
 
                 // Message
-                Text("How would you like to save the edited video\n\"\(state.filename)\"?")
+                Text(state.isGIF
+                    ? "How would you like to save the edited GIF\n\"\(state.filename)\"?"
+                    : "How would you like to save the edited video\n\"\(state.filename)\"?")
                     .font(.system(size: 12))
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
@@ -385,8 +412,14 @@ struct VideoEditorView: View {
         let savePanel = NSSavePanel()
         savePanel.title = "Save as Copy"
         let baseName = state.videoURL.deletingPathExtension().lastPathComponent
-        savePanel.nameFieldStringValue = "\(baseName)_edited.\(state.fileExtension)"
-        savePanel.allowedContentTypes = [.movie, .mpeg4Movie, .quickTimeMovie]
+
+        if state.isGIF {
+            savePanel.nameFieldStringValue = "\(baseName)_edited.gif"
+            savePanel.allowedContentTypes = [.gif]
+        } else {
+            savePanel.nameFieldStringValue = "\(baseName)_edited.\(state.fileExtension)"
+            savePanel.allowedContentTypes = [.movie, .mpeg4Movie, .quickTimeMovie]
+        }
         savePanel.canCreateDirectories = true
 
         guard savePanel.runModal() == .OK, let outputURL = savePanel.url else { return }
@@ -402,7 +435,7 @@ struct VideoEditorView: View {
             state.pause()
             state.isExporting = true
             state.exportProgress = 0
-            state.exportStatusMessage = "Exporting video..."
+            state.exportStatusMessage = state.isGIF ? "Exporting GIF..." : "Exporting video..."
 
             // Ensure sandbox file access for source video during export + post-export file ops
             let access = SandboxFileAccessManager.shared.beginAccessingURL(state.videoURL)

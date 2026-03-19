@@ -169,3 +169,8 @@
 "gradient.cool" = "Mát mẻ";
 "gradient.dark" = "Tối";
 "gradient.neon" = "Neon";
+
+// MARK: - GIF Editor
+"editor.gif_editor" = "Chỉnh sửa GIF";
+"editor.save_gif" = "Lưu GIF đã chỉnh sửa";
+"editor.exporting_gif" = "Đang xuất GIF...";

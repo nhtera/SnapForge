@@ -169,3 +169,8 @@
 "gradient.cool" = "Cool";
 "gradient.dark" = "Dark";
 "gradient.neon" = "Neon";
+
+// MARK: - GIF Editor
+"editor.gif_editor" = "GIF Editor";
+"editor.save_gif" = "Save Edited GIF";
+"editor.exporting_gif" = "Exporting GIF...";

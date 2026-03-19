@@ -1,7 +1,8 @@
 import SwiftUI
 
-/// Bottom bar for video editor with Cancel and Convert buttons.
+/// Bottom bar for video editor with Cancel and Convert/Save buttons.
 struct VideoEditorBottomBar: View {
+    var isGIF: Bool = false
     var onCancel: () -> Void
     var onConvert: () -> Void
 
@@ -15,7 +16,7 @@ struct VideoEditorBottomBar: View {
 
                 Spacer()
 
-                Button("Convert", action: onConvert)
+                Button(isGIF ? "Save" : "Convert", action: onConvert)
                     .buttonStyle(.borderedProminent)
                     .keyboardShortcut("s", modifiers: [.command])
             }
