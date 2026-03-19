@@ -18,6 +18,14 @@ final class RecordingToolbarState {
         didSet { guard !isReloading else { return }; UserDefaults.standard.set(isMicEnabled, forKey: SettingsKey.recordingMicEnabled) }
     }
     var showOptionsPopover: Bool = false
+    /// Aspect ratio constraint (session-only, not persisted)
+    var aspectRatio: RecordingAspectRatio = .free
+    /// Size preset (session-only)
+    var sizePreset: RecordingSizePreset = .custom
+    /// Callback when aspect ratio changes
+    var onAspectRatioChanged: ((RecordingAspectRatio) -> Void)?
+    /// Callback when size preset selected
+    var onSizePresetSelected: ((CGSize) -> Void)?
 
     var videoFormat: VideoFormat {
         didSet { guard !isReloading else { return }; UserDefaults.standard.set(videoFormat.rawValue, forKey: SettingsKey.recordingVideoFormat) }

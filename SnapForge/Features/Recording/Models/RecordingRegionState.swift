@@ -24,6 +24,8 @@ final class RecordingRegionState {
     var isDragging: Bool = false
     var isResizing: Bool = false
     var activeHandle: RecordingResizeHandle?
+    /// Aspect ratio constraint (width/height). nil = free resize.
+    var lockedAspectRatio: CGFloat?
 
     var onRectChanged: ((CGRect) -> Void)?
     var onDoubleClick: (() -> Void)?

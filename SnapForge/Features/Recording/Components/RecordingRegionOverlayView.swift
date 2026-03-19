@@ -174,6 +174,22 @@ final class RecordingRegionOverlayView: NSView {
             case .leftCenter:   r.origin.x += dx; r.size.width -= dx
             case .rightCenter:  r.size.width += dx
             }
+
+            // Apply aspect ratio constraint
+            if let ratio = state.lockedAspectRatio {
+                switch handle {
+                case .topLeft, .topRight, .bottomLeft, .bottomRight:
+                    let newHeight = r.width / ratio
+                    // Anchor opposite corner
+                    if handle == .bottomLeft || handle == .bottomRight {
+                        r.origin.y = dragStartRect.maxY - newHeight
+                    }
+                    r.size.height = newHeight
+                case .topCenter, .bottomCenter, .leftCenter, .rightCenter:
+                    r = dragStartRect // Edge handles locked — revert
+                }
+            }
+
             // Enforce minimum size
             if r.width < minSize { r.size.width = minSize }
             if r.height < minSize { r.size.height = minSize }
@@ -205,6 +221,15 @@ final class RecordingRegionOverlayView: NSView {
         for handle in RecordingResizeHandle.allCases {
             let hr = state.handleRect(for: handle).insetBy(dx: -4, dy: -4)
             if hr.contains(point) {
+                // Show not-allowed cursor for edge handles when aspect ratio locked
+                if state.lockedAspectRatio != nil {
+                    switch handle {
+                    case .topCenter, .bottomCenter, .leftCenter, .rightCenter:
+                        NSCursor.operationNotAllowed.set()
+                        return
+                    default: break
+                    }
+                }
                 handle.cursor.set()
                 return
             }

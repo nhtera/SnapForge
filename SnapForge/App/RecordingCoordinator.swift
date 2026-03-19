@@ -230,6 +230,50 @@ final class RecordingCoordinator {
         state.onCaptureModeChanged = { [weak self] mode in
             self?.handleCaptureModeChange(mode)
         }
+        // Wire aspect ratio → region state + immediately reshape
+        state.onAspectRatioChanged = { [weak self] ratio in
+            guard let self, let rState = self.regionState else { return }
+            rState.lockedAspectRatio = ratio.value
+            // Immediately reshape region to match the selected ratio
+            if let ratioValue = ratio.value {
+                var r = rState.rect
+                let center = CGPoint(x: r.midX, y: r.midY)
+                let newHeight = r.width / ratioValue
+                r.size.height = newHeight
+                r.origin.y = center.y - newHeight / 2
+                // Clamp to screen
+                if let screen = NSScreen.main {
+                    let sf = screen.frame
+                    r.origin.x = max(sf.minX, min(r.origin.x, sf.maxX - r.width))
+                    r.origin.y = max(sf.minY, min(r.origin.y, sf.maxY - r.height))
+                }
+                rState.rect = r
+                rState.onRectChanged?(r)
+                self.regionOverlayWindow?.contentView?.needsDisplay = true
+            }
+        }
+        // Wire size preset → resize region centered
+        state.onSizePresetSelected = { [weak self] size in
+            guard let self, let rState = self.regionState else { return }
+            let center = CGPoint(x: rState.rect.midX, y: rState.rect.midY)
+            var newRect = CGRect(
+                x: center.x - size.width / 2,
+                y: center.y - size.height / 2,
+                width: size.width,
+                height: size.height
+            )
+            // Clamp to screen bounds
+            if let screen = NSScreen.main {
+                let sf = screen.frame
+                if newRect.width > sf.width { newRect.size.width = sf.width }
+                if newRect.height > sf.height { newRect.size.height = sf.height }
+                newRect.origin.x = max(sf.minX, min(newRect.origin.x, sf.maxX - newRect.width))
+                newRect.origin.y = max(sf.minY, min(newRect.origin.y, sf.maxY - newRect.height))
+            }
+            rState.rect = newRect
+            rState.onRectChanged?(newRect)
+            self.regionOverlayWindow?.contentView?.needsDisplay = true
+        }
         toolbarState = state
 
         // Determine if restore-area button should be shown

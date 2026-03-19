@@ -47,6 +47,11 @@ struct PreRecordToolbarView: View {
 
             RecordingToolbarDivider()
 
+            // Aspect ratio + size presets
+            RecordingAspectRatioMenu(toolbarState: state)
+
+            RecordingToolbarDivider()
+
             // Options popover
             optionsButton
 
