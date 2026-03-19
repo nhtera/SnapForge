@@ -35,13 +35,20 @@ final class RecordingAnnotationCanvasWindow: NSWindow {
             while !Task.isCancelled {
                 let tool = state.selectedTool
                 if tool != lastTool {
+                    let wasTool = lastTool
                     lastTool = tool
+                    // Dismiss active text field when switching away from text tool
+                    if wasTool == .text {
+                        self?.canvasView.dismissTextOverlay()
+                    }
                     let isSelection = (tool == .selection)
                     self?.ignoresMouseEvents = isSelection
                     if !isSelection {
                         self?.makeKeyAndOrderFront(nil)
                         self?.makeFirstResponder(self?.canvasView)
                     }
+                    // Update cursor for new tool
+                    self?.canvasView.updateCursorForTool()
                 }
                 try? await Task.sleep(for: .milliseconds(50))
             }

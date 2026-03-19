@@ -13,6 +13,9 @@ final class RecordingAnnotationCanvasView: NSView {
     private var currentPath: [CGPoint] = []
     private var dragOffset: CGPoint = .zero
     private var isDraggingAnnotation = false
+    private lazy var textOverlay = RecordingAnnotationTextOverlay(state: state)
+    /// Current mouse position for counter preview
+    private var hoverPoint: CGPoint?
 
     init(state: RecordingAnnotationState) {
         self.state = state
@@ -31,12 +34,40 @@ final class RecordingAnnotationCanvasView: NSView {
         super.updateTrackingAreas()
         trackingAreas.forEach { removeTrackingArea($0) }
         addTrackingArea(NSTrackingArea(
-            rect: bounds, options: [.mouseMoved, .activeAlways, .inVisibleRect],
+            rect: bounds, options: [.mouseMoved, .activeAlways, .inVisibleRect, .mouseEnteredAndExited],
             owner: self, userInfo: nil
         ))
     }
 
     func refresh() { needsDisplay = true }
+
+    /// Dismiss active text overlay (called when switching tools)
+    func dismissTextOverlay() {
+        if textOverlay.isActive {
+            textOverlay.commit()
+        }
+    }
+
+    /// Update cursor for current tool (called from canvas window observer)
+    func updateCursorForTool() {
+        window?.invalidateCursorRects(for: self)
+    }
+
+    // MARK: - Cursor
+
+    override func resetCursorRects() {
+        super.resetCursorRects()
+        switch state.selectedTool {
+        case .text:
+            addCursorRect(bounds, cursor: .iBeam)
+        case .counter:
+            addCursorRect(bounds, cursor: .crosshair)
+        case .selection:
+            addCursorRect(bounds, cursor: .arrow)
+        default:
+            addCursorRect(bounds, cursor: .crosshair)
+        }
+    }
 
     // MARK: - Drawing
 
@@ -75,12 +106,55 @@ final class RecordingAnnotationCanvasView: NSView {
                 strokeWidth: state.strokeWidth
             )
         }
+
+        // Draw counter preview ghost at hover position
+        if state.selectedTool == .counter, let hover = hoverPoint {
+            drawCounterPreview(in: cgContext, at: hover)
+        }
+    }
+
+    /// Draw a semi-transparent counter circle preview at hover position
+    private func drawCounterPreview(in ctx: CGContext, at center: CGPoint) {
+        let size: CGFloat = 24
+        // Match renderer: center point - size/2
+        let rect = CGRect(x: center.x - size / 2, y: center.y - size / 2, width: size, height: size)
+        ctx.saveGState()
+        ctx.setAlpha(0.3)
+        ctx.setFillColor(NSColor(state.strokeColor).cgColor)
+        ctx.fillEllipse(in: rect)
+        ctx.setStrokeColor(NSColor.white.withAlphaComponent(0.4).cgColor)
+        ctx.setLineWidth(1.5)
+        ctx.strokeEllipse(in: rect)
+        ctx.restoreGState()
     }
 
     // MARK: - Mouse Events
 
+    override func mouseMoved(with event: NSEvent) {
+        let point = convert(event.locationInWindow, from: nil)
+        if state.selectedTool == .counter {
+            hoverPoint = point
+            needsDisplay = true
+        } else if hoverPoint != nil {
+            hoverPoint = nil
+            needsDisplay = true
+        }
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        if hoverPoint != nil {
+            hoverPoint = nil
+            needsDisplay = true
+        }
+    }
+
     override func mouseDown(with event: NSEvent) {
         let point = convert(event.locationInWindow, from: nil)
+
+        // Commit active text field before handling new click
+        if textOverlay.isActive {
+            textOverlay.commit()
+        }
 
         if state.selectedTool == .selection {
             // Hit-test for selection
@@ -91,6 +165,16 @@ final class RecordingAnnotationCanvasView: NSView {
             } else {
                 state.selectedAnnotationId = nil
             }
+        } else if state.selectedTool == .text {
+            // Click on existing text annotation → edit it; otherwise create new
+            if let entry = state.annotations.reversed().first(where: { $0.item.containsPoint(point) }),
+               case .text(let existingText) = entry.item.type {
+                handleTextEdit(entry: entry, existingText: existingText)
+            } else {
+                drawStart = point
+            }
+        } else if state.selectedTool == .counter {
+            drawStart = point
         } else {
             isDrawing = true
             drawStart = point
@@ -118,6 +202,10 @@ final class RecordingAnnotationCanvasView: NSView {
 
         if isDraggingAnnotation {
             isDraggingAnnotation = false
+        } else if state.selectedTool == .text {
+            handleTextClick(at: point)
+        } else if state.selectedTool == .counter {
+            handleCounterClick(at: point)
         } else if isDrawing {
             isDrawing = false
             if let annotation = RecordingAnnotationFactory.createAnnotation(
@@ -130,6 +218,65 @@ final class RecordingAnnotationCanvasView: NSView {
             currentPath.removeAll()
         }
         needsDisplay = true
+    }
+
+    // MARK: - Text & Counter
+
+    private func handleTextClick(at point: CGPoint) {
+        guard !textOverlay.isActive else { return }
+        textOverlay.onCommit = { [weak self] text, boundsOrigin in
+            guard let self else { return }
+            let fontSize = self.state.selectedFontSize
+            let padding: CGFloat = 4
+            let attrs: [NSAttributedString.Key: Any] = [.font: NSFont.systemFont(ofSize: fontSize)]
+            let textSize = (text as NSString).size(withAttributes: attrs)
+            // Bounds match renderer's expectation: origin + padding = text draw point
+            let bounds = CGRect(
+                origin: boundsOrigin,
+                size: CGSize(width: textSize.width + padding * 2, height: textSize.height + padding * 2)
+            )
+            let props = AnnotationProperties(strokeColor: self.state.strokeColor, fontSize: fontSize)
+            let item = AnnotationItem(type: .text(text), bounds: bounds, properties: props)
+            self.state.appendAnnotation(item, tool: .text)
+        }
+        textOverlay.show(at: point, in: self)
+    }
+
+    /// Click on existing text annotation while in text tool to edit it
+    private func handleTextEdit(entry: RecordingAnnotationEntry, existingText: String) {
+        guard !textOverlay.isActive else { return }
+        let origin = entry.item.bounds.origin
+        let fontSize = entry.item.properties.fontSize
+        let color = NSColor(entry.item.properties.strokeColor)
+
+        textOverlay.onEditCommit = { [weak self] annotationId, newText in
+            guard let self,
+                  let idx = self.state.annotations.firstIndex(where: { $0.id == annotationId }) else { return }
+            let fs = self.state.annotations[idx].item.properties.fontSize
+            let padding: CGFloat = 4
+            let attrs: [NSAttributedString.Key: Any] = [.font: NSFont.systemFont(ofSize: fs)]
+            let textSize = (newText as NSString).size(withAttributes: attrs)
+            var item = self.state.annotations[idx].item
+            item.type = .text(newText)
+            item.bounds.size = CGSize(width: textSize.width + padding * 2, height: textSize.height + padding * 2)
+            self.state.annotations[idx] = RecordingAnnotationEntry(item: item, tool: .text)
+            self.needsDisplay = true
+        }
+        textOverlay.showForEditing(
+            annotationId: entry.id, text: existingText,
+            at: origin, fontSize: fontSize, color: color, in: self
+        )
+    }
+
+    private func handleCounterClick(at point: CGPoint) {
+        let value = state.nextCounterValue
+        state.nextCounterValue += 1
+        let size: CGFloat = 24
+        // Renderer uses bounds.origin as center point for counter circles
+        let bounds = CGRect(x: point.x, y: point.y, width: size, height: size)
+        let props = AnnotationProperties(strokeColor: state.strokeColor)
+        let item = AnnotationItem(type: .counter(value), bounds: bounds, properties: props)
+        state.appendAnnotation(item, tool: .counter)
     }
 
     // MARK: - Keyboard
@@ -149,10 +296,13 @@ final class RecordingAnnotationCanvasView: NSView {
         case 51, 117: // Delete, Forward Delete
             state.deleteSelected()
         case 53: // Escape
-            state.selectedAnnotationId = nil
+            if textOverlay.isActive {
+                textOverlay.dismiss()
+            } else {
+                state.selectedAnnotationId = nil
+            }
             needsDisplay = true
         default:
-            // Tool shortcuts — when shortcut mode active or canvas is focused
             if let char = event.characters?.lowercased().first {
                 for tool in RecordingAnnotationState.availableTools {
                     if tool.defaultShortcut == char {

@@ -12,6 +12,10 @@ final class RecordingAnnotationState {
     var toolClearModes: [AnnotationToolType: RecordingAnnotationClearMode] = [:]
     /// Whether modifier-hold shortcut mode is active
     var isShortcutModeActive: Bool = false
+    /// Auto-incrementing counter for counter tool
+    var nextCounterValue: Int = 1
+    /// Font size for text annotations
+    var selectedFontSize: CGFloat = 20
 
     /// Weak ref to canvas for triggering redraws
     weak var canvasView: RecordingAnnotationCanvasView?
@@ -35,6 +39,7 @@ final class RecordingAnnotationState {
     /// Tools available during recording (subset of all annotation tools)
     static let availableTools: [AnnotationToolType] = [
         .selection, .rectangle, .oval, .arrow, .line, .pencil, .highlighter,
+        .text, .counter,
     ]
 
     // MARK: - Mutation
@@ -54,6 +59,7 @@ final class RecordingAnnotationState {
         undoStack.removeAll()
         redoStack.removeAll()
         selectedAnnotationId = nil
+        nextCounterValue = 1
         canvasView?.refresh()
     }
 

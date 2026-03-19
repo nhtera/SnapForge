@@ -19,8 +19,15 @@ struct RecordingAnnotationToolbarView: View {
 
             divider
 
-            // Width presets
-            widthButtons
+            // Width presets (hidden for text/counter tools)
+            if state.selectedTool != .text && state.selectedTool != .counter {
+                widthButtons
+            }
+
+            // Font size presets (shown for text tool only)
+            if state.selectedTool == .text {
+                fontSizeButtons
+            }
 
             divider
 
@@ -106,6 +113,25 @@ struct RecordingAnnotationToolbarView: View {
                     .frame(width: 18, height: width)
                     .onTapGesture { state.strokeWidth = width }
                     .accessibilityLabel("Width: \(Int(width))px")
+            }
+        }
+    }
+
+    private let fontSizePresets: [(String, CGFloat)] = [("S", 14), ("M", 20), ("L", 28)]
+
+    private var fontSizeButtons: some View {
+        HStack(spacing: 4) {
+            ForEach(fontSizePresets, id: \.1) { label, size in
+                Text(label)
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundStyle(state.selectedFontSize == size ? .white : .white.opacity(0.4))
+                    .frame(width: 22, height: 22)
+                    .background(
+                        state.selectedFontSize == size ? .white.opacity(0.15) : .clear,
+                        in: RoundedRectangle(cornerRadius: 4)
+                    )
+                    .onTapGesture { state.selectedFontSize = size }
+                    .accessibilityLabel("Font size \(label)")
             }
         }
     }
