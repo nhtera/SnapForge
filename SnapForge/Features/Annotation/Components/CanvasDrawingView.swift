@@ -540,15 +540,10 @@ final class DrawingCanvasNSView: NSView {
     let desiredScreenSize: CGFloat = 16
     let fontSize = max(desiredScreenSize / displayScale, desiredScreenSize)
 
-    // Calculate proper height from font metrics
-    let font = NSFont.systemFont(ofSize: fontSize)
-    let textHeight = font.ascender - font.descender + font.leading
-    let padding: CGFloat = 4
-    let totalHeight = textHeight + padding * 2
     let initialWidth = max(150 / displayScale, 150)
 
-    // Position bounds centered on click point vertically
-    let bounds = CGRect(x: point.x, y: point.y - totalHeight / 2, width: initialWidth, height: totalHeight)
+    // Use shared layout engine for consistent bounds with renderer
+    let bounds = TextAnnotationLayout.bounds(fontSize: fontSize, origin: point, width: initialWidth)
     let properties = AnnotationProperties(
       strokeColor: state.strokeColor,
       fillColor: .clear,

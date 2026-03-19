@@ -267,25 +267,25 @@ struct AnnotationRenderer {
   }
 
   private func drawText(_ content: String, in bounds: CGRect, properties: AnnotationProperties) {
-    let padding: CGFloat = 4
     let displayText = content.isEmpty ? "" : content
 
     // Draw background if fillColor is not clear
     if properties.fillColor != .clear {
       context.setFillColor(NSColor(properties.fillColor).cgColor)
-      // bounds already includes padding, so use directly
       context.fill(bounds)
     }
 
-    let attributes: [NSAttributedString.Key: Any] = [
-      .font: NSFont.systemFont(ofSize: properties.fontSize, weight: .regular),
-      .foregroundColor: NSColor(properties.strokeColor),
-    ]
+    let attributes = TextAnnotationLayout.attributes(
+      fontSize: properties.fontSize,
+      color: NSColor(properties.strokeColor)
+    )
     let text = displayText as NSString
     let textSize = text.size(withAttributes: attributes)
-    // Center text vertically in bounds, left-align with padding
+
+    // Center text vertically in bounds, left-align with padding.
+    // Explicit centering matches SwiftUI TextField's vertical centering.
     let textPoint = CGPoint(
-      x: bounds.origin.x + padding,
+      x: bounds.origin.x + TextAnnotationLayout.horizontalPadding,
       y: bounds.origin.y + (bounds.height - textSize.height) / 2
     )
     text.draw(at: textPoint, withAttributes: attributes)

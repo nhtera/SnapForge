@@ -400,22 +400,17 @@ final class AnnotateState {
     bumpRevision()
   }
 
-  /// Calculate text bounds based on content and font size
+  /// Calculate text bounds based on content and font size.
+  /// Uses shared TextAnnotationLayout for consistent metrics with renderer.
   private func calculateTextBounds(text: String, fontSize: CGFloat, origin: CGPoint) -> CGRect {
     let clampedFontSize = min(max(fontSize, 8), 144)
-    let font = NSFont.systemFont(ofSize: clampedFontSize)
-    let attributes: [NSAttributedString.Key: Any] = [
-      .font: font
-    ]
+    let font = TextAnnotationLayout.font(size: clampedFontSize)
+    let attributes: [NSAttributedString.Key: Any] = [.font: font]
     let displayText = text.isEmpty ? "Text" : text
     let textSize = (displayText as NSString).size(withAttributes: attributes)
-    let padding: CGFloat = 4
 
-    // Use font metrics for height to match the visual rendering
-    // NSString.size returns a tight bounding box that's too small for display
-    let fontHeight = font.ascender - font.descender + font.leading
-    let height = max(fontHeight, textSize.height) + padding * 2
-
+    let height = TextAnnotationLayout.minimumHeight(for: clampedFontSize)
+    let padding = TextAnnotationLayout.horizontalPadding
     let maxWidth: CGFloat = 2000
     let maxHeight: CGFloat = 500
 
@@ -423,7 +418,7 @@ final class AnnotateState {
       x: origin.x,
       y: origin.y,
       width: min(textSize.width + padding * 2, maxWidth),
-      height: min(height, maxHeight)
+      height: min(max(height, textSize.height + padding * 2), maxHeight)
     )
   }
 
