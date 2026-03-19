@@ -12,60 +12,37 @@ struct RecordingBorderView: View {
 
     var body: some View {
         if isPreRecord {
-            preRecordBorder
-        } else if let config = borderConfig {
-            recordingBorder(config)
-        } else {
-            // Fallback: default red solid
-            recordingBorder(RecordingBorderConfiguration())
-        }
-    }
-
-    /// Pre-record: accent dashed border (unchanged)
-    private var preRecordBorder: some View {
-        RoundedRectangle(cornerRadius: 4)
-            .strokeBorder(
-                Color.accentColor,
-                style: StrokeStyle(lineWidth: 2, dash: [8, 4]),
-                antialiased: true
-            )
-    }
-
-    /// Active recording: configurable border style
-    @ViewBuilder
-    private func recordingBorder(_ config: RecordingBorderConfiguration) -> some View {
-        switch config.style {
-        case .solid:
             RoundedRectangle(cornerRadius: 4)
                 .strokeBorder(
-                    config.color.opacity(isBlinking ? 0.9 : 0.5),
-                    style: StrokeStyle(lineWidth: 2),
-                    antialiased: true
-                )
-                .animation(.easeInOut(duration: 0.8).repeatForever(), value: isBlinking)
-                .onAppear { isBlinking = true }
-
-        case .dashed:
-            RoundedRectangle(cornerRadius: 4)
-                .strokeBorder(
-                    config.color.opacity(isBlinking ? 0.9 : 0.5),
+                    Color.accentColor,
                     style: StrokeStyle(lineWidth: 2, dash: [8, 4]),
                     antialiased: true
                 )
+        } else {
+            let config = borderConfig ?? RecordingBorderConfiguration()
+            borderShape(config)
                 .animation(.easeInOut(duration: 0.8).repeatForever(), value: isBlinking)
                 .onAppear { isBlinking = true }
+        }
+    }
 
+    /// Active recording border — style varies, animation shared
+    @ViewBuilder
+    private func borderShape(_ config: RecordingBorderConfiguration) -> some View {
+        switch config.style {
+        case .solid:
+            RoundedRectangle(cornerRadius: 4)
+                .strokeBorder(config.color.opacity(isBlinking ? 0.9 : 0.5),
+                              style: StrokeStyle(lineWidth: 2), antialiased: true)
+        case .dashed:
+            RoundedRectangle(cornerRadius: 4)
+                .strokeBorder(config.color.opacity(isBlinking ? 0.9 : 0.5),
+                              style: StrokeStyle(lineWidth: 2, dash: [8, 4]), antialiased: true)
         case .glow:
             RoundedRectangle(cornerRadius: 4)
-                .strokeBorder(
-                    config.color.opacity(isBlinking ? 0.9 : 0.5),
-                    style: StrokeStyle(lineWidth: 2),
-                    antialiased: true
-                )
+                .strokeBorder(config.color.opacity(isBlinking ? 0.9 : 0.5),
+                              style: StrokeStyle(lineWidth: 2), antialiased: true)
                 .shadow(color: config.color.opacity(0.5), radius: 6)
-                .animation(.easeInOut(duration: 0.8).repeatForever(), value: isBlinking)
-                .onAppear { isBlinking = true }
-
         case .none:
             Color.clear
         }

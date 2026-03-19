@@ -28,6 +28,19 @@ struct RecordingPresetMenu: View {
                 newPresetName = ""
                 showSavePopover = true
             }
+
+            // Delete user presets submenu
+            let userPresets = presets.filter { !$0.isBuiltIn }
+            if !userPresets.isEmpty {
+                Menu("Delete Preset") {
+                    ForEach(userPresets) { preset in
+                        Button(preset.name, role: .destructive) {
+                            presets.removeAll { $0.id == preset.id }
+                            RecordingPreset.saveUserPresets(presets)
+                        }
+                    }
+                }
+            }
         } label: {
             HStack(spacing: 4) {
                 Image(systemName: "list.bullet.rectangle")
