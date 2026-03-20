@@ -440,6 +440,7 @@ final class RecordingCoordinator {
                 captureSystemAudio: systemAudio, captureMicrophone: mic,
                 showCursor: defaults.bool(forKey: SettingsKey.showCursorInRecording),
                 codec: codec, useRetinaScale: resolutionSetting == "retina",
+                excludeDesktopIcons: DesktopIconManager.shared.isIconHidingEnabled,
                 saveDirectory: storage.snapForgeDirectory
             )
             try await recorder.startRecording()

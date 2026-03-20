@@ -110,6 +110,7 @@ final class ScreenRecordingService: NSObject {
     private var captureMicrophone: Bool = false
     private var showCursor: Bool = true
     private var recordingCodec: AVVideoCodecType = .h264
+    private var excludeDesktopIcons: Bool = false
     private var outputURL: URL?
     private var registeredOutputTypes: Set<SCStreamOutputType> = []
     private var directoryAccess: SandboxFileAccessManager.ScopedAccess?
@@ -138,6 +139,7 @@ final class ScreenRecordingService: NSObject {
         showCursor: Bool = true,
         codec: AVVideoCodecType = .h264,
         useRetinaScale: Bool = true,
+        excludeDesktopIcons: Bool = false,
         saveDirectory: URL
     ) async throws {
         guard state == .idle else { return }
@@ -153,6 +155,7 @@ final class ScreenRecordingService: NSObject {
         self.captureMicrophone = captureMicrophone
         self.showCursor = showCursor
         recordingCodec = codec
+        self.excludeDesktopIcons = excludeDesktopIcons
 
         // Load shareable content (will throw if permission not granted)
         let content: SCShareableContent
@@ -384,17 +387,7 @@ final class ScreenRecordingService: NSObject {
         scaleFactor: CGFloat,
         content: SCShareableContent
     ) async throws {
-        // Exclude own app from recording
-        var excludedApps: [SCRunningApplication] = []
-        if let bundleID = Bundle.main.bundleIdentifier {
-            excludedApps = content.applications.filter { $0.bundleIdentifier == bundleID }
-        }
-
-        let filter = SCContentFilter(
-            display: display,
-            excludingApplications: excludedApps,
-            exceptingWindows: []
-        )
+        let filter = makeContentFilter(display: display, content: content, exceptedWindowIDs: [])
 
         let config = SCStreamConfiguration()
         config.queueDepth = 3
@@ -497,20 +490,9 @@ final class ScreenRecordingService: NSObject {
             }
             guard let display = resolvedDisplay else { return }
 
-            var excludedApps: [SCRunningApplication] = []
-            if let bundleID = Bundle.main.bundleIdentifier {
-                excludedApps = content.applications.filter { $0.bundleIdentifier == bundleID }
-            }
-
-            let allIDs = accumulatedExceptedWindowIDs
-            let exceptedWindows = content.windows.filter { window in
-                allIDs.contains(Int(window.windowID))
-            }
-
-            let filter = SCContentFilter(
-                display: display,
-                excludingApplications: excludedApps,
-                exceptingWindows: exceptedWindows
+            let filter = makeContentFilter(
+                display: display, content: content,
+                exceptedWindowIDs: accumulatedExceptedWindowIDs
             )
             try await activeStream.updateContentFilter(filter)
         } catch {
@@ -533,20 +515,46 @@ final class ScreenRecordingService: NSObject {
             }
             guard let display = resolvedDisplay else { return }
 
-            var excludedApps: [SCRunningApplication] = []
-            if let bundleID = Bundle.main.bundleIdentifier {
-                excludedApps = content.applications.filter { $0.bundleIdentifier == bundleID }
-            }
-
-            let filter = SCContentFilter(
-                display: display,
-                excludingApplications: excludedApps,
-                exceptingWindows: []
-            )
+            let filter = makeContentFilter(display: display, content: content, exceptedWindowIDs: [])
             try await activeStream.updateContentFilter(filter)
         } catch {
             AppLogger.recording.warning("Failed to revert content filter: \(error.localizedDescription)")
         }
+    }
+
+    // MARK: - Content Filter
+
+    /// Build SCContentFilter excluding own app + optionally Finder desktop icons.
+    /// Matches Snapzy's approach: exclude Finder app but keep visible Finder windows via exceptingWindows.
+    private func makeContentFilter(
+        display: SCDisplay,
+        content: SCShareableContent,
+        exceptedWindowIDs: Set<Int>
+    ) -> SCContentFilter {
+        var excludedApps: [SCRunningApplication] = []
+        if let bundleID = Bundle.main.bundleIdentifier {
+            excludedApps += content.applications.filter { $0.bundleIdentifier == bundleID }
+        }
+
+        var exceptedWindows = content.windows.filter { exceptedWindowIDs.contains(Int($0.windowID)) }
+
+        if excludeDesktopIcons {
+            let iconManager = DesktopIconManager.shared
+            excludedApps += iconManager.getFinderApps(from: content)
+            exceptedWindows += iconManager.getVisibleFinderWindows(from: content)
+        }
+
+        // Deduplicate
+        var seenAppIDs = Set<String>()
+        let uniqueApps = excludedApps.filter { seenAppIDs.insert($0.bundleIdentifier).inserted }
+        var seenWindowIDs = Set<CGWindowID>()
+        let uniqueWindows = exceptedWindows.filter { seenWindowIDs.insert($0.windowID).inserted }
+
+        return SCContentFilter(
+            display: display,
+            excludingApplications: uniqueApps,
+            exceptingWindows: uniqueWindows
+        )
     }
 
     // MARK: - Helpers
