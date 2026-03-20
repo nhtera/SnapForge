@@ -52,36 +52,99 @@ final class RecordingToolbarWindow: NSWindow {
         hasShadow = true
     }
 
-    /// Position toolbar below a given rect (in CG screen coords, converted to Cocoa)
+    /// Crossfade to new content: fade out old → swap + resize → fade in new.
+    /// Used for smooth pre-record → recording toolbar transition without window flicker.
+    func animateContentSwap<V: View>(_ view: V, draggable: Bool = false, belowRect: CGRect? = nil) {
+        isMovableByWindowBackground = draggable
+
+        let styledView = view
+            .padding(.horizontal, 4)
+            .padding(.vertical, 2)
+            .environment(\.colorScheme, .dark)
+
+        let newHostingView = FirstMouseHostingView(rootView: styledView)
+        let newSize = newHostingView.fittingSize
+
+        let newEffectView = NSVisualEffectView(frame: NSRect(origin: .zero, size: newSize))
+        newEffectView.material = .hudWindow
+        newEffectView.blendingMode = .behindWindow
+        newEffectView.state = .active
+        newEffectView.wantsLayer = true
+        newEffectView.layer?.cornerRadius = RecordingToolbarConstants.toolbarCornerRadius
+        newEffectView.layer?.masksToBounds = true
+
+        newHostingView.frame = newEffectView.bounds
+        newHostingView.autoresizingMask = [.width, .height]
+        newEffectView.addSubview(newHostingView)
+
+        let targetFrame: NSRect
+        if let belowRect {
+            targetFrame = Self.computeFrameBelowRect(belowRect, toolbarSize: newSize)
+        } else {
+            targetFrame = NSRect(
+                x: frame.midX - newSize.width / 2,
+                y: frame.midY - newSize.height / 2,
+                width: newSize.width, height: newSize.height
+            )
+        }
+
+        let oldContent = contentView
+        oldContent?.wantsLayer = true
+        contentSize = newSize
+
+        // Phase 1: Fade out old content
+        NSAnimationContext.runAnimationGroup({ context in
+            context.duration = 0.12
+            context.timingFunction = CAMediaTimingFunction(name: .easeIn)
+            oldContent?.animator().alphaValue = 0
+        }, completionHandler: { [self] in
+            // Phase 2: Swap content + resize
+            contentView = newEffectView
+            newEffectView.alphaValue = 0
+            setFrame(targetFrame, display: true)
+            hasShadow = true
+            // Phase 3: Fade in new content
+            NSAnimationContext.runAnimationGroup({ context in
+                context.duration = 0.15
+                context.timingFunction = CAMediaTimingFunction(name: .easeOut)
+                newEffectView.animator().alphaValue = 1
+            })
+        })
+    }
+
+    /// Position toolbar below a given rect (in Cocoa screen coords)
     func positionBelowRect(_ cocoaRect: CGRect) {
-        let size = contentSize
+        setFrame(Self.computeFrameBelowRect(cocoaRect, toolbarSize: contentSize), display: true)
+    }
+
+    /// Shared positioning logic: compute frame below a Cocoa rect with smart fallback
+    static func computeFrameBelowRect(_ cocoaRect: CGRect, toolbarSize: CGSize) -> CGRect {
         let gap = RecordingToolbarConstants.toolbarGap
         let visibleFrame =
             NSScreen.main?.visibleFrame ?? CGRect(x: 0, y: 0, width: 1920, height: 1080)
         let minSafeY = visibleFrame.origin.y
         let maxSafeY = visibleFrame.maxY
 
-        let belowY = cocoaRect.origin.y - size.height - gap
+        let belowY = cocoaRect.origin.y - toolbarSize.height - gap
         let insideBottomY = max(cocoaRect.origin.y + gap, minSafeY + gap)
         let aboveY = cocoaRect.maxY + gap
 
         let toolbarY: CGFloat
         if belowY >= minSafeY {
             toolbarY = belowY
-        } else if insideBottomY + size.height <= cocoaRect.maxY {
+        } else if insideBottomY + toolbarSize.height <= cocoaRect.maxY {
             toolbarY = insideBottomY
-        } else if aboveY + size.height <= maxSafeY {
+        } else if aboveY + toolbarSize.height <= maxSafeY {
             toolbarY = aboveY
         } else {
-            toolbarY = visibleFrame.midY - size.height / 2
+            toolbarY = visibleFrame.midY - toolbarSize.height / 2
         }
 
-        let toolbarRect = CGRect(
-            x: cocoaRect.midX - size.width / 2,
+        return CGRect(
+            x: cocoaRect.midX - toolbarSize.width / 2,
             y: toolbarY,
-            width: size.width,
-            height: size.height
+            width: toolbarSize.width,
+            height: toolbarSize.height
         )
-        setFrame(toolbarRect, display: true)
     }
 }

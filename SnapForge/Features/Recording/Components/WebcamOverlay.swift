@@ -21,7 +21,8 @@ final class WebcamOverlayManager: NSObject {
 
     // MARK: - Show/Hide
 
-    func show() {
+    /// Show webcam overlay at bottom-left inside the given Cocoa rect, or bottom-right of screen as fallback.
+    func show(insideRect cocoaRect: CGRect? = nil) {
         guard panel == nil else { return }
 
         let session = AVCaptureSession()
@@ -29,7 +30,7 @@ final class WebcamOverlayManager: NSObject {
 
         guard let camera = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .front),
               let input = try? AVCaptureDeviceInput(device: camera) else {
-            print("⚠️ No front camera available")
+            AppLogger.recording.warning("No front camera available for webcam overlay")
             return
         }
 
@@ -41,13 +42,24 @@ final class WebcamOverlayManager: NSObject {
         preview.videoGravity = .resizeAspectFill
 
         let size = diameter
-        let screenFrame = NSScreen.main?.visibleFrame ?? .zero
-        let panelFrame = NSRect(
-            x: screenFrame.maxX - size - 20,
-            y: screenFrame.minY + 20,
-            width: size,
-            height: size
-        )
+        let panelFrame: NSRect
+        if let rect = cocoaRect {
+            // Bottom-left inside the recording area
+            panelFrame = NSRect(
+                x: rect.origin.x + 16,
+                y: rect.origin.y + 16,
+                width: size,
+                height: size
+            )
+        } else {
+            let screenFrame = NSScreen.main?.visibleFrame ?? .zero
+            panelFrame = NSRect(
+                x: screenFrame.maxX - size - 20,
+                y: screenFrame.minY + 20,
+                width: size,
+                height: size
+            )
+        }
 
         let overlayPanel = NSPanel(
             contentRect: panelFrame,

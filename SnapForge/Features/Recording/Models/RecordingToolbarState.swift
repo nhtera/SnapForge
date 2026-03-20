@@ -40,11 +40,17 @@ final class RecordingToolbarState {
         didSet { guard !isReloading else { return }; UserDefaults.standard.set(showKeystrokes, forKey: SettingsKey.showKeystrokes) }
     }
     var webcamEnabled: Bool {
-        didSet { guard !isReloading else { return }; UserDefaults.standard.set(webcamEnabled, forKey: SettingsKey.webcamEnabled) }
+        didSet {
+            guard !isReloading else { return }
+            UserDefaults.standard.set(webcamEnabled, forKey: SettingsKey.webcamEnabled)
+            onWebcamToggled?(webcamEnabled)
+        }
     }
 
     /// Callback when capture mode changes (area/fullscreen)
     var onCaptureModeChanged: ((RecordingMode) -> Void)?
+    /// Callback when webcam toggle changes (show/hide preview during pre-record)
+    var onWebcamToggled: ((Bool) -> Void)?
 
     init() {
         let defaults = UserDefaults.standard

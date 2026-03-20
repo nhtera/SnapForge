@@ -133,6 +133,8 @@ final class RecordingCoordinator {
         regionOverlayWindow = nil
         dimOverlayWindow?.close()
         dimOverlayWindow = nil
+        webcamManager?.hide()
+        webcamManager = nil
         countdownManager.dismissCountdown()
         annotationManager.dismiss()
     }
@@ -286,6 +288,26 @@ final class RecordingCoordinator {
             rState.onRectChanged?(newRect)
             self.regionOverlayWindow?.contentView?.needsDisplay = true
         }
+        // Wire webcam toggle → show/hide preview during pre-record
+        state.onWebcamToggled = { [weak self] enabled in
+            guard let self else { return }
+            if enabled {
+                if self.webcamManager == nil {
+                    self.webcamManager = WebcamOverlayManager()
+                }
+                self.webcamManager?.show(insideRect: cocoaRect)
+            } else {
+                self.webcamManager?.hide()
+                self.webcamManager = nil
+            }
+        }
+        // Show webcam preview immediately if already enabled
+        if state.webcamEnabled {
+            let manager = WebcamOverlayManager()
+            manager.show(insideRect: cocoaRect)
+            webcamManager = manager
+        }
+
         toolbarState = state
 
         // Determine if restore-area button should be shown
@@ -370,6 +392,8 @@ final class RecordingCoordinator {
         regionState = nil
         dimOverlayWindow?.close()
         dimOverlayWindow = nil
+        webcamManager?.hide()
+        webcamManager = nil
     }
 
     // MARK: - Recording Lifecycle
@@ -377,14 +401,27 @@ final class RecordingCoordinator {
     private func beginRecording(in rect: CGRect) async {
         let defaults = UserDefaults.standard
         let countdownSeconds = defaults.integer(forKey: SettingsKey.recordingCountdownSeconds)
+        let cocoaRect = cgToCocoaRect(rect)
 
-        // Always dismiss pre-record UI before starting recording
-        dismissRecordingIndicator()
+        // --- Flash-free transition ---
+        // Show recording border BEFORE closing region overlay so area outline never disappears
+        removeEscapeMonitors()
+        showBorderWindow(cocoaRect: cocoaRect, isPreRecord: false)
+        showDimOverlayIfEnabled(recordingRect: rect)
 
+        // Now safely close the interactive region overlay (recording border is already visible)
+        regionOverlayWindow?.close()
+        regionOverlayWindow = nil
+        regionState = nil
+
+        // Countdown: hide toolbar during countdown, then create fresh after
         if countdownSeconds > 0 {
+            recordingToolbarPanel?.close()
+            recordingToolbarPanel = nil
             await countdownManager.showCountdown(seconds: countdownSeconds, captureRect: rect)
         }
 
+        // --- Start actual recording ---
         let recorder = ScreenRecordingService.shared
         let storage = AppEnvironment.shared.storageService
         let codecString = defaults.string(forKey: SettingsKey.recordingCodec) ?? "h264"
@@ -410,9 +447,7 @@ final class RecordingCoordinator {
             pendingRecordingRect = rect
 
             if toolbarState?.highlightClicks ?? defaults.bool(forKey: SettingsKey.highlightClicks) {
-                let cocoaRect = cgToCocoaRect(rect)
                 ClickVisualizer.shared.start(recordingRect: cocoaRect)
-                // Add click overlay to SCStream so effects appear in recording
                 if let windowID = ClickVisualizer.shared.overlayWindowID {
                     await recorder.addExceptedWindows([windowID])
                 }
@@ -420,26 +455,26 @@ final class RecordingCoordinator {
             if toolbarState?.showKeystrokes ?? defaults.bool(forKey: SettingsKey.showKeystrokes) {
                 KeystrokeVisualizer.shared.start()
             }
-
-            // Start webcam overlay if enabled
             if toolbarState?.webcamEnabled ?? defaults.bool(forKey: SettingsKey.webcamEnabled) {
-                let manager = WebcamOverlayManager()
-                manager.show()
-                webcamManager = manager
-                // Add webcam overlay to SCStream so it appears in recording
-                if let windowID = manager.overlayWindowID {
+                // Reuse webcam manager from pre-record preview if already showing
+                if webcamManager == nil {
+                    let manager = WebcamOverlayManager()
+                    manager.show()
+                    webcamManager = manager
+                }
+                if let windowID = webcamManager?.overlayWindowID {
                     await recorder.addExceptedWindows([windowID])
                 }
             }
 
-            // Save last recording area (dictionary format for readability)
+            // Save last recording area
             let areaDict: [String: Double] = [
                 "x": rect.origin.x, "y": rect.origin.y,
                 "width": rect.width, "height": rect.height
             ]
             defaults.set(areaDict, forKey: SettingsKey.lastRecordingArea)
 
-            // Start timer limit if configured
+            // Auto-stop timer
             let limit = defaults.integer(forKey: SettingsKey.recordingTimerLimit)
             if limit > 0 {
                 timerLimitTask = Task { @MainActor in
@@ -449,7 +484,40 @@ final class RecordingCoordinator {
                 }
             }
 
-            showRecordingIndicator(in: rect)
+            // --- Show recording toolbar (crossfade or fresh) ---
+            // Border and dim are already visible — only toolbar needs to appear/swap
+            if defaults.bool(forKey: SettingsKey.showRecordingControls) {
+                annotationManager.setup(anchorPanel: nil, cocoaRect: cocoaRect)
+
+                let toolbarView = RecordingStatusBarView(
+                    isGIFMode: toolbarState?.outputMode == .gif,
+                    annotationState: annotationManager.annotationState,
+                    recordingSize: CGSize(width: rect.width, height: rect.height),
+                    onRestart: { [weak self] in self?.restartRecording() },
+                    onDelete: { Task { await AppCoordinator.shared.cancelRecording() } },
+                    onStop: { Task { await AppCoordinator.shared.stopRecording() } }
+                )
+
+                if let existingPanel = recordingToolbarPanel {
+                    // No countdown: crossfade pre-record toolbar → recording status bar
+                    existingPanel.animateContentSwap(
+                        toolbarView, draggable: true, belowRect: cocoaRect
+                    )
+                } else {
+                    // After countdown or fresh: create new toolbar panel
+                    let panel = RecordingToolbarWindow()
+                    panel.setContent(toolbarView, draggable: true)
+                    panel.positionBelowRect(cocoaRect)
+                    panel.orderFrontRegardless()
+                    recordingToolbarPanel = panel
+                }
+
+                if let panel = recordingToolbarPanel {
+                    annotationManager.updateAnchorPanel(panel)
+                }
+            }
+
+            setupStopHotkey()
             registerScreenLockObservers()
         } catch {
             AppLogger.recording.error("Recording failed: \(error.localizedDescription)")
