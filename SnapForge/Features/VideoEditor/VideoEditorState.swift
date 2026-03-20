@@ -587,38 +587,8 @@ final class VideoEditorState {
             updateHasUnsavedChanges()
             recalculateEstimatedFileSize()
         }
-
-        switch action {
-        case .trimStart(let old, let new):
-            trimStart = old
-            redoStack.append(.trimStart(old: new, new: old))
-        case .trimEnd(let old, let new):
-            trimEnd = old
-            redoStack.append(.trimEnd(old: new, new: old))
-        case .toggleMute(let old, _):
-            isMuted = old
-            redoStack.append(.toggleMute(old: !old, new: old))
-        case .updateBackground(let oldStyle, let newStyle,
-                               let oldPadding, let newPadding,
-                               let oldShadow, let newShadow,
-                               let oldCorner, let newCorner):
-            backgroundStyle = oldStyle
-            backgroundPadding = oldPadding
-            backgroundShadowIntensity = oldShadow
-            backgroundCornerRadius = oldCorner
-            redoStack.append(.updateBackground(
-                oldStyle: newStyle, newStyle: oldStyle,
-                oldPadding: newPadding, newPadding: oldPadding,
-                oldShadow: newShadow, newShadow: oldShadow,
-                oldCorner: newCorner, newCorner: oldCorner
-            ))
-        case .gifTrimStart(let old, let new):
-            gifTrimStartFrame = old
-            redoStack.append(.gifTrimStart(old: new, new: old))
-        case .gifTrimEnd(let old, let new):
-            gifTrimEndFrame = old
-            redoStack.append(.gifTrimEnd(old: new, new: old))
-        }
+        applyAction(action)
+        redoStack.append(action.inverted)
     }
 
     func redo() {
@@ -630,37 +600,29 @@ final class VideoEditorState {
             updateHasUnsavedChanges()
             recalculateEstimatedFileSize()
         }
+        applyAction(action)
+        undoStack.append(action.inverted)
+    }
 
+    /// Apply an action's "old" values to restore state
+    private func applyAction(_ action: EditorAction) {
         switch action {
-        case .trimStart(let old, let new):
+        case .trimStart(let old, _):
             trimStart = old
-            undoStack.append(.trimStart(old: new, new: old))
-        case .trimEnd(let old, let new):
+        case .trimEnd(let old, _):
             trimEnd = old
-            undoStack.append(.trimEnd(old: new, new: old))
         case .toggleMute(let old, _):
             isMuted = old
-            undoStack.append(.toggleMute(old: !old, new: old))
-        case .updateBackground(let oldStyle, let newStyle,
-                               let oldPadding, let newPadding,
-                               let oldShadow, let newShadow,
-                               let oldCorner, let newCorner):
+        case .updateBackground(let oldStyle, _, let oldPadding, _,
+                               let oldShadow, _, let oldCorner, _):
             backgroundStyle = oldStyle
             backgroundPadding = oldPadding
             backgroundShadowIntensity = oldShadow
             backgroundCornerRadius = oldCorner
-            undoStack.append(.updateBackground(
-                oldStyle: newStyle, newStyle: oldStyle,
-                oldPadding: newPadding, newPadding: oldPadding,
-                oldShadow: newShadow, newShadow: oldShadow,
-                oldCorner: newCorner, newCorner: oldCorner
-            ))
-        case .gifTrimStart(let old, let new):
+        case .gifTrimStart(let old, _):
             gifTrimStartFrame = old
-            undoStack.append(.gifTrimStart(old: new, new: old))
-        case .gifTrimEnd(let old, let new):
+        case .gifTrimEnd(let old, _):
             gifTrimEndFrame = old
-            undoStack.append(.gifTrimEnd(old: new, new: old))
         }
     }
 

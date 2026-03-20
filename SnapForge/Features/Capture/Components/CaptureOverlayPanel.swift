@@ -261,7 +261,7 @@ class CaptureOverlayNSView: NSView {
         ) as? [[String: Any]] else { return }
 
         let ownPID = ProcessInfo.processInfo.processIdentifier
-        let excludedOwners: Set<String> = ["Window Server", "Dock", "SystemUIServer"]
+        let excludedOwners = DesignTokens.excludedWindowOwners
 
         var foundRect: CGRect?
         var foundTitle: String?
@@ -391,12 +391,11 @@ class CaptureOverlayNSView: NSView {
         return [.font: font, .foregroundColor: NSColor.white]
     }()
 
-    /// Create monospaced font with safe fallback (NSFont.monospacedSystemFont can crash in edge cases)
+    /// Create monospaced font with safe fallback
     private static func safeMonospacedFont(size: CGFloat, weight: NSFont.Weight) -> NSFont {
-        let base = NSFont.systemFont(ofSize: size, weight: weight)
-        if let monoDesc = base.fontDescriptor.withDesign(.monospaced),
-           let monoFont = NSFont(descriptor: monoDesc, size: size) {
-            return monoFont
+        let base = DesignTokens.monospacedFont(size: size, weight: weight)
+        if base.fontDescriptor.symbolicTraits.contains(.monoSpace) {
+            return base
         }
         return base
     }

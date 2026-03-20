@@ -105,12 +105,7 @@ final class RecordingRegionOverlayView: NSView {
         let w = Int(r.width)
         let h = Int(r.height)
         let label = "\(w) × \(h)" as NSString
-        let font: NSFont = {
-            let base = NSFont.systemFont(ofSize: 11, weight: .medium)
-            if let desc = base.fontDescriptor.withDesign(.monospaced),
-               let mono = NSFont(descriptor: desc, size: 11) { return mono }
-            return base
-        }()
+        let font = DesignTokens.monospacedFont(size: 11, weight: .medium)
         let attrs: [NSAttributedString.Key: Any] = [
             .font: font,
             .foregroundColor: NSColor.white,

@@ -43,4 +43,21 @@ enum DesignTokens {
         static let dimBackground = Color.black.opacity(0.3)
         static let highlight = Color.accentColor.opacity(0.2)
     }
+
+    // MARK: - Fonts
+
+    /// Create a monospaced system font with safe fallback.
+    /// Avoids NSFont.monospacedSystemFont which can crash in edge cases.
+    static func monospacedFont(size: CGFloat, weight: NSFont.Weight = .medium) -> NSFont {
+        let base = NSFont.systemFont(ofSize: size, weight: weight)
+        if let desc = base.fontDescriptor.withDesign(.monospaced),
+           let mono = NSFont(descriptor: desc, size: size) { return mono }
+        return base
+    }
+
+    // MARK: - Window Detection
+
+    /// Excluded window owner names for CGWindowList queries.
+    /// Used by capture overlay and window capture to filter system windows.
+    static let excludedWindowOwners: Set<String> = ["Window Server", "Dock", "SystemUIServer"]
 }

@@ -139,15 +139,25 @@ final class GIFEncoder {
 // MARK: - Batch Context
 
 /// Thread-safe context for batch GIF frame extraction.
-/// Callbacks from generateCGImagesAsynchronously are called sequentially,
-/// so mutable access is safe despite @unchecked Sendable.
+/// Protected by NSLock since Apple docs don't guarantee sequential callbacks.
 private final class GIFBatchContext: @unchecked Sendable {
     let destination: CGImageDestination
     let frameProperties: CFDictionary
     let totalFrames: Int
     let progress: GIFEncoder.ProgressHandler?
-    var framesAdded = 0
-    var processedCount = 0
+    private let lock = NSLock()
+    private var _framesAdded = 0
+    private var _processedCount = 0
+
+    var framesAdded: Int {
+        get { lock.withLock { _framesAdded } }
+        set { lock.withLock { _framesAdded = newValue } }
+    }
+
+    var processedCount: Int {
+        get { lock.withLock { _processedCount } }
+        set { lock.withLock { _processedCount = newValue } }
+    }
 
     init(
         destination: CGImageDestination,

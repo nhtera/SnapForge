@@ -10,6 +10,7 @@ struct StitcherView: View {
   @State private var exportQuality: CGFloat = 0.9
   @State private var zoomScale: CGFloat = 1.0
   @State private var localBackgroundColor = Color(nsColor: .windowBackgroundColor)
+  @State private var previewContainerSize: CGSize = CGSize(width: 500, height: 450)
 
   init(images: [NSImage]) {
     _images = State(initialValue: images)
@@ -124,6 +125,8 @@ struct StitcherView: View {
       ZStack {
         // Checkerboard background to show transparency
         Color(nsColor: .windowBackgroundColor)
+          .onAppear { previewContainerSize = geo.size }
+          .onChange(of: geo.size) { _, newSize in previewContainerSize = newSize }
 
         if let preview = previewImage {
           ScrollView([.horizontal, .vertical]) {
@@ -380,9 +383,8 @@ struct StitcherView: View {
 
   private func fitToView() {
     guard let preview = previewImage else { return }
-    // Estimate the available preview width (total window minus sidebars)
-    let availableWidth: CGFloat = 500
-    let availableHeight: CGFloat = 450
+    let availableWidth = previewContainerSize.width
+    let availableHeight = previewContainerSize.height
     let scaleX = availableWidth / preview.size.width
     let scaleY = availableHeight / preview.size.height
     let fitScale = min(scaleX, scaleY, 1.0)  // Don't upscale

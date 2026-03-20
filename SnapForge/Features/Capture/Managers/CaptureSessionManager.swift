@@ -326,7 +326,7 @@ final class CaptureSessionManager {
             return
         }
 
-        let excludedOwners: Set<String> = ["Window Server", "Dock", "SystemUIServer"]
+        let excludedOwners = DesignTokens.excludedWindowOwners
 
         // Find the topmost window at the click point
         var targetWindowID: CGWindowID?
