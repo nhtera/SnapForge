@@ -3,6 +3,8 @@ import SwiftUI
 /// Recording settings popover styled — icons, toggle switches, dark appearance
 struct RecordingOptionsPopover: View {
     @Bindable var state: RecordingToolbarState
+    @State private var selectedFPS: Int = max(24, UserDefaults.standard.integer(forKey: SettingsKey.recordingFPS))
+    @AppStorage(SettingsKey.hideDesktopIcons) private var hideDesktopIcons = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -37,6 +39,22 @@ struct RecordingOptionsPopover: View {
                             title: quality.rawValue.capitalized,
                             isSelected: state.videoQuality == quality,
                             action: { state.videoQuality = quality }
+                        )
+                    }
+                }
+            }
+
+            // Frame Rate section
+            SettingsSection(title: "Frame Rate", icon: "gauge.with.needle") {
+                HStack(spacing: 6) {
+                    ForEach([24, 30, 60], id: \.self) { fps in
+                        OptionPill(
+                            title: "\(fps) FPS",
+                            isSelected: selectedFPS == fps,
+                            action: {
+                                selectedFPS = fps
+                                UserDefaults.standard.set(fps, forKey: SettingsKey.recordingFPS)
+                            }
                         )
                     }
                 }
@@ -87,13 +105,28 @@ struct RecordingOptionsPopover: View {
                     .controlSize(.small)
                 }
             }
+
+            Divider().padding(.vertical, 10)
+
+            // Desktop section
+            SettingsSection(title: "Desktop", icon: "desktopcomputer") {
+                Toggle(isOn: $hideDesktopIcons) {
+                    Label("Hide Desktop Icons", systemImage: "eye.slash")
+                        .font(.system(size: 12))
+                }
+                .toggleStyle(.switch)
+                .controlSize(.small)
+            }
         }
         .padding(16)
         .frame(width: 260)
         .font(.system(size: 12))
         .tint(.accentColor)
         .modifier(ForceDarkAppearance())
-        .onAppear { state.reloadFromDefaults() }
+        .onAppear {
+            state.reloadFromDefaults()
+            selectedFPS = max(24, UserDefaults.standard.integer(forKey: SettingsKey.recordingFPS))
+        }
     }
 }
 
