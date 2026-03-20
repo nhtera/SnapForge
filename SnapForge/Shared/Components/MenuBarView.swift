@@ -164,7 +164,7 @@ struct MenuBarView: View {
                 Button(action: {
                     dismiss()
                     AppCoordinator.shared.setActivationPolicyRegular()
-                    NSApp.activate(ignoringOtherApps: true)
+                    NSApp.activate()
                     Task { @MainActor in
                         try? await Task.sleep(for: .milliseconds(100))
                         openSettings()

@@ -60,7 +60,8 @@ final class CaptureSessionManager {
         let mouseLocation = NSEvent.mouseLocation
         let targetScreen = NSScreen.screens.first(where: { $0.frame.contains(mouseLocation) })
             ?? NSScreen.main
-            ?? NSScreen.screens.first!
+            ?? NSScreen.screens.first
+        guard let targetScreen else { return }
         let screenFrame = targetScreen.frame
 
         let panel = CaptureOverlayPanel(
@@ -105,7 +106,8 @@ final class CaptureSessionManager {
         let mouseLocation = NSEvent.mouseLocation
         let targetScreen = NSScreen.screens.first(where: { $0.frame.contains(mouseLocation) })
             ?? NSScreen.main
-            ?? NSScreen.screens.first!
+            ?? NSScreen.screens.first
+        guard let targetScreen else { return }
         let screenFrame = targetScreen.frame
 
         // Create the overlay panel
@@ -172,7 +174,8 @@ final class CaptureSessionManager {
         let mouseLocation = NSEvent.mouseLocation
         let targetScreen = NSScreen.screens.first(where: { $0.frame.contains(mouseLocation) })
             ?? NSScreen.main
-            ?? NSScreen.screens.first!
+            ?? NSScreen.screens.first
+        guard let targetScreen else { return }
         let screenFrame = targetScreen.frame
 
         let panel = CaptureOverlayPanel(

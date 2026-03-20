@@ -262,10 +262,17 @@ final class HotkeyService {
         }
 
         // Local monitor — catches events when app IS focused
+        // Check hotkey match synchronously to consume event before it reaches text fields
         localMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
             guard let self = self else { return event }
-            Task { @MainActor in
-                self.handleKeyEvent(event)
+            let keyCode = event.keyCode
+            let flags = event.modifierFlags.intersection([.command, .shift, .option, .control])
+            let matched = self.registeredHotkeys.contains { hotkey in
+                !hotkey.isUnassigned && hotkey.keyCode == keyCode && hotkey.nsModifiers == flags
+            }
+            if matched {
+                Task { @MainActor in self.handleKeyEvent(event) }
+                return nil
             }
             return event
         }

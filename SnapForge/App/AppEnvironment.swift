@@ -26,13 +26,16 @@ final class AppEnvironment {
     /// Last user-facing error message; cleared automatically after display timeout
     var lastErrorMessage: String?
     var isShowingError = false
+    private var errorDismissTask: Task<Void, Never>?
 
     /// Show a user-facing error banner for 4 seconds, then auto-dismiss.
     func showUserError(_ message: String) {
+        errorDismissTask?.cancel()
         lastErrorMessage = message
         isShowingError = true
-        Task { @MainActor in
+        errorDismissTask = Task { @MainActor in
             try? await Task.sleep(for: .seconds(4))
+            guard !Task.isCancelled else { return }
             isShowingError = false
         }
     }

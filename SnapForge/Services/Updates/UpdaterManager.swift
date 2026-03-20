@@ -28,7 +28,7 @@ final class UpdaterManager: NSObject, SPUUpdaterDelegate {
         // Ensure app is in .regular mode so Settings window stays visible
         // when Sparkle shows its update dialog
         NSApp.setActivationPolicy(.regular)
-        NSApp.activate(ignoringOtherApps: true)
+        NSApp.activate()
         print("🔄 Manual check for updates triggered")
         updater.checkForUpdates()
     }

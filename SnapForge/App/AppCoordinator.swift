@@ -57,7 +57,7 @@ final class AppCoordinator {
     /// Order matters: elevate policy → activate app → make key → delayed safety net.
     private func bringWindowToFront(_ window: NSWindow) {
         elevateActivationPolicy()
-        NSApp.activate(ignoringOtherApps: true)
+        NSApp.activate()
         window.makeKeyAndOrderFront(nil)
 
         // Safety net: if macOS didn't honor the ordering (e.g. during policy transition),
@@ -311,6 +311,7 @@ final class AppCoordinator {
     // MARK: - Annotation Editor
 
     func showAnnotationEditor(for image: NSImage) {
+        annotationWindow?.close()
         let annotationView = AnnotationView(image: image)
         let hostingView = NSHostingView(rootView: annotationView)
 

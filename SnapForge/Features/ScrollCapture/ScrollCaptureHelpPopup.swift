@@ -263,7 +263,7 @@ final class ScrollCaptureHelpPanel {
         hosting.frame = NSRect(origin: .zero, size: panelSize)
 
         // Center on screen
-        let screen = NSScreen.main ?? NSScreen.screens.first!
+        guard let screen = NSScreen.main ?? NSScreen.screens.first else { return }
         let x = (screen.frame.width - panelSize.width) / 2
         let y = (screen.frame.height - panelSize.height) / 2
 

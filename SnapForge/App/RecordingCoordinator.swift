@@ -453,6 +453,7 @@ final class RecordingCoordinator {
             registerScreenLockObservers()
         } catch {
             print("❌ Recording failed: \(error)")
+            AppEnvironment.shared.showUserError("Recording failed: \(error.localizedDescription)")
         }
     }
 

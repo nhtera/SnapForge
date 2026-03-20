@@ -155,7 +155,7 @@ final class BatchExportService {
   /// Show save panel and move ZIP to user-chosen location.
   func saveWithPanel(zipURL: URL) {
     // Bring app to front so NSSavePanel is visible
-    NSApp.activate(ignoringOtherApps: true)
+    NSApp.activate()
 
     let panel = NSSavePanel()
     panel.nameFieldStringValue = zipURL.lastPathComponent
