@@ -112,7 +112,7 @@ final class GIFEncoder {
                     }
                     batchCtx.framesAdded += 1
                 } else if let error {
-                    print("⚠️ GIF frame \(batchCtx.processedCount) extraction failed: \(error.localizedDescription)")
+                    AppLogger.export.warning("GIF frame \(batchCtx.processedCount) extraction failed: \(error.localizedDescription)")
                 }
 
                 batchCtx.progress?(batchCtx.processedCount, batchCtx.totalFrames)
@@ -132,7 +132,7 @@ final class GIFEncoder {
             throw GIFEncoderError.failedToFinalize
         }
 
-        print("✅ GIF encoded: \(batchCtx.framesAdded)/\(cappedTotalFrames) frames → \(outputURL.lastPathComponent)")
+        AppLogger.export.info("GIF encoded: \(batchCtx.framesAdded)/\(cappedTotalFrames) frames → \(outputURL.lastPathComponent)")
     }
 }
 

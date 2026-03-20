@@ -232,7 +232,8 @@ final class ScreenRecordingService: NSObject {
         pausedDuration = 0
         startTimer()
 
-        print("🔴 Recording started \(Int(recordingRect.width))×\(Int(recordingRect.height)) @\(fps)fps")
+        let w = Int(recordingRect.width), h = Int(recordingRect.height)
+        AppLogger.recording.info("Recording started \(w)×\(h) @\(self.fps)fps")
     }
 
     /// Pause the recording
@@ -278,7 +279,8 @@ final class ScreenRecordingService: NSObject {
 
         let url = outputURL
         if let url {
-            print("✅ Recording saved: \(url.lastPathComponent) (\(elapsedSeconds)s)")
+            let secs = elapsedSeconds
+            AppLogger.recording.info("Recording saved: \(url.lastPathComponent) (\(secs)s)")
         }
 
         cleanup()
@@ -512,7 +514,7 @@ final class ScreenRecordingService: NSObject {
             )
             try await activeStream.updateContentFilter(filter)
         } catch {
-            print("⚠️ Failed to update content filter: \(error)")
+            AppLogger.recording.warning("Failed to update content filter: \(error.localizedDescription)")
         }
     }
 
@@ -543,7 +545,7 @@ final class ScreenRecordingService: NSObject {
             )
             try await activeStream.updateContentFilter(filter)
         } catch {
-            print("⚠️ Failed to revert content filter: \(error)")
+            AppLogger.recording.warning("Failed to revert content filter: \(error.localizedDescription)")
         }
     }
 

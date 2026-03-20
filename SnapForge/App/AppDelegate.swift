@@ -78,7 +78,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         hotkeys.startListening()
-        print("⌨️ Global hotkeys registered and listening")
+        AppLogger.hotkey.info("Global hotkeys registered and listening")
     }
 
     func applicationWillTerminate(_ notification: Notification) {

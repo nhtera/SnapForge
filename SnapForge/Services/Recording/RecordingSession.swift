@@ -101,14 +101,14 @@ final class RecordingSession: @unchecked Sendable {
             writer.startSession(atSourceTime: timestamp)
             // Verify writer didn't fail (e.g., disk full) during session start
             guard writer.status == .writing else {
-                print("⚠️ RecordingSession: Writer failed after startSession: \(writer.error?.localizedDescription ?? "unknown")")
+                AppLogger.recording.error("Writer failed after startSession: \(writer.error?.localizedDescription ?? "unknown")")
                 return
             }
         }
 
         if videoInput.isReadyForMoreMediaData {
             if !adaptor.append(pixelBuffer, withPresentationTime: timestamp) {
-                print("⚠️ RecordingSession: Failed to append video frame")
+                AppLogger.recording.warning("Failed to append video frame")
             }
         }
     }

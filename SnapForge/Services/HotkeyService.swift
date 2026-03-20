@@ -222,6 +222,24 @@ final class HotkeyService {
 
     // MARK: - Conflict Detection
 
+    /// Known macOS system screenshot shortcuts that may conflict with SnapForge hotkeys.
+    /// SnapForge's NSEvent monitors can intercept these when accessibility is granted,
+    /// but behavior may be inconsistent if both SnapForge and macOS handle the same key.
+    static let systemShortcuts: [(keyCode: UInt16, modifiers: CGEventFlags, description: String)] = [
+        (UInt16(kVK_ANSI_3), [.maskCommand, .maskShift], "macOS Screenshot (Fullscreen)"),
+        (UInt16(kVK_ANSI_4), [.maskCommand, .maskShift], "macOS Screenshot (Area)"),
+        (UInt16(kVK_ANSI_5), [.maskCommand, .maskShift], "macOS Screenshot Options"),
+    ]
+
+    /// Check if a hotkey conflicts with a known macOS system shortcut.
+    /// Returns the system shortcut description if a conflict exists.
+    static func systemConflict(keyCode: UInt16, modifiers: CGEventFlags) -> String? {
+        guard keyCode != 0 else { return nil }
+        return systemShortcuts.first(where: {
+            $0.keyCode == keyCode && $0.modifiers.rawValue == modifiers.rawValue
+        })?.description
+    }
+
     /// Returns any hotkey that conflicts with the given key combination, excluding the specified hotkey ID.
     func conflictingHotkey(keyCode: UInt16, modifiers: CGEventFlags, excludingId: String) -> Hotkey? {
         guard keyCode != 0 else { return nil }
@@ -278,7 +296,7 @@ final class HotkeyService {
         }
 
         isListening = true
-        print("✅ HotkeyService: NSEvent monitors active (sandbox-compatible)")
+        AppLogger.hotkey.info("NSEvent monitors active (sandbox-compatible)")
     }
 
     func stopListening() {

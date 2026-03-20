@@ -586,20 +586,31 @@ final class ScrollCaptureSession {
         })
     }
 
+    /// Cached full-stitch preview — only regenerated every N frames to avoid O(n^2) work.
+    private var cachedPreviewImage: NSImage?
+    private var cachedPreviewFrameCount = 0
+    /// Re-stitch preview every N frames to balance responsiveness vs performance.
+    private let previewStitchInterval = 5
+
     private func refreshPreview() {
         guard !frames.isEmpty else { return }
 
-        let previewImage: NSImage?
+        let sf = NSScreen.main?.backingScaleFactor ?? 2.0
+
         if frames.count == 1 {
-            let sf = NSScreen.main?.backingScaleFactor ?? 2.0
-            previewImage = NSImage(
+            cachedPreviewImage = NSImage(
                 cgImage: frames[0],
                 size: NSSize(width: Double(frames[0].width) / sf, height: Double(frames[0].height) / sf)
             )
-        } else {
-            previewImage = engine.stitchFrames(frames, overlaps: overlaps)
+            cachedPreviewFrameCount = 1
+        } else if frames.count - cachedPreviewFrameCount >= previewStitchInterval
+                    || cachedPreviewImage == nil {
+            // Full re-stitch periodically (every 5 frames) instead of every frame.
+            // This reduces O(n^2) memory/CPU from stitching all frames every 350ms.
+            cachedPreviewImage = engine.stitchFrames(frames, overlaps: overlaps)
+            cachedPreviewFrameCount = frames.count
         }
 
-        previewPanel?.update(image: previewImage, frameCount: frames.count)
+        previewPanel?.update(image: cachedPreviewImage, frameCount: frames.count)
     }
 }

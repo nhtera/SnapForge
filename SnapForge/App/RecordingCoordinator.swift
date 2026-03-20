@@ -90,7 +90,7 @@ final class RecordingCoordinator {
             recorder.releaseDirectoryAccess()
             return
         }
-        print("✅ Recording saved: \(savedURL.path)")
+        AppLogger.recording.info("Recording saved: \(savedURL.path)")
 
         if isGIF {
             // Convert GIF in background, show Quick Access when ready
@@ -452,7 +452,7 @@ final class RecordingCoordinator {
             showRecordingIndicator(in: rect)
             registerScreenLockObservers()
         } catch {
-            print("❌ Recording failed: \(error)")
+            AppLogger.recording.error("Recording failed: \(error.localizedDescription)")
             AppEnvironment.shared.showUserError("Recording failed: \(error.localizedDescription)")
         }
     }

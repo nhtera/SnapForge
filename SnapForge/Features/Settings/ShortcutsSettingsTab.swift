@@ -275,6 +275,14 @@ struct ShortcutRow: View {
     @State private var showConflict = false
     @State private var conflictLabel = ""
 
+    /// Check if this hotkey conflicts with a macOS system shortcut
+    private var systemConflictMessage: String? {
+        HotkeyService.systemConflict(
+            keyCode: hotkey.keyCode,
+            modifiers: CGEventFlags(rawValue: hotkey.modifiersRawValue)
+        )
+    }
+
     var body: some View {
         HStack {
             VStack(alignment: .leading, spacing: 2) {
@@ -283,6 +291,11 @@ struct ShortcutRow: View {
                     Text(hotkey.description)
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                }
+                if let conflict = systemConflictMessage {
+                    Text("Conflicts with \(conflict)")
+                        .font(.caption2)
+                        .foregroundStyle(.yellow)
                 }
             }
             Spacer()
@@ -298,6 +311,11 @@ struct ShortcutRow: View {
                         showConflict = true
                         return
                     }
+                    // Warn about system conflict but allow the assignment
+                    if let sysConflict = HotkeyService.systemConflict(keyCode: keyCode, modifiers: modifiers) {
+                        conflictLabel = sysConflict
+                        showConflict = true
+                    }
                     hotkeyService.updateHotkey(id: hotkey.id, keyCode: keyCode, modifiers: modifiers)
                 },
                 onClear: {
@@ -308,7 +326,7 @@ struct ShortcutRow: View {
         .alert("Shortcut Conflict", isPresented: $showConflict) {
             Button("OK") {}
         } message: {
-            Text("This shortcut is already used by \"\(conflictLabel)\". Please choose a different one.")
+            Text("This shortcut conflicts with \"\(conflictLabel)\". It may not work reliably unless you disable the macOS shortcut in System Settings → Keyboard → Shortcuts → Screenshots.")
         }
     }
 }
