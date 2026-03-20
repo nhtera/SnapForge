@@ -18,6 +18,14 @@ final class AudioLevelMonitor: @unchecked Sendable {
         // Throttle to 10 Hz
         guard lock.withLock({ now - lastUpdateTime >= updateInterval }) else { return }
 
+        // Verify the audio format is Float32 PCM before accessing sample data.
+        // SCStream typically delivers Float32, but if Int16 arrives, bindMemory
+        // would read garbage values and produce incorrect levels.
+        guard let formatDesc = CMSampleBufferGetFormatDescription(buffer),
+              let asbd = CMAudioFormatDescriptionGetStreamBasicDescription(formatDesc),
+              asbd.pointee.mFormatFlags & kAudioFormatFlagIsFloat != 0
+        else { return }
+
         guard let blockBuffer = CMSampleBufferGetDataBuffer(buffer) else { return }
 
         var lengthAtOffset: Int = 0
@@ -34,7 +42,7 @@ final class AudioLevelMonitor: @unchecked Sendable {
         let sampleCount = totalLength / MemoryLayout<Float>.size
         guard sampleCount > 0 else { return }
 
-        let floatPointer = UnsafeRawPointer(data).bindMemory(to: Float.self, capacity: sampleCount)
+        let floatPointer = UnsafeRawPointer(data).assumingMemoryBound(to: Float.self)
         var sumSquares: Float = 0
         for i in 0..<sampleCount {
             let sample = floatPointer[i]

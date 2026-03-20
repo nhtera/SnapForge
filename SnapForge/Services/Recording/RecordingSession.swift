@@ -99,6 +99,11 @@ final class RecordingSession: @unchecked Sendable {
 
         if shouldStartSession {
             writer.startSession(atSourceTime: timestamp)
+            // Verify writer didn't fail (e.g., disk full) during session start
+            guard writer.status == .writing else {
+                print("⚠️ RecordingSession: Writer failed after startSession: \(writer.error?.localizedDescription ?? "unknown")")
+                return
+            }
         }
 
         if videoInput.isReadyForMoreMediaData {

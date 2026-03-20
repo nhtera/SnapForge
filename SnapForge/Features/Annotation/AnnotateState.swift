@@ -99,6 +99,10 @@ final class AnnotateState {
   var hasUnsavedChanges = false
   private var undoStack: [[AnnotationItem]] = []
   private var redoStack: [[AnnotationItem]] = []
+  /// Tracks whether a nudge sequence is in progress to coalesce undo snapshots.
+  /// Only the first nudge push saves state; subsequent nudges coalesce until
+  /// a non-nudge operation occurs, preventing undo stack flooding (~30 saves/sec).
+  private var isNudging = false
 
   // MARK: - Init
 
@@ -164,6 +168,8 @@ final class AnnotateState {
   // MARK: - Undo/Redo
 
   func saveState() {
+    // End any active nudge sequence so the next nudge starts a fresh undo group
+    isNudging = false
     undoStack.append(annotations)
     redoStack.removeAll()
     canUndo = true
@@ -475,12 +481,16 @@ final class AnnotateState {
     editingTextAnnotationId = nil
   }
 
-  /// Nudge selected annotation by delta
+  /// Nudge selected annotation by delta.
+  /// Coalesces undo: only the first nudge in a sequence saves state.
   func nudgeSelectedAnnotation(dx: CGFloat, dy: CGFloat) {
     guard let selectedId = selectedAnnotationId,
           let index = annotations.firstIndex(where: { $0.id == selectedId }) else { return }
 
-    saveState()
+    if !isNudging {
+      saveState()
+      isNudging = true
+    }
     annotations[index].bounds.origin.x += dx
     annotations[index].bounds.origin.y += dy
 

@@ -460,7 +460,10 @@ struct AnnotationView: View {
       baseImage: image,
       annotations: visibleAnnotations,
       imageSize: image.size
-    ) else { return }
+    ) else {
+      env.showUserError("Failed to render annotated image")
+      return
+    }
     env.clipboardService.copyImage(rendered)
     print("✅ Annotated image copied to clipboard")
     // Close the annotation editor window
@@ -508,7 +511,10 @@ struct AnnotationView: View {
       baseImage: image,
       annotations: visibleAnnotations,
       imageSize: image.size
-    ) else { return }
+    ) else {
+      env.showUserError("Failed to render annotated image for export")
+      return
+    }
 
     env.clipboardService.copyImage(rendered)
 

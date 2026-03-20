@@ -3,6 +3,8 @@ import CoreGraphics
 
 /// Manages cached blur images for annotation items
 /// Caches pixelated blur regions as CGImage to avoid per-frame recomputation
+/// Note: Not formally @MainActor to avoid isolation mismatch with AnnotationRenderer,
+/// but only instantiated/used from @MainActor DrawingCanvasNSView — safe in practice.
 final class BlurCacheManager {
   private var cache: [UUID: CacheEntry] = [:]
   /// Maximum number of cached blur images to prevent unbounded memory growth
