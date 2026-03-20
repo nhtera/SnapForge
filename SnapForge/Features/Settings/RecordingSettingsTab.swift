@@ -30,6 +30,7 @@ struct RecordingGeneralSubTab: View {
     @AppStorage("showRecordingControls") private var showControls = true
     @AppStorage("showRecordingTimer") private var showTimer = true
     @AppStorage("showCursorInRecording") private var showCursor = true
+    @AppStorage(SettingsKey.hideDesktopIcons) private var hideDesktopIcons = false
     @AppStorage("highlightClicks") private var highlightClicks = false
     @AppStorage("showKeystrokes") private var showKeystrokes = false
     @AppStorage("dimScreenWhileRecording") private var dimScreen = true
@@ -53,6 +54,17 @@ struct RecordingGeneralSubTab: View {
 
     var body: some View {
         Form {
+            Section("Desktop") {
+                Toggle(isOn: $hideDesktopIcons) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Hide desktop icons")
+                        Text("Temporarily hide icons during recording")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+
             Section("Controls") {
                 Toggle("Show controls while recording", isOn: $showControls)
                 Toggle("Display recording time in menu bar", isOn: $showTimer)
