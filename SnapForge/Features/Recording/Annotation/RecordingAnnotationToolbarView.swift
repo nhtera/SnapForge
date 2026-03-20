@@ -222,7 +222,8 @@ struct RecordingAnnotationToolbarView: View {
     }
 
     private var autoClearMenu: some View {
-        Menu {
+        let currentMode = state.clearMode(for: state.selectedTool)
+        return Menu {
             Text("Auto-clear: \(state.selectedTool.displayName)")
             Divider()
             ForEach(RecordingAnnotationClearMode.presets, id: \.self) { mode in
@@ -240,13 +241,26 @@ struct RecordingAnnotationToolbarView: View {
         } label: {
             Image(systemName: "timer")
                 .font(.system(size: 12))
-                .foregroundStyle(.white.opacity(0.6))
+                .foregroundStyle(.white.opacity(currentMode != .persist ? 0.9 : 0.6))
                 .frame(width: 26, height: 26)
+                .overlay(alignment: .bottomTrailing) {
+                    // Badge showing active auto-clear mode (hidden for .persist)
+                    if currentMode != .persist {
+                        Text(currentMode.badgeLabel)
+                            .font(.system(size: 7, weight: .bold, design: .monospaced))
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 3)
+                            .padding(.vertical, 1)
+                            .background(.orange, in: Capsule())
+                            .offset(x: 4, y: 4)
+                    }
+                }
+                .animation(.easeInOut(duration: 0.15), value: currentMode)
         }
         .menuStyle(.borderlessButton)
         .menuIndicator(.hidden)
         .fixedSize()
-        .accessibilityLabel("Auto-clear mode")
+        .accessibilityLabel("Auto-clear mode: \(currentMode.displayName)")
     }
 
     private var divider: some View {

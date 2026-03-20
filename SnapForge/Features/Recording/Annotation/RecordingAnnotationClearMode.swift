@@ -14,6 +14,15 @@ enum RecordingAnnotationClearMode: Hashable, Equatable {
         }
     }
 
+    /// Short label for badge overlay on the auto-clear button
+    var badgeLabel: String {
+        switch self {
+        case .persist: return ""
+        case .timeBased(let s): return "\(Int(s))s"
+        case .countBased(let c): return "×\(c)"
+        }
+    }
+
     /// Preset options for the auto-clear menu
     static let presets: [RecordingAnnotationClearMode] = [
         .persist,
