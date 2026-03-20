@@ -335,30 +335,7 @@ final class AnnotateState {
 
     annotations[index].bounds = bounds
 
-    // Also update embedded coordinates for arrows/lines/paths
-    switch annotations[index].type {
-    case .arrow(let start, let end):
-      annotations[index].type = .arrow(
-        start: CGPoint(x: start.x + dx, y: start.y + dy),
-        end: CGPoint(x: end.x + dx, y: end.y + dy)
-      )
-    case .line(let start, let end):
-      annotations[index].type = .line(
-        start: CGPoint(x: start.x + dx, y: start.y + dy),
-        end: CGPoint(x: end.x + dx, y: end.y + dy)
-      )
-    case .path(let points):
-      annotations[index].type = .path(points.map { CGPoint(x: $0.x + dx, y: $0.y + dy) })
-    case .highlight(let points):
-      annotations[index].type = .highlight(points.map { CGPoint(x: $0.x + dx, y: $0.y + dy) })
-    case .ruler(let start, let end):
-      annotations[index].type = .ruler(
-        start: CGPoint(x: start.x + dx, y: start.y + dy),
-        end: CGPoint(x: end.x + dx, y: end.y + dy)
-      )
-    default:
-      break
-    }
+    annotations[index].type = annotations[index].type.translatingPoints(dx: dx, dy: dy)
     bumpRevision()
   }
 
@@ -493,30 +470,7 @@ final class AnnotateState {
     }
     annotations[index].bounds.origin.x += dx
     annotations[index].bounds.origin.y += dy
-
-    switch annotations[index].type {
-    case .arrow(let start, let end):
-      annotations[index].type = .arrow(
-        start: CGPoint(x: start.x + dx, y: start.y + dy),
-        end: CGPoint(x: end.x + dx, y: end.y + dy)
-      )
-    case .line(let start, let end):
-      annotations[index].type = .line(
-        start: CGPoint(x: start.x + dx, y: start.y + dy),
-        end: CGPoint(x: end.x + dx, y: end.y + dy)
-      )
-    case .path(let points):
-      annotations[index].type = .path(points.map { CGPoint(x: $0.x + dx, y: $0.y + dy) })
-    case .highlight(let points):
-      annotations[index].type = .highlight(points.map { CGPoint(x: $0.x + dx, y: $0.y + dy) })
-    case .ruler(let start, let end):
-      annotations[index].type = .ruler(
-        start: CGPoint(x: start.x + dx, y: start.y + dy),
-        end: CGPoint(x: end.x + dx, y: end.y + dy)
-      )
-    default:
-      break
-    }
+    annotations[index].type = annotations[index].type.translatingPoints(dx: dx, dy: dy)
     bumpRevision()
   }
 

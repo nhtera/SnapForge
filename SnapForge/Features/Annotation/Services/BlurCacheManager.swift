@@ -212,6 +212,12 @@ final class BlurCacheManager {
 
     let bytesPerPixel = croppedImage.bitsPerPixel / 8
     let bytesPerRow = croppedImage.bytesPerRow
+    let dataLength = CFDataGetLength(data)
+
+    guard bytesPerPixel >= 3 else {
+      drawFallbackBlur(in: context, region: destRect)
+      return
+    }
 
     context.saveGState()
     context.clip(to: destRect)
@@ -225,6 +231,7 @@ final class BlurCacheManager {
         let clampedY = min(max(sampleY, 0), imageHeight - 1)
 
         let offset = clampedY * bytesPerRow + clampedX * bytesPerPixel
+        guard offset + bytesPerPixel <= dataLength else { continue }
         let r = CGFloat(bytes[offset]) / 255.0
         let g = CGFloat(bytes[offset + 1]) / 255.0
         let b = CGFloat(bytes[offset + 2]) / 255.0

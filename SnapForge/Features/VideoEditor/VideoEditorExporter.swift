@@ -312,18 +312,22 @@ enum VideoEditorExporter {
             }
 
             unsafeSession.exportAsynchronously {
-                timer.invalidate()
+                // Dispatch to main so all session property reads (.status, .error, .progress)
+                // happen on the same thread as the Timer, eliminating data race potential.
+                DispatchQueue.main.async {
+                    timer.invalidate()
 
-                switch unsafeSession.status {
-                case .completed:
-                    progress(1.0)
-                    continuation.resume()
-                case .failed:
-                    continuation.resume(throwing: unsafeSession.error ?? ExportError.exportFailed)
-                case .cancelled:
-                    continuation.resume(throwing: CancellationError())
-                default:
-                    continuation.resume(throwing: ExportError.exportFailed)
+                    switch unsafeSession.status {
+                    case .completed:
+                        progress(1.0)
+                        continuation.resume()
+                    case .failed:
+                        continuation.resume(throwing: unsafeSession.error ?? ExportError.exportFailed)
+                    case .cancelled:
+                        continuation.resume(throwing: CancellationError())
+                    default:
+                        continuation.resume(throwing: ExportError.exportFailed)
+                    }
                 }
             }
         }

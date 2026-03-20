@@ -167,6 +167,35 @@ extension AnnotationItem {
 // MARK: - AnnotationType Extension
 
 extension AnnotationType {
+  /// Translate embedded point coordinates by (dx, dy).
+  /// Used by move, nudge, and crop to shift associated values (arrow endpoints, path points, etc.)
+  /// in lockstep with the annotation's bounds.
+  func translatingPoints(dx: CGFloat, dy: CGFloat) -> AnnotationType {
+    switch self {
+    case .arrow(let start, let end):
+      return .arrow(
+        start: CGPoint(x: start.x + dx, y: start.y + dy),
+        end: CGPoint(x: end.x + dx, y: end.y + dy)
+      )
+    case .line(let start, let end):
+      return .line(
+        start: CGPoint(x: start.x + dx, y: start.y + dy),
+        end: CGPoint(x: end.x + dx, y: end.y + dy)
+      )
+    case .ruler(let start, let end):
+      return .ruler(
+        start: CGPoint(x: start.x + dx, y: start.y + dy),
+        end: CGPoint(x: end.x + dx, y: end.y + dy)
+      )
+    case .path(let points):
+      return .path(points.map { CGPoint(x: $0.x + dx, y: $0.y + dy) })
+    case .highlight(let points):
+      return .highlight(points.map { CGPoint(x: $0.x + dx, y: $0.y + dy) })
+    default:
+      return self
+    }
+  }
+
   var isHighlight: Bool {
     if case .highlight = self { return true }
     return false
