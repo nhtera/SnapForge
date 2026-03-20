@@ -70,7 +70,9 @@ struct CountdownOverlayView: View {
         }
         .task {
             while !Task.isCancelled {
-                try? await Task.sleep(for: .seconds(1))
+                do {
+                    try await Task.sleep(for: .seconds(1))
+                } catch { return } // Task was cancelled during sleep
                 guard !Task.isCancelled else { return }
                 if remaining > 1 {
                     remaining -= 1

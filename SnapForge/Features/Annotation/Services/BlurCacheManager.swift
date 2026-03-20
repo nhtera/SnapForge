@@ -14,7 +14,12 @@ final class BlurCacheManager {
     let image: CGImage
     let bounds: CGRect
     let blurType: BlurType
+    /// Monotonic counter for LRU eviction
+    var lastAccess: UInt = 0
   }
+
+  /// Monotonic access counter for LRU tracking
+  private var accessCounter: UInt = 0
 
   /// Get or create cached blur image for annotation
   func getCachedBlur(
@@ -25,7 +30,10 @@ final class BlurCacheManager {
     pixelSize: CGFloat = BlurEffectRenderer.defaultPixelSize
   ) -> CGImage? {
     // Return cached if valid (same bounds and blur type)
-    if let entry = cache[annotationId], entry.bounds == bounds, entry.blurType == blurType {
+    accessCounter &+= 1
+    if var entry = cache[annotationId], entry.bounds == bounds, entry.blurType == blurType {
+      entry.lastAccess = accessCounter
+      cache[annotationId] = entry
       return entry.image
     }
 
@@ -37,12 +45,18 @@ final class BlurCacheManager {
       pixelSize: pixelSize
     ) else { return nil }
 
-    // Evict oldest entries if cache exceeds limit
+    // Evict least-recently-used entries instead of clearing entire cache
     if cache.count >= maxCacheSize {
-      cache.removeAll()
+      let sortedByAccess = cache.sorted { $0.value.lastAccess < $1.value.lastAccess }
+      let evictCount = max(cache.count / 4, 1) // evict bottom 25%
+      for (key, _) in sortedByAccess.prefix(evictCount) {
+        cache.removeValue(forKey: key)
+      }
     }
 
-    cache[annotationId] = CacheEntry(image: rendered, bounds: bounds, blurType: blurType)
+    cache[annotationId] = CacheEntry(
+      image: rendered, bounds: bounds, blurType: blurType, lastAccess: accessCounter
+    )
     return rendered
   }
 

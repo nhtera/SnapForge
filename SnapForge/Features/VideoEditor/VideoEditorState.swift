@@ -743,4 +743,14 @@ final class VideoEditorState {
             timeObserver = nil
         }
     }
+
+    deinit {
+        // Safety net: remove time observer if cleanup() was not called
+        // (e.g., window force-closed without SwiftUI onDisappear firing)
+        MainActor.assumeIsolated {
+            if let observer = timeObserver {
+                player.removeTimeObserver(observer)
+            }
+        }
+    }
 }

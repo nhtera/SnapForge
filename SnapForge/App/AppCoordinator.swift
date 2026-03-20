@@ -24,7 +24,7 @@ final class AppCoordinator {
     private var captureOverlayWindow: NSWindow?
     private var quickAccessPanel: NSPanel?
     private var videoQuickAccessPanel: NSPanel?
-    private var annotationWindow: NSWindow?
+    private(set) var annotationWindow: NSWindow?
     private var onboardingWindow: NSWindow?
     private var historyWindow: NSWindow?
     private var videoEditorWindow: NSWindow?
@@ -39,7 +39,10 @@ final class AppCoordinator {
             object: nil,
             queue: .main
         ) { [weak self] notification in
-            guard let window = notification.object as? NSWindow else { return }
+            // Only handle our managed windows (isReleasedWhenClosed = false)
+            // to avoid creating Tasks for system dialogs, Sparkle windows, etc.
+            guard let window = notification.object as? NSWindow,
+                  !window.isReleasedWhenClosed else { return }
             Task { @MainActor [weak self] in
                 self?.handleWindowClosed(window)
             }

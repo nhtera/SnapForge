@@ -279,7 +279,7 @@ struct ToolPaletteView: View {
   /// Reposition the system color panel next to the annotation editor window
   private func repositionColorPanel() {
     let colorPanel = NSColorPanel.shared
-    guard let editorWindow = NSApp.windows.first(where: { $0.title == "SnapForge Editor" }) else { return }
+    guard let editorWindow = AppCoordinator.shared.annotationWindow else { return }
 
     let editorFrame = editorWindow.frame
     let panelSize = colorPanel.frame.size

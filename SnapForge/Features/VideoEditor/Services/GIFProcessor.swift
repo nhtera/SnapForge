@@ -144,7 +144,8 @@ enum GIFProcessor {
                 let delay = frameDelay(for: source, at: i)
                 let frameProps: [CFString: Any] = [
                     kCGImagePropertyGIFDictionary: [
-                        kCGImagePropertyGIFDelayTime: delay
+                        kCGImagePropertyGIFDelayTime: delay,
+                        kCGImagePropertyGIFUnclampedDelayTime: delay,
                     ]
                 ]
 
