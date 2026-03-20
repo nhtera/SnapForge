@@ -20,7 +20,10 @@ struct RecordingStatusBarView: View {
     var onStop: () -> Void
 
     @State private var isBlinking = true
-    @State private var showDeletePopover = false
+    @State private var deleteProgress: CGFloat = 0
+    @State private var isHoldingDelete = false
+    @State private var deleteShake = false
+    @State private var deleteCompleted = false
 
     var body: some View {
         HStack(spacing: 0) {
@@ -135,28 +138,8 @@ struct RecordingStatusBarView: View {
                 )
             }
 
-            // Delete (inline popover confirmation)
-            RecordingToolbarIconButton(
-                systemName: "trash",
-                action: { showDeletePopover = true },
-                accessibilityLabel: "Delete recording"
-            )
-            .popover(isPresented: $showDeletePopover) {
-                VStack(spacing: 8) {
-                    Text("Delete recording?")
-                        .font(.system(size: 12, weight: .medium))
-                    HStack(spacing: 8) {
-                        Button("Cancel") { showDeletePopover = false }
-                            .buttonStyle(.plain)
-                            .font(.system(size: 11))
-                        Button("Delete") { onDelete() }
-                            .buttonStyle(.borderedProminent)
-                            .tint(.red)
-                            .controlSize(.small)
-                    }
-                }
-                .padding(12)
-            }
+            // Delete (hold-to-delete with circular progress)
+            holdToDeleteButton
 
             RecordingToolbarDivider()
 
@@ -171,6 +154,69 @@ struct RecordingStatusBarView: View {
         .padding(.vertical, RecordingToolbarConstants.verticalPadding)
         .fixedSize()
         .onAppear { isBlinking = true }
+    }
+
+    // MARK: - Hold-to-Delete Button
+
+    /// Hold for 0.7s to delete — shows circular progress ring. Short tap shakes as a hint.
+    private var holdToDeleteButton: some View {
+        let holdDuration: Double = 0.7
+
+        return Image(systemName: "trash")
+            .font(.system(size: RecordingToolbarConstants.iconSize))
+            .foregroundStyle(deleteCompleted ? .red : .white.opacity(0.7))
+            .frame(width: RecordingToolbarConstants.buttonSize, height: RecordingToolbarConstants.buttonSize)
+            .background(
+                // Circular progress ring
+                Circle()
+                    .trim(from: 0, to: deleteProgress)
+                    .stroke(.red, style: StrokeStyle(lineWidth: 2.5, lineCap: .round))
+                    .rotationEffect(.degrees(-90))
+                    .frame(width: 24, height: 24)
+                    .opacity(isHoldingDelete ? 1 : 0)
+            )
+            .scaleEffect(isHoldingDelete ? 1.1 : 1.0)
+            .offset(x: deleteShake ? -3 : 0)
+            .animation(.easeInOut(duration: 0.1), value: isHoldingDelete)
+            .gesture(
+                DragGesture(minimumDistance: 0)
+                    .onChanged { _ in
+                        guard !isHoldingDelete else { return }
+                        isHoldingDelete = true
+                        // Animate progress from 0 → 1 over holdDuration
+                        withAnimation(.linear(duration: holdDuration)) {
+                            deleteProgress = 1.0
+                        }
+                        // Schedule completion check
+                        Task { @MainActor in
+                            try? await Task.sleep(for: .milliseconds(Int(holdDuration * 1000)))
+                            guard isHoldingDelete else { return }
+                            // Hold completed — execute delete
+                            deleteCompleted = true
+                            try? await Task.sleep(for: .milliseconds(150))
+                            onDelete()
+                        }
+                    }
+                    .onEnded { _ in
+                        if deleteProgress < 1.0 && !deleteCompleted {
+                            // Released too early — shake as hint to hold longer
+                            withAnimation(.spring(response: 0.1, dampingFraction: 0.3)) {
+                                deleteShake = true
+                            }
+                            Task { @MainActor in
+                                try? await Task.sleep(for: .milliseconds(300))
+                                deleteShake = false
+                            }
+                        }
+                        // Reset hold state
+                        isHoldingDelete = false
+                        withAnimation(.easeOut(duration: 0.15)) {
+                            deleteProgress = 0
+                        }
+                    }
+            )
+            .accessibilityLabel("Delete recording (hold)")
+            .help("Hold to delete recording")
     }
 
     /// FPS indicator dot color: gray when not measured, green/yellow/red based on performance.
