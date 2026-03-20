@@ -390,10 +390,18 @@ final class ScreenRecordingService: NSObject {
             excludedApps = content.applications.filter { $0.bundleIdentifier == bundleID }
         }
 
+        // Exclude Finder (desktop icons) if enabled — keep open Finder windows visible
+        var exceptedWindows: [SCWindow] = []
+        let iconManager = DesktopIconManager.shared
+        if iconManager.isIconHidingEnabled {
+            excludedApps += iconManager.getFinderApps(from: content)
+            exceptedWindows += iconManager.getVisibleFinderWindows(from: content)
+        }
+
         let filter = SCContentFilter(
             display: display,
             excludingApplications: excludedApps,
-            exceptingWindows: []
+            exceptingWindows: exceptedWindows
         )
 
         let config = SCStreamConfiguration()
