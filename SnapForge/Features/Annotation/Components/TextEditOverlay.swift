@@ -123,7 +123,12 @@ private struct NativeAnnotationTextView: NSViewRepresentable {
     textView.delegate = context.coordinator
     textView.textContainerInset = NSSize(width: horizontalInset, height: verticalInset)
     textView.textContainer?.lineFragmentPadding = 0
-    textView.textContainer?.widthTracksTextView = true
+    // Decouple text container width from view frame to prevent word-wrap flash.
+    // Text annotations grow horizontally — only explicit newlines should wrap.
+    // Without this, there's a layout race: text changes → bounds recalculated →
+    // but SwiftUI hasn't resized the frame yet → NSTextView wraps at old width → flash.
+    textView.textContainer?.widthTracksTextView = false
+    textView.textContainer?.size = NSSize(width: 10000, height: 10000)
     textView.isVerticallyResizable = true
     textView.isHorizontallyResizable = false
     textView.autoresizingMask = [.width, .height]
