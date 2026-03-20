@@ -37,10 +37,6 @@ struct AnnotationItem: Identifiable, Equatable {
     self.bounds = bounds
     self.properties = properties
   }
-
-  static func == (lhs: AnnotationItem, rhs: AnnotationItem) -> Bool {
-    lhs.id == rhs.id
-  }
 }
 
 /// Types of annotations (value enum with associated data)

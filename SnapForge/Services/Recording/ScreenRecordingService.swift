@@ -113,6 +113,8 @@ final class ScreenRecordingService: NSObject {
     private var outputURL: URL?
     private var registeredOutputTypes: Set<SCStreamOutputType> = []
     private var directoryAccess: SandboxFileAccessManager.ScopedAccess?
+    /// Display ID resolved during prepareRecording — used for content filter updates
+    private var targetDisplayID: CGDirectDisplayID?
 
     // Dedicated queues for each stream type
     private let videoQueue = DispatchQueue(label: "com.snapforge.recording.video", qos: .userInitiated)
@@ -163,8 +165,9 @@ final class ScreenRecordingService: NSObject {
             throw RecordingError.setupFailed(message)
         }
 
-        // Find target display
+        // Find target display and store for later filter updates
         let (display, screen) = findDisplay(for: rect, in: content)
+        targetDisplayID = display.map { CGDirectDisplayID($0.displayID) }
         guard let display else {
             state = .idle
             self.error = .noDisplayFound
@@ -409,7 +412,7 @@ final class ScreenRecordingService: NSObject {
             // For CG coords: just subtract screen origin
             let relativeRect = CGRect(
                 x: rect.origin.x - screenFrame.origin.x,
-                y: rect.origin.y,  // Already in CG top-down coords
+                y: rect.origin.y - screenFrame.origin.y,
                 width: rect.width,
                 height: rect.height
             )
@@ -483,7 +486,14 @@ final class ScreenRecordingService: NSObject {
         do {
             // Use onScreenWindowsOnly: false to find windows that may not be fully rendered yet
             let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: false)
-            guard let display = content.displays.first else { return }
+            // Use stored target display from prepareRecording, fallback to first
+            let resolvedDisplay: SCDisplay?
+            if let tid = targetDisplayID {
+                resolvedDisplay = content.displays.first(where: { $0.displayID == Int(tid) }) ?? content.displays.first
+            } else {
+                resolvedDisplay = content.displays.first
+            }
+            guard let display = resolvedDisplay else { return }
 
             var excludedApps: [SCRunningApplication] = []
             if let bundleID = Bundle.main.bundleIdentifier {
@@ -512,7 +522,14 @@ final class ScreenRecordingService: NSObject {
         guard let activeStream = stream else { return }
         do {
             let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
-            guard let display = content.displays.first else { return }
+            // Use stored target display from prepareRecording, fallback to first
+            let resolvedDisplay: SCDisplay?
+            if let tid = targetDisplayID {
+                resolvedDisplay = content.displays.first(where: { $0.displayID == Int(tid) }) ?? content.displays.first
+            } else {
+                resolvedDisplay = content.displays.first
+            }
+            guard let display = resolvedDisplay else { return }
 
             var excludedApps: [SCRunningApplication] = []
             if let bundleID = Bundle.main.bundleIdentifier {

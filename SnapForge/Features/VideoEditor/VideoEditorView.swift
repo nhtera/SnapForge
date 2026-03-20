@@ -391,13 +391,9 @@ struct VideoEditorView: View {
             .appendingPathComponent(".\(UUID().uuidString).\(state.fileExtension)")
 
         runExport(to: tempURL) {
-            // Replace the original file with the exported one
+            // Atomically replace the original file with the exported one
             do {
-                let fileManager = FileManager.default
-                if fileManager.fileExists(atPath: originalURL.path) {
-                    try fileManager.removeItem(at: originalURL)
-                }
-                try fileManager.moveItem(at: tempURL, to: originalURL)
+                _ = try FileManager.default.replaceItemAt(originalURL, withItemAt: tempURL)
                 NSWorkspace.shared.activateFileViewerSelecting([originalURL])
             } catch {
                 print("❌ Failed to replace original: \(error)")

@@ -61,7 +61,7 @@ class VideoBackgroundCompositor: NSObject, @unchecked Sendable, AVVideoCompositi
     private var cachedBackgroundStyleID: String?
 
     func renderContextChanged(_ newRenderContext: AVVideoCompositionRenderContext) {
-        queue.sync {
+        queue.async { [self] in
             let sizeChanged = renderContext?.size != newRenderContext.size
             renderContext = newRenderContext
 

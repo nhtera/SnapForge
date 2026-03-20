@@ -464,6 +464,7 @@ final class AnnotateState {
 
   /// Remove a specific annotation by ID
   func removeAnnotation(id: UUID) {
+    saveState()
     annotations.removeAll { $0.id == id }
     if selectedAnnotationId == id { selectedAnnotationId = nil }
     bumpRevision()
