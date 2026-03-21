@@ -14,6 +14,7 @@
 "menu.pin_clipboard" = "Ghim từ Clipboard";
 "menu.capture_history" = "Lịch sử chụp";
 "menu.settings" = "Cài đặt";
+"menu.record_last_area" = "Quay lại vùng trước";
 "menu.quit" = "Thoát";
 
 // MARK: - Quick Access

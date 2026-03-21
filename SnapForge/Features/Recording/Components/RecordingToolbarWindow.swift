@@ -23,6 +23,60 @@ final class RecordingToolbarWindow: NSWindow {
         collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
     }
 
+    // MARK: - Edge Snapping
+
+    private static let snapThreshold: CGFloat = 20
+
+    /// Save toolbar position after drag for restoration on next recording
+    override func mouseUp(with event: NSEvent) {
+        super.mouseUp(with: event)
+        guard isMovableByWindowBackground else { return }
+        snapToEdgesIfNeeded()
+        saveToolbarPosition()
+    }
+
+    /// Snap toolbar to nearest screen edge if within threshold
+    private func snapToEdgesIfNeeded() {
+        guard let screen = NSScreen.main?.visibleFrame else { return }
+        var origin = frame.origin
+        let threshold = Self.snapThreshold
+
+        // Snap to left/right edge
+        if abs(origin.x - screen.minX) < threshold {
+            origin.x = screen.minX + 4
+        } else if abs(origin.x + frame.width - screen.maxX) < threshold {
+            origin.x = screen.maxX - frame.width - 4
+        }
+
+        // Snap to top/bottom edge
+        if abs(origin.y - screen.minY) < threshold {
+            origin.y = screen.minY + 4
+        } else if abs(origin.y + frame.height - screen.maxY) < threshold {
+            origin.y = screen.maxY - frame.height - 4
+        }
+
+        if origin != frame.origin {
+            setFrameOrigin(origin)
+        }
+    }
+
+    /// Persist toolbar position for next session
+    private func saveToolbarPosition() {
+        let pos: [String: Double] = ["x": frame.origin.x, "y": frame.origin.y]
+        UserDefaults.standard.set(pos, forKey: SettingsKey.recordingToolbarPosition)
+    }
+
+    /// Restore saved toolbar position if available
+    func restoreSavedPosition() {
+        guard let pos = UserDefaults.standard.dictionary(forKey: SettingsKey.recordingToolbarPosition),
+              let x = pos["x"] as? Double, let y = pos["y"] as? Double else { return }
+        let point = CGPoint(x: x, y: y)
+        // Only restore if point is on a visible screen
+        if NSScreen.screens.contains(where: { $0.visibleFrame.contains(point) }) {
+            setFrameOrigin(point)
+        }
+    }
+
     /// Set the SwiftUI content and compute intrinsic size.
     /// Uses native NSVisualEffectView(.hudWindow) for macOS-native frosted glass appearance.
     func setContent<V: View>(_ view: V, draggable: Bool = false) {

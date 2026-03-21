@@ -34,6 +34,7 @@ final class RecordingCoordinator {
 
     private let countdownManager = RecordingCountdownManager()
     private let gifConverter = RecordingGIFConverter()
+    private let notificationSuppression = NotificationSuppressionService.shared
 
     // MARK: - Phase 2 Annotation
     private let annotationManager = RecordingAnnotationManager()
@@ -75,6 +76,8 @@ final class RecordingCoordinator {
         timerLimitTask = nil
         annotationManager.dismiss()
         removeScreenLockObservers()
+        notificationSuppression.disableSuppression()
+        stopMenuBarRecordingTimer()
 
         let recorder = ScreenRecordingService.shared
         let savedURL = await recorder.stopRecording()
@@ -110,6 +113,8 @@ final class RecordingCoordinator {
         timerLimitTask = nil
         annotationManager.dismiss()
         removeScreenLockObservers()
+        notificationSuppression.disableSuppression()
+        stopMenuBarRecordingTimer()
         await ScreenRecordingService.shared.cancelRecording()
         AppEnvironment.shared.isRecording = false
         dismissRecordingIndicator()
@@ -127,6 +132,8 @@ final class RecordingCoordinator {
         removeEscapeMonitors()
         removeStopHotkey()
         removeRecordingShortcuts()
+        notificationSuppression.disableSuppression()
+        stopMenuBarRecordingTimer()
         recordingBorderWindow?.close()
         recordingBorderWindow = nil
         recordingToolbarPanel?.close()
@@ -467,6 +474,9 @@ final class RecordingCoordinator {
             await countdownManager.showCountdown(seconds: countdownSeconds, captureRect: rect)
         }
 
+        // --- Suppress notifications ---
+        notificationSuppression.enableSuppression()
+
         // --- Start actual recording ---
         let recorder = ScreenRecordingService.shared
         let storage = AppEnvironment.shared.storageService
@@ -491,6 +501,7 @@ final class RecordingCoordinator {
             )
             try await recorder.startRecording()
             AppEnvironment.shared.isRecording = true
+            startMenuBarRecordingTimer()
             pendingRecordingRect = rect
 
             if toolbarState?.highlightClicks ?? defaults.bool(forKey: SettingsKey.highlightClicks) {
@@ -555,6 +566,8 @@ final class RecordingCoordinator {
                     let panel = RecordingToolbarWindow()
                     panel.setContent(toolbarView, draggable: true)
                     panel.positionBelowRect(cocoaRect)
+                    // Restore user's preferred toolbar position if previously dragged
+                    panel.restoreSavedPosition()
                     panel.orderFrontRegardless()
                     recordingToolbarPanel = panel
                 }
@@ -614,6 +627,35 @@ final class RecordingCoordinator {
     }
 
     // MARK: - Post-Recording Actions
+
+    // MARK: - Menu Bar Recording Timer
+
+    private var menuBarTimerTask: Task<Void, Never>?
+
+    /// Start updating the menu bar icon and timer during recording
+    private func startMenuBarRecordingTimer() {
+        let env = AppEnvironment.shared
+        env.menuBarIconName = "record.circle"
+
+        guard UserDefaults.standard.bool(forKey: SettingsKey.showRecordingTimeInMenuBar) else { return }
+
+        menuBarTimerTask = Task { @MainActor in
+            while !Task.isCancelled {
+                let recorder = ScreenRecordingService.shared
+                env.menuBarRecordingTimer = recorder.formattedDuration
+                try? await Task.sleep(for: .seconds(1))
+            }
+        }
+    }
+
+    /// Stop menu bar recording indicator and restore default icon
+    private func stopMenuBarRecordingTimer() {
+        menuBarTimerTask?.cancel()
+        menuBarTimerTask = nil
+        let env = AppEnvironment.shared
+        env.menuBarIconName = "viewfinder"
+        env.menuBarRecordingTimer = ""
+    }
 
     // MARK: - Screen Lock Auto-Pause
 

@@ -50,3 +50,5 @@ Carthage/Build/
 
 # Agents
 .agents/
+docs
+plans

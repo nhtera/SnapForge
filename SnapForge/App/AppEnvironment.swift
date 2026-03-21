@@ -18,8 +18,11 @@ final class AppEnvironment {
     var lastCapture: NSImage?
     var captureCount: Int = 0
 
-    /// Menu bar icon name — changes during OCR processing for visual feedback
+    /// Menu bar icon name — changes during OCR processing and recording for visual feedback
     var menuBarIconName: String = "viewfinder"
+
+    /// Formatted recording timer shown in menu bar (e.g. "02:45")
+    var menuBarRecordingTimer: String = ""
 
     // MARK: - Error Feedback
 
@@ -83,6 +86,11 @@ final class AppEnvironment {
             SettingsKey.gifMaxWidth: 640,
             SettingsKey.gifQuality: 0.8,
             SettingsKey.gifLoopCount: 0,
+            // Phase 1 Enhancements
+            SettingsKey.suppressNotificationsWhileRecording: true,
+            SettingsKey.countdownSoundEnabled: true,
+            SettingsKey.showEstimatedFileSize: true,
+            SettingsKey.showRecordingTimeInMenuBar: false,
             // Color Picker
             SettingsKey.colorPickerCopyFormat: "hex",
             // Hotkeys

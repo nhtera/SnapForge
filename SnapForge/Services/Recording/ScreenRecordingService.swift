@@ -74,6 +74,15 @@ final class ScreenRecordingService: NSObject {
         return String(format: "%02d:%02d", mins, secs)
     }
 
+    /// Estimated file size based on actual bytes written by AVAssetWriter.
+    var estimatedFileSize: String {
+        guard elapsedSeconds > 0 else { return "" }
+        guard let url = outputURL,
+              let attrs = try? FileManager.default.attributesOfItem(atPath: url.path),
+              let size = attrs[.size] as? Int64, size > 0 else { return "" }
+        return "~\(ByteCountFormatter.string(fromByteCount: size, countStyle: .file))"
+    }
+
     var isRecording: Bool { state == .recording }
     var isPaused: Bool { state == .paused }
     var isActive: Bool { state != .idle }

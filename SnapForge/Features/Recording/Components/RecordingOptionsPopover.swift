@@ -108,14 +108,26 @@ struct RecordingOptionsPopover: View {
 
             Divider().padding(.vertical, 10)
 
-            // Desktop section
-            SettingsSection(title: "Desktop", icon: "desktopcomputer") {
-                Toggle(isOn: $hideDesktopIcons) {
-                    Label("Hide Desktop Icons", systemImage: "eye.slash")
-                        .font(.system(size: 12))
+            // Privacy & Desktop section
+            SettingsSection(title: "Privacy", icon: "bell.slash") {
+                VStack(spacing: 8) {
+                    Toggle(isOn: Binding(
+                        get: { UserDefaults.standard.bool(forKey: SettingsKey.suppressNotificationsWhileRecording) },
+                        set: { UserDefaults.standard.set($0, forKey: SettingsKey.suppressNotificationsWhileRecording) }
+                    )) {
+                        Label("Suppress Notifications", systemImage: "bell.slash")
+                            .font(.system(size: 12))
+                    }
+                    .toggleStyle(.switch)
+                    .controlSize(.small)
+
+                    Toggle(isOn: $hideDesktopIcons) {
+                        Label("Hide Desktop Icons", systemImage: "eye.slash")
+                            .font(.system(size: 12))
+                    }
+                    .toggleStyle(.switch)
+                    .controlSize(.small)
                 }
-                .toggleStyle(.switch)
-                .controlSize(.small)
             }
         }
         .padding(16)

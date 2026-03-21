@@ -8,7 +8,9 @@ struct AnnotateButtonCenterXKey: PreferenceKey {
     }
 }
 
-/// Recording status bar: [drag] | [dot timer res] | [pause] [annotate] | [restart] [trash] | [Stop]
+/// Recording status bar — minimal design inspired by CleanShot X.
+/// Primary: [drag] | [dot timer] [fps-dot] [audio] | [pause] [annotate] | [restart] [trash] | [Stop]
+/// Secondary info (resolution, file size) shown on hover tooltip.
 struct RecordingStatusBarView: View {
     private var recorder: ScreenRecordingService { ScreenRecordingService.shared }
 
@@ -36,71 +38,11 @@ struct RecordingStatusBarView: View {
 
             RecordingToolbarDivider()
 
-            // Recording indicator + timer (dims when paused)
-            HStack(spacing: 6) {
-                Circle()
-                    .fill(recorder.isPaused ? .orange : .red)
-                    .frame(width: 8, height: 8)
-                    .opacity(isBlinking ? 1.0 : 0.3)
-                    .animation(.easeInOut(duration: 0.5).repeatForever(), value: isBlinking)
-
-                if isGIFMode {
-                    Text("GIF")
-                        .font(.system(size: 9, weight: .bold, design: .monospaced))
-                        .foregroundStyle(.black)
-                        .padding(.horizontal, 4)
-                        .padding(.vertical, 1)
-                        .background(.yellow, in: RoundedRectangle(cornerRadius: 3))
-                }
-
-                if UserDefaults.standard.bool(forKey: SettingsKey.showRecordingTimer) {
-                    Text(recorder.formattedDuration)
-                        .font(.system(size: 13, weight: .semibold, design: .monospaced))
-                        .foregroundStyle(.white)
-                        .frame(minWidth: 44)
-                        .contentTransition(.numericText())
-                        .animation(.linear(duration: 0.2), value: recorder.formattedDuration)
-                }
-
-                // Paused badge
-                if recorder.isPaused {
-                    Text("PAUSED")
-                        .font(.system(size: 8, weight: .bold))
-                        .foregroundStyle(.orange)
-                        .padding(.horizontal, 4)
-                        .padding(.vertical, 1)
-                        .background(.orange.opacity(0.15), in: RoundedRectangle(cornerRadius: 3))
-                }
-
-                // Resolution label
-                if let size = recordingSize {
-                    Text("\(Int(size.width))x\(Int(size.height))")
-                        .font(.system(size: 9, design: .monospaced))
-                        .foregroundStyle(.white.opacity(0.3))
-                }
-
-                // FPS indicator — colored dot + value, exact number on hover
-                HStack(spacing: 3) {
-                    Circle()
-                        .fill(fpsIndicatorColor)
-                        .frame(width: 7, height: 7)
-                    if recorder.currentFPS > 0 {
-                        Text("\(recorder.currentFPS)")
-                            .font(.system(size: 9, weight: .medium, design: .monospaced))
-                            .foregroundStyle(fpsIndicatorColor)
-                    } else {
-                        Text("fps")
-                            .font(.system(size: 8, design: .monospaced))
-                            .foregroundStyle(.white.opacity(0.25))
-                    }
-                }
-                .help(recorder.currentFPS > 0 ? "\(recorder.currentFPS) fps" : "Measuring…")
-
-                RecordingAudioLevelIndicator()
-            }
-            .padding(.horizontal, 8)
-            .opacity(recorder.isPaused ? 0.4 : 1.0)
-            .animation(.easeInOut(duration: 0.3), value: recorder.isPaused)
+            // Recording indicator group — compact, hover for details
+            recordingInfoGroup
+                .padding(.horizontal, 8)
+                .opacity(recorder.isPaused ? 0.4 : 1.0)
+                .animation(.easeInOut(duration: 0.3), value: recorder.isPaused)
 
             RecordingToolbarDivider()
 
@@ -156,6 +98,81 @@ struct RecordingStatusBarView: View {
         .onAppear { isBlinking = true }
     }
 
+    // MARK: - Recording Info Group
+
+    /// Compact recording info: just red dot, timer, GIF badge, paused badge, FPS dot, audio.
+    /// Resolution + file size are shown on hover tooltip — keeps toolbar narrow.
+    private var recordingInfoGroup: some View {
+        HStack(spacing: 6) {
+            // Blinking recording dot
+            Circle()
+                .fill(recorder.isPaused ? .orange : .red)
+                .frame(width: 8, height: 8)
+                .opacity(isBlinking ? 1.0 : 0.3)
+                .animation(.easeInOut(duration: 0.5).repeatForever(), value: isBlinking)
+
+            // GIF mode badge
+            if isGIFMode {
+                Text("GIF")
+                    .font(.system(size: 9, weight: .bold, design: .monospaced))
+                    .foregroundStyle(.black)
+                    .padding(.horizontal, 4)
+                    .padding(.vertical, 1)
+                    .background(.yellow, in: RoundedRectangle(cornerRadius: 3))
+            }
+
+            // Timer — hover shows full metadata
+            if UserDefaults.standard.bool(forKey: SettingsKey.showRecordingTimer) {
+                Text(recorder.formattedDuration)
+                    .font(.system(size: 13, weight: .semibold, design: .monospaced))
+                    .foregroundStyle(.white)
+                    .frame(minWidth: 44)
+                    .contentTransition(.numericText())
+                    .animation(.linear(duration: 0.2), value: recorder.formattedDuration)
+                    .help(detailTooltip)
+            }
+
+            // Paused badge
+            if recorder.isPaused {
+                Text("PAUSED")
+                    .font(.system(size: 8, weight: .bold))
+                    .foregroundStyle(.orange)
+                    .padding(.horizontal, 4)
+                    .padding(.vertical, 1)
+                    .background(.orange.opacity(0.15), in: RoundedRectangle(cornerRadius: 3))
+            }
+
+            // FPS: just the colored dot (no number) — hover for exact fps
+            Circle()
+                .fill(fpsIndicatorColor)
+                .frame(width: 7, height: 7)
+                .help(fpsTooltip)
+
+            RecordingAudioLevelIndicator()
+        }
+    }
+
+    /// Tooltip with all secondary metadata — shown on hover over timer
+    private var detailTooltip: String {
+        var lines: [String] = []
+        if let size = recordingSize {
+            lines.append("\(Int(size.width))×\(Int(size.height))")
+        }
+        if UserDefaults.standard.bool(forKey: SettingsKey.showEstimatedFileSize),
+           !recorder.estimatedFileSize.isEmpty {
+            lines.append(recorder.estimatedFileSize)
+        }
+        if recorder.currentFPS > 0 {
+            lines.append("\(recorder.currentFPS) fps")
+        }
+        return lines.joined(separator: " · ")
+    }
+
+    /// FPS tooltip text
+    private var fpsTooltip: String {
+        recorder.currentFPS > 0 ? "\(recorder.currentFPS) fps" : "Measuring…"
+    }
+
     // MARK: - Hold-to-Delete Button
 
     /// Hold for 0.7s to delete — shows circular progress ring. Short tap shakes as a hint.
@@ -167,7 +184,6 @@ struct RecordingStatusBarView: View {
             .foregroundStyle(deleteCompleted ? .red : .white.opacity(0.7))
             .frame(width: RecordingToolbarConstants.buttonSize, height: RecordingToolbarConstants.buttonSize)
             .background(
-                // Circular progress ring
                 Circle()
                     .trim(from: 0, to: deleteProgress)
                     .stroke(.red, style: StrokeStyle(lineWidth: 2.5, lineCap: .round))
@@ -183,15 +199,12 @@ struct RecordingStatusBarView: View {
                     .onChanged { _ in
                         guard !isHoldingDelete else { return }
                         isHoldingDelete = true
-                        // Animate progress from 0 → 1 over holdDuration
                         withAnimation(.linear(duration: holdDuration)) {
                             deleteProgress = 1.0
                         }
-                        // Schedule completion check
                         Task { @MainActor in
                             try? await Task.sleep(for: .milliseconds(Int(holdDuration * 1000)))
                             guard isHoldingDelete else { return }
-                            // Hold completed — execute delete
                             deleteCompleted = true
                             try? await Task.sleep(for: .milliseconds(150))
                             onDelete()
@@ -199,7 +212,6 @@ struct RecordingStatusBarView: View {
                     }
                     .onEnded { _ in
                         if deleteProgress < 1.0 && !deleteCompleted {
-                            // Released too early — shake as hint to hold longer
                             withAnimation(.spring(response: 0.1, dampingFraction: 0.3)) {
                                 deleteShake = true
                             }
@@ -208,7 +220,6 @@ struct RecordingStatusBarView: View {
                                 deleteShake = false
                             }
                         }
-                        // Reset hold state
                         isHoldingDelete = false
                         withAnimation(.easeOut(duration: 0.15)) {
                             deleteProgress = 0

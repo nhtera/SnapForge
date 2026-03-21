@@ -40,6 +40,10 @@ struct RecordingGeneralSubTab: View {
     @AppStorage("autoCopyRecording") private var autoCopy = false
     @AppStorage("regionSnappingEnabled") private var snapEnabled = true
     @AppStorage("recordingBorderStyle") private var borderStyle = "solid"
+    @AppStorage(SettingsKey.suppressNotificationsWhileRecording) private var suppressNotifications = true
+    @AppStorage(SettingsKey.countdownSoundEnabled) private var countdownSound = true
+    @AppStorage(SettingsKey.showEstimatedFileSize) private var showFileSize = true
+    @AppStorage(SettingsKey.showRecordingTimeInMenuBar) private var showTimeInMenuBar = false
 
     // Click highlight settings
     @AppStorage("clickHighlightSize") private var clickSize: Double = 44
@@ -67,7 +71,9 @@ struct RecordingGeneralSubTab: View {
 
             Section("Controls") {
                 Toggle("Show controls while recording", isOn: $showControls)
-                Toggle("Display recording time in menu bar", isOn: $showTimer)
+                Toggle("Display recording timer", isOn: $showTimer)
+                Toggle("Show recording time in menu bar", isOn: $showTimeInMenuBar)
+                Toggle("Show estimated file size", isOn: $showFileSize)
             }
 
             Section("Cursor") {
@@ -88,6 +94,17 @@ struct RecordingGeneralSubTab: View {
                 }
             }
 
+            Section("Privacy") {
+                Toggle(isOn: $suppressNotifications) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Suppress notifications while recording")
+                        Text("Enables Do Not Disturb during recording")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+
             Section("Recording Area") {
                 Toggle("Dim screen while recording", isOn: $dimScreen)
                 Toggle("Snap to window edges", isOn: $snapEnabled)
@@ -103,6 +120,9 @@ struct RecordingGeneralSubTab: View {
                     Text("3 seconds").tag(3)
                     Text("5 seconds").tag(5)
                     Text("10 seconds").tag(10)
+                }
+                if countdownSeconds > 0 {
+                    Toggle("Play countdown sound", isOn: $countdownSound)
                 }
 
                 Picker("Auto-stop after", selection: $timerLimit) {

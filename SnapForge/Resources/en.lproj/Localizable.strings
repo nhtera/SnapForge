@@ -14,6 +14,7 @@
 "menu.pin_clipboard" = "Pin from Clipboard";
 "menu.capture_history" = "Capture History";
 "menu.settings" = "Settings";
+"menu.record_last_area" = "Record Last Area";
 "menu.quit" = "Quit";
 
 // MARK: - Quick Access

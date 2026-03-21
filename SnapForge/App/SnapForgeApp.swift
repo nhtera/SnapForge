@@ -11,8 +11,16 @@ struct SnapForgeApp: App {
             MenuBarView()
                 .environment(appEnvironment)
         } label: {
-            Image(systemName: appEnvironment.menuBarIconName)
-                .symbolRenderingMode(.hierarchical)
+            HStack(spacing: 4) {
+                Image(systemName: appEnvironment.menuBarIconName)
+                    .symbolRenderingMode(appEnvironment.isRecording ? .multicolor : .hierarchical)
+                    .foregroundStyle(appEnvironment.isRecording ? .red : .primary)
+                if !appEnvironment.menuBarRecordingTimer.isEmpty {
+                    Text(appEnvironment.menuBarRecordingTimer)
+                        .font(.system(size: 10, weight: .medium, design: .monospaced))
+                        .monospacedDigit()
+                }
+            }
         }
         .menuBarExtraStyle(.window)
 

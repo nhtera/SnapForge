@@ -91,6 +91,17 @@ enum SettingsKey {
     static let recordingBorderStyle = "recordingBorderStyle"
     static let recordingBorderColor = "recordingBorderColor"
 
+    // Notification Suppression
+    static let suppressNotificationsWhileRecording = "suppressNotificationsWhileRecording"
+
+    // Countdown Sound
+    static let countdownSoundEnabled = "countdownSoundEnabled"
+
+    // Toolbar Enhancements
+    static let showEstimatedFileSize = "showEstimatedFileSize"
+    static let showRecordingTimeInMenuBar = "showRecordingTimeInMenuBar"
+    static let recordingToolbarPosition = "recordingToolbarPosition"
+
     // Region Snapping
     static let regionSnappingEnabled = "regionSnappingEnabled"
 

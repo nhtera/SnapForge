@@ -124,6 +124,14 @@ final class HotkeyService {
             label: "Pin from Clipboard",
             description: "Pin clipboard image to screen"
         )
+
+        static let recordLastArea = Hotkey(
+            id: "recordLastArea",
+            keyCode: UInt16(kVK_ANSI_L),
+            modifiers: [.maskCommand, .maskShift],
+            label: "Record Last Area",
+            description: "Restore and record last recording area"
+        )
     }
 
     // MARK: - Default Set
@@ -139,6 +147,7 @@ final class HotkeyService {
         .scrollCapture,
         .captureHistory,
         .pinFromClipboard,
+        .recordLastArea,
     ]
 
     // MARK: - State

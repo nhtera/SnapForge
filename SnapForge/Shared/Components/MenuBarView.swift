@@ -88,6 +88,17 @@ struct MenuBarView: View {
                 ) {
                     AppCoordinator.shared.toggleRecording()
                 }
+
+                if !env.isRecording {
+                    MenuBarActionRow(
+                        icon: "arrow.counterclockwise.circle",
+                        label: String(localized: "menu.record_last_area"),
+                        shortcut: shortcut(for: "recordLastArea"),
+                        dismiss: dismiss
+                    ) {
+                        RecordingCoordinator.shared.restoreLastRecordingArea()
+                    }
+                }
             }
             .padding(.horizontal, 8)
             .padding(.vertical, 4)

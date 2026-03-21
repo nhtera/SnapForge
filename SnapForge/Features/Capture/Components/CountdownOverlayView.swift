@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 
 /// Full-screen countdown overlay for Self-Timer Capture.
 /// Shows the selected area with a thin border, dimmed surroundings, and a compact
@@ -69,6 +70,9 @@ struct CountdownOverlayView: View {
                 )
         }
         .task {
+            // Play initial tick sound
+            playCountdownSound()
+
             while !Task.isCancelled {
                 do {
                     try await Task.sleep(for: .seconds(1))
@@ -76,6 +80,7 @@ struct CountdownOverlayView: View {
                 guard !Task.isCancelled else { return }
                 if remaining > 1 {
                     remaining -= 1
+                    playCountdownSound()
                     // Pulse animation
                     withAnimation(.easeOut(duration: 0.25)) {
                         pulseScale = 1.2
@@ -84,11 +89,23 @@ struct CountdownOverlayView: View {
                         pulseScale = 1.0
                     }
                 } else {
+                    // Play final "go" sound if countdown sound is enabled
+                    if UserDefaults.standard.bool(forKey: SettingsKey.countdownSoundEnabled) {
+                        NSSound(named: "Pop")?.play()
+                    }
                     onComplete()
                     return
                 }
             }
         }
+    }
+
+    // MARK: - Sound
+
+    /// Play tick sound if countdown sound is enabled in settings
+    private func playCountdownSound() {
+        guard UserDefaults.standard.bool(forKey: SettingsKey.countdownSoundEnabled) else { return }
+        NSSound(named: "Tink")?.play()
     }
 
     // MARK: - Countdown Badge

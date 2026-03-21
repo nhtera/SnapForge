@@ -76,6 +76,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 CaptureSessionManager.shared.startCapture(mode: .scrollCapture)
             }
         }
+        hotkeys.register(hotkey: .recordLastArea) { @Sendable in
+            Task { @MainActor in
+                RecordingCoordinator.shared.restoreLastRecordingArea()
+            }
+        }
 
         hotkeys.startListening()
         AppLogger.hotkey.info("Global hotkeys registered and listening")
