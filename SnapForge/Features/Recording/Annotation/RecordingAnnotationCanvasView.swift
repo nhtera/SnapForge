@@ -78,30 +78,7 @@ final class RecordingAnnotationCanvasView: NSView {
 
         let renderer = AnnotationRenderer(context: cgContext)
 
-        // Draw existing annotations with opacity
-        for entry in state.annotations {
-            // Skip annotation being edited (text overlay handles display)
-            if entry.id == textOverlay.currentEditingId { continue }
-
-            cgContext.saveGState()
-            cgContext.setAlpha(entry.opacity)
-
-            if case .blur(let blurType) = entry.item.type {
-                switch blurType {
-                case .pixelated: RecordingBlurRenderer.drawPixelated(in: cgContext, bounds: entry.item.bounds)
-                case .gaussian: RecordingBlurRenderer.drawGaussian(in: cgContext, bounds: entry.item.bounds)
-                }
-            } else if case .text(let content) = entry.item.type {
-                // Render text using NSTextField-compatible positioning
-                // bounds = original field frame, so draw text inside it like NSTextField would
-                drawTextAnnotation(in: cgContext, content: content, item: entry.item)
-            } else {
-                renderer.draw(entry.item)
-            }
-            cgContext.restoreGState()
-        }
-
-        // Spotlight overlay pass — dark overlay with elliptical cutouts
+        // Spotlight overlay pass FIRST — so other annotations render on top of the dark overlay
         let spotlightEntries = state.annotations.filter {
             if case .spotlight = $0.item.type { return true }
             return false
@@ -116,6 +93,27 @@ final class RecordingAnnotationCanvasView: NSView {
                 cgContext.setAlpha(entry.opacity)
                 cgContext.fillEllipse(in: entry.item.bounds)
                 cgContext.restoreGState()
+            }
+            cgContext.restoreGState()
+        }
+
+        // Draw existing annotations (non-spotlight) with opacity — rendered ON TOP of spotlight overlay
+        for entry in state.annotations {
+            if case .spotlight = entry.item.type { continue }
+            if entry.id == textOverlay.currentEditingId { continue }
+
+            cgContext.saveGState()
+            cgContext.setAlpha(entry.opacity)
+
+            if case .blur(let blurType) = entry.item.type {
+                switch blurType {
+                case .pixelated: RecordingBlurRenderer.drawPixelated(in: cgContext, bounds: entry.item.bounds)
+                case .gaussian: RecordingBlurRenderer.drawGaussian(in: cgContext, bounds: entry.item.bounds)
+                }
+            } else if case .text(let content) = entry.item.type {
+                drawTextAnnotation(in: cgContext, content: content, item: entry.item)
+            } else {
+                renderer.draw(entry.item)
             }
             cgContext.restoreGState()
         }

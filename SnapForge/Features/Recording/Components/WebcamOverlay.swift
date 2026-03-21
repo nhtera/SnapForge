@@ -245,7 +245,9 @@ private class WebcamContentView: NSView {
     override func mouseDragged(with event: NSEvent) {
         guard isResizing else { return }
         let current = NSEvent.mouseLocation
-        let delta = current.x - resizeStartPoint.x
+        let dx = current.x - resizeStartPoint.x
+        let dy = -(current.y - resizeStartPoint.y)  // Cocoa y-up, so negate for downward drag
+        let delta = max(dx, dy)  // Diagonal resize — whichever axis moved more
         manager?.updateSize(resizeStartDiameter + delta)
     }
 

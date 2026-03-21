@@ -86,11 +86,6 @@ enum AnnotationToolType: String, CaseIterable, Identifiable {
     }
   }
 
-  /// Subset of tools available during screen recording
-  static let recordingTools: [AnnotationToolType] = [
-    .selection, .rectangle, .oval, .arrow, .line, .pencil, .highlighter,
-  ]
-
   /// Tools available in the image annotation editor (excludes recording-only tools)
   static let editorTools: [AnnotationToolType] = allCases.filter {
     $0 != .spotlight && $0 != .laserPointer

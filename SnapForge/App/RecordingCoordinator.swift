@@ -198,7 +198,9 @@ final class RecordingCoordinator {
 
         switch event.keyCode {
         case 49 where flags.isEmpty:
-            // Space (no modifiers) — pause/resume
+            // Space (no modifiers) — pause/resume (skip if text annotation is being edited)
+            guard annotationState?.isAnnotationEnabled != true
+                || annotationState?.selectedTool != .text else { return }
             ScreenRecordingService.shared.togglePause()
         case 0 where flags.isEmpty:
             // A (no modifiers) — toggle annotation mode (only when canvas is NOT key window)
