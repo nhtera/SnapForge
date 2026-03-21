@@ -71,6 +71,7 @@ final class RecordingAnnotationManager {
         toolbarWindow?.close()
         toolbarWindow = nil
         annotationState?.stopCleanupTimer()
+        annotationState?.laserPointerState.stopRefreshTimer()
         shortcutMonitor.stop()
     }
 

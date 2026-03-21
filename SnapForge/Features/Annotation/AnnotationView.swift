@@ -193,7 +193,7 @@ struct AnnotationView: View {
   /// Hidden buttons that register keyboard shortcuts for each tool
   @ViewBuilder
   private var toolShortcutButtons: some View {
-    ForEach(AnnotationToolType.allCases) { tool in
+    ForEach(AnnotationToolType.editorTools) { tool in
       Button("") {
         // Skip if editing text (typing letters)
         guard state.editingTextAnnotationId == nil else { return }

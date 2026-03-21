@@ -78,6 +78,9 @@ struct AnnotationRenderer {
 
     case .ruler(let start, let end):
       drawRuler(from: start, to: end)
+
+    case .spotlight:
+      break  // Spotlight rendering handled in RecordingAnnotationCanvasView overlay pass
     }
   }
 

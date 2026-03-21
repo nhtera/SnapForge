@@ -87,6 +87,8 @@ struct SerializableAnnotation: Codable {
       typeKind = "ruler"
       startPoint = CodablePoint(start)
       endPoint = CodablePoint(end)
+    case .spotlight:
+      typeKind = "spotlight"
     }
   }
 
@@ -120,6 +122,8 @@ struct SerializableAnnotation: Codable {
     case "ruler":
       guard let start = startPoint, let end = endPoint else { return nil }
       annotationType = .ruler(start: start.toPoint(), end: end.toPoint())
+    case "spotlight":
+      annotationType = .spotlight
     default:
       return nil
     }

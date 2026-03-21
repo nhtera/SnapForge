@@ -20,8 +20,10 @@ struct RecordingAnnotationToolbarView: View {
 
             divider
 
-            // Width presets (hidden for text/counter/blur tools)
-            if state.selectedTool != .text && state.selectedTool != .counter && state.selectedTool != .blur {
+            // Width presets (hidden for text/counter/blur/spotlight/laserPointer)
+            if state.selectedTool != .text && state.selectedTool != .counter
+                && state.selectedTool != .blur && state.selectedTool != .spotlight
+                && state.selectedTool != .laserPointer {
                 widthButtons
             }
 
@@ -33,6 +35,11 @@ struct RecordingAnnotationToolbarView: View {
             // Blur type toggle (shown for blur tool only)
             if state.selectedTool == .blur {
                 blurTypeButtons
+            }
+
+            // Laser pointer size presets
+            if state.selectedTool == .laserPointer {
+                laserSizeButtons
             }
 
             divider
@@ -168,6 +175,27 @@ struct RecordingAnnotationToolbarView: View {
                     )
                     .onTapGesture { state.selectedFontSize = size }
                     .accessibilityLabel("Font size \(label)")
+            }
+        }
+    }
+
+    private let laserSizePresets: [(String, CGFloat)] = [("S", 8), ("M", 14), ("L", 22)]
+
+    private var laserSizeButtons: some View {
+        HStack(spacing: 4) {
+            ForEach(laserSizePresets, id: \.1) { label, size in
+                Text(label)
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundStyle(
+                        state.laserPointerState.dotSize == size ? .white : .white.opacity(0.4)
+                    )
+                    .frame(width: 22, height: 22)
+                    .background(
+                        state.laserPointerState.dotSize == size ? .white.opacity(0.15) : .clear,
+                        in: RoundedRectangle(cornerRadius: 4)
+                    )
+                    .onTapGesture { state.laserPointerState.dotSize = size }
+                    .accessibilityLabel("Laser size \(label)")
             }
         }
     }

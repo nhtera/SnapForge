@@ -41,8 +41,11 @@ final class RecordingAnnotationState {
     /// Tools available during recording (subset of all annotation tools)
     static let availableTools: [AnnotationToolType] = [
         .selection, .rectangle, .oval, .arrow, .line, .pencil, .highlighter,
-        .text, .counter, .blur,
+        .text, .counter, .blur, .spotlight, .laserPointer,
     ]
+
+    /// Laser pointer state for ephemeral cursor trail
+    let laserPointerState = RecordingLaserPointerState()
 
     // MARK: - Mutation
 

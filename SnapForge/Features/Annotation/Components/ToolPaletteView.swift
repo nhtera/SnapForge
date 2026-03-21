@@ -13,7 +13,7 @@ struct ToolPaletteView: View {
     VStack(spacing: 0) {
       // Tool grid
       LazyVGrid(columns: [GridItem(.adaptive(minimum: 56))], spacing: 6) {
-        ForEach(AnnotationToolType.allCases) { tool in
+        ForEach(AnnotationToolType.editorTools) { tool in
           ToolButton(
             tool: tool,
             isSelected: state.selectedTool == tool

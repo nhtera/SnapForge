@@ -24,6 +24,7 @@ final class RecordingCoordinator {
     private var localEscapeMonitor: Any?
     private var globalEscapeMonitor: Any?
     private var stopHotkeyMonitor: Any?
+    private var recordingShortcutMonitor: Any?
 
     // MARK: - Dim Overlay
 
@@ -125,6 +126,7 @@ final class RecordingCoordinator {
     func cleanup() {
         removeEscapeMonitors()
         removeStopHotkey()
+        removeRecordingShortcuts()
         recordingBorderWindow?.close()
         recordingBorderWindow = nil
         recordingToolbarPanel?.close()
@@ -178,6 +180,45 @@ final class RecordingCoordinator {
 
     private func removeStopHotkey() {
         if let monitor = stopHotkeyMonitor { NSEvent.removeMonitor(monitor); stopHotkeyMonitor = nil }
+    }
+
+    // MARK: - Recording Shortcuts (Space=pause, A=annotate, Cmd+Z/Shift+Cmd+Z=undo/redo)
+
+    private func setupRecordingShortcuts() {
+        recordingShortcutMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            Task { @MainActor in
+                self?.handleRecordingShortcut(event)
+            }
+        }
+    }
+
+    private func handleRecordingShortcut(_ event: NSEvent) {
+        guard AppEnvironment.shared.isRecording else { return }
+        let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+
+        switch event.keyCode {
+        case 49 where flags.isEmpty:
+            // Space (no modifiers) — pause/resume
+            ScreenRecordingService.shared.togglePause()
+        case 0 where flags.isEmpty:
+            // A (no modifiers) — toggle annotation mode (only when canvas is NOT key window)
+            guard annotationState?.isAnnotationEnabled != true else { return }
+            annotationState?.isAnnotationEnabled = true
+        case 6 where flags == .command:
+            // Cmd+Z — undo annotation
+            guard annotationState?.isAnnotationEnabled == true else { return }
+            annotationState?.undo()
+        case 6 where flags == [.command, .shift]:
+            // Shift+Cmd+Z — redo annotation
+            guard annotationState?.isAnnotationEnabled == true else { return }
+            annotationState?.redo()
+        default:
+            break
+        }
+    }
+
+    private func removeRecordingShortcuts() {
+        if let monitor = recordingShortcutMonitor { NSEvent.removeMonitor(monitor); recordingShortcutMonitor = nil }
     }
 
     // MARK: - Last Recording Area
@@ -347,6 +388,8 @@ final class RecordingCoordinator {
         )
         pendingRecordingRect = cgRect
         recordingToolbarPanel?.positionBelowRect(cocoaRect)
+        // Keep webcam snap-to-corner reference in sync with region
+        webcamManager?.recordingCocoaRect = cocoaRect
     }
 
     func showRecordingIndicator(in rect: NSRect) {
@@ -383,6 +426,7 @@ final class RecordingCoordinator {
     func dismissRecordingIndicator() {
         removeEscapeMonitors()
         removeStopHotkey()
+        removeRecordingShortcuts()
         recordingBorderWindow?.close()
         recordingBorderWindow = nil
         recordingToolbarPanel?.close()
@@ -519,6 +563,7 @@ final class RecordingCoordinator {
             }
 
             setupStopHotkey()
+            setupRecordingShortcuts()
             registerScreenLockObservers()
         } catch {
             AppLogger.recording.error("Recording failed: \(error.localizedDescription)")

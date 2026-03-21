@@ -22,6 +22,7 @@ final class RecordingAnnotationCanvasView: NSView {
         super.init(frame: .zero)
         wantsLayer = true
         layer?.backgroundColor = .clear
+        state.laserPointerState.canvasView = self
     }
 
     @available(*, unavailable)
@@ -100,6 +101,30 @@ final class RecordingAnnotationCanvasView: NSView {
             cgContext.restoreGState()
         }
 
+        // Spotlight overlay pass — dark overlay with elliptical cutouts
+        let spotlightEntries = state.annotations.filter {
+            if case .spotlight = $0.item.type { return true }
+            return false
+        }
+        if !spotlightEntries.isEmpty {
+            cgContext.saveGState()
+            cgContext.setFillColor(NSColor.black.withAlphaComponent(0.5).cgColor)
+            cgContext.fill(bounds)
+            cgContext.setBlendMode(.clear)
+            for entry in spotlightEntries {
+                cgContext.saveGState()
+                cgContext.setAlpha(entry.opacity)
+                cgContext.fillEllipse(in: entry.item.bounds)
+                cgContext.restoreGState()
+            }
+            cgContext.restoreGState()
+        }
+
+        // Laser pointer trail (ephemeral, not an annotation)
+        if state.selectedTool == .laserPointer {
+            state.laserPointerState.drawTrail(in: cgContext, color: NSColor(state.strokeColor))
+        }
+
         // Draw selection highlight
         if let selectedId = state.selectedAnnotationId,
            let entry = state.annotations.first(where: { $0.id == selectedId }) {
@@ -126,6 +151,21 @@ final class RecordingAnnotationCanvasView: NSView {
                 case .pixelated: RecordingBlurRenderer.drawPixelated(in: cgContext, bounds: previewRect)
                 case .gaussian: RecordingBlurRenderer.drawGaussian(in: cgContext, bounds: previewRect)
                 }
+                cgContext.restoreGState()
+            }
+        } else if isDrawing && state.selectedTool == .spotlight {
+            // Spotlight preview: dark overlay with ellipse cutout
+            let last = currentPath.last ?? drawStart
+            let previewRect = CGRect(
+                x: min(drawStart.x, last.x), y: min(drawStart.y, last.y),
+                width: abs(last.x - drawStart.x), height: abs(last.y - drawStart.y)
+            )
+            if previewRect.width > 10, previewRect.height > 10 {
+                cgContext.saveGState()
+                cgContext.setFillColor(NSColor.black.withAlphaComponent(0.3).cgColor)
+                cgContext.fill(bounds)
+                cgContext.setBlendMode(.clear)
+                cgContext.fillEllipse(in: previewRect)
                 cgContext.restoreGState()
             }
         } else if isDrawing && state.selectedTool != .selection {
@@ -186,7 +226,10 @@ final class RecordingAnnotationCanvasView: NSView {
 
     override func mouseMoved(with event: NSEvent) {
         let point = convert(event.locationInWindow, from: nil)
-        if state.selectedTool == .counter {
+        if state.selectedTool == .laserPointer {
+            state.laserPointerState.addPoint(point)
+            needsDisplay = true
+        } else if state.selectedTool == .counter {
             hoverPoint = point
             needsDisplay = true
         } else if hoverPoint != nil {
@@ -204,6 +247,9 @@ final class RecordingAnnotationCanvasView: NSView {
 
     override func mouseDown(with event: NSEvent) {
         let point = convert(event.locationInWindow, from: nil)
+
+        // Laser pointer only tracks mouseMoved — no click action
+        if state.selectedTool == .laserPointer { return }
 
         // Commit active text field before handling new click
         if textOverlay.isActive {

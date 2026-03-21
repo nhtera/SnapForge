@@ -41,6 +41,13 @@ final class RecordingAnnotationCanvasWindow: NSWindow {
                     if wasTool == .text {
                         self?.canvasView.dismissTextOverlay()
                     }
+                    // Manage laser pointer timer lifecycle
+                    if wasTool == .laserPointer {
+                        state.laserPointerState.stopRefreshTimer()
+                    }
+                    if tool == .laserPointer {
+                        state.laserPointerState.startRefreshTimer()
+                    }
                     let isSelection = (tool == .selection)
                     self?.ignoresMouseEvents = isSelection
                     if !isSelection {

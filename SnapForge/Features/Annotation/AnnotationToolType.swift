@@ -16,6 +16,8 @@ enum AnnotationToolType: String, CaseIterable, Identifiable {
   case pencil
   case redact
   case ruler
+  case spotlight
+  case laserPointer
 
   var id: String { rawValue }
 
@@ -35,6 +37,8 @@ enum AnnotationToolType: String, CaseIterable, Identifiable {
     case .pencil: return "pencil"
     case .redact: return "eye.slash.fill"
     case .ruler: return "ruler"
+    case .spotlight: return "scope"
+    case .laserPointer: return "dot.circle"
     }
   }
 
@@ -55,15 +59,12 @@ enum AnnotationToolType: String, CaseIterable, Identifiable {
     case .pencil: return "p"
     case .redact: return "d"
     case .ruler: return "m"
+    case .spotlight: return "s"
+    case .laserPointer: return "g"
     }
   }
 
   /// Display name for the tool
-  /// Subset of tools available during screen recording
-  static let recordingTools: [AnnotationToolType] = [
-    .selection, .rectangle, .oval, .arrow, .line, .pencil, .highlighter,
-  ]
-
   var displayName: String {
     switch self {
     case .selection: return "Selection"
@@ -80,6 +81,18 @@ enum AnnotationToolType: String, CaseIterable, Identifiable {
     case .pencil: return "Pencil"
     case .redact: return "Redact"
     case .ruler: return "Ruler"
+    case .spotlight: return "Spotlight"
+    case .laserPointer: return "Laser Pointer"
     }
+  }
+
+  /// Subset of tools available during screen recording
+  static let recordingTools: [AnnotationToolType] = [
+    .selection, .rectangle, .oval, .arrow, .line, .pencil, .highlighter,
+  ]
+
+  /// Tools available in the image annotation editor (excludes recording-only tools)
+  static let editorTools: [AnnotationToolType] = allCases.filter {
+    $0 != .spotlight && $0 != .laserPointer
   }
 }

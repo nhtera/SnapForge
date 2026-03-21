@@ -83,7 +83,7 @@ enum AnnotationFactory {
     case .ruler:
       type = .ruler(start: start, end: end)
 
-    case .selection, .crop, .text, .redact:
+    case .selection, .crop, .text, .redact, .spotlight, .laserPointer:
       return nil
     }
 

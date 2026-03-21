@@ -51,6 +51,11 @@ enum RecordingAnnotationFactory {
             guard bounds.width >= 10, bounds.height >= 10 else { return nil }
             return AnnotationItem(type: .blur(.pixelated), bounds: bounds, properties: props)
 
+        case .spotlight:
+            let bounds = makeRect(from: start, to: end)
+            guard bounds.width >= 20, bounds.height >= 20 else { return nil }
+            return AnnotationItem(type: .spotlight, bounds: bounds, properties: props)
+
         default:
             return nil
         }

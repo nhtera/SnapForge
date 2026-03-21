@@ -53,6 +53,7 @@ enum AnnotationType: Equatable {
   case counter(Int)
   case sticker(StickerItem)
   case ruler(start: CGPoint, end: CGPoint)
+  case spotlight
 }
 
 /// Visual properties for an annotation
@@ -110,6 +111,9 @@ extension AnnotationItem {
       let center = CGPoint(x: bounds.midX, y: bounds.midY)
       let radius: CGFloat = 12 + baseTolerance
       return hypot(point.x - center.x, point.y - center.y) <= radius
+
+    case .spotlight:
+      return pointInEllipse(point, in: bounds)
     }
   }
 
@@ -222,6 +226,7 @@ extension AnnotationType {
       let dy = end.y - start.y
       let dist = Int(sqrt(dx * dx + dy * dy))
       return "Ruler (\(dist) px)"
+    case .spotlight: return "Spotlight"
     }
   }
 
@@ -240,6 +245,7 @@ extension AnnotationType {
     case .counter: return "list.number"
     case .sticker(let item): return item.symbol
     case .ruler: return "ruler"
+    case .spotlight: return "scope"
     }
   }
 }
