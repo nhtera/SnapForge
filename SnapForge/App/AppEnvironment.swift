@@ -90,7 +90,7 @@ final class AppEnvironment {
             SettingsKey.suppressNotificationsWhileRecording: true,
             SettingsKey.countdownSoundEnabled: true,
             SettingsKey.showEstimatedFileSize: true,
-            SettingsKey.showRecordingTimeInMenuBar: false,
+            SettingsKey.showRecordingTimeInMenuBar: true,
             // Color Picker
             SettingsKey.colorPickerCopyFormat: "hex",
             // Hotkeys

@@ -632,12 +632,11 @@ final class RecordingCoordinator {
 
     private var menuBarTimerTask: Task<Void, Never>?
 
-    /// Start updating the menu bar icon and timer during recording
+    /// Start updating the menu bar icon and timer during recording.
+    /// Timer always runs — visibility controlled by SettingsKey.showRecordingTimeInMenuBar in SnapForgeApp.
     private func startMenuBarRecordingTimer() {
         let env = AppEnvironment.shared
         env.menuBarIconName = "record.circle"
-
-        guard UserDefaults.standard.bool(forKey: SettingsKey.showRecordingTimeInMenuBar) else { return }
 
         menuBarTimerTask = Task { @MainActor in
             while !Task.isCancelled {
