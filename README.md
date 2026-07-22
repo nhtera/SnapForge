@@ -178,7 +178,9 @@ SnapForge supports:
 
 ## 📄 License
 
-This project is private. All rights reserved.
+SnapForge is open source under the [GNU General Public License v3.0](LICENSE).
+You are free to use, study, modify, and share it; derivative works must remain
+licensed under the GPL-3.0.
 
 ---
 
