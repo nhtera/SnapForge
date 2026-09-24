@@ -25,6 +25,9 @@
 "quick_access.pin" = "Ghim";
 "quick_access.ocr" = "OCR";
 "quick_access.close" = "Đóng";
+"quick_access.gif" = "GIF";
+"quick_access.share" = "Chia sẻ";
+"quick_access.delete" = "Xóa";
 
 // MARK: - Recording
 "recording.record" = "Quay";

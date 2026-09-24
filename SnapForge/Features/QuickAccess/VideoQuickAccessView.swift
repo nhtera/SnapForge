@@ -2,7 +2,7 @@ import SwiftUI
 import AVFoundation
 
 /// Quick Access Overlay for video recordings — appears after recording stops.
-/// Provides quick actions: Copy, Trim, Save, View.
+/// Provides quick actions: Copy, Trim, Save, View, GIF, Share, Delete.
 struct VideoQuickAccessView: View {
     let videoURL: URL
     @State private var thumbnail: NSImage?
@@ -10,8 +10,22 @@ struct VideoQuickAccessView: View {
     @State private var autoCloseTask: Task<Void, Never>?
     @State private var hoveredAction: VideoQuickAction?
     @State private var videoDuration: String = ""
+    @State private var videoFileSize: String = ""
     @State private var closeHovered = false
     @State private var dragHovered = false
+    @State private var isConvertingGIF = false
+
+    // Row split: 4 actions per row
+    private let row1Actions: [VideoQuickAction] = [.copy, .trim, .save, .view]
+
+    /// GIF conversion is hidden when the file is already a GIF (it would overwrite its own input).
+    private var row2Actions: [VideoQuickAction] {
+        isGIFFile ? [.share, .delete] : [.gifConvert, .share, .delete]
+    }
+
+    private var isGIFFile: Bool {
+        videoURL.pathExtension.lowercased() == "gif"
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -38,7 +52,7 @@ struct VideoQuickAccessView: View {
         .padding(24)
         .animation(.easeInOut(duration: 0.2), value: isHovering)
         .onAppear {
-            extractThumbnail()
+            extractThumbnailAndMetadata()
             startAutoCloseTimerIfNeeded()
         }
         .onHover { hovering in
@@ -74,9 +88,7 @@ struct VideoQuickAccessView: View {
             }
             .buttonStyle(.plain)
             .focusEffectDisabled()
-            .onHover { hovered in
-                closeHovered = hovered
-            }
+            .onHover { hovered in closeHovered = hovered }
             .padding(8)
             .transition(.opacity)
             .help("Close")
@@ -94,62 +106,88 @@ struct VideoQuickAccessView: View {
                     .frame(height: 140)
                     .frame(maxWidth: .infinity)
                     .clipped()
-                    .overlay {
-                        // Top + bottom gradient scrim
-                        VStack(spacing: 0) {
-                            LinearGradient(
-                                colors: [.black.opacity(0.3), .clear],
-                                startPoint: .top,
-                                endPoint: .bottom
-                            )
-                            .frame(height: 40)
-
-                            Spacer()
-
-                            LinearGradient(
-                                colors: [.clear, .black.opacity(0.4)],
-                                startPoint: .top,
-                                endPoint: .bottom
-                            )
-                            .frame(height: 40)
-                        }
-                    }
-                    .overlay {
-                        // Play icon centered
-                        Circle()
-                            .fill(.black.opacity(0.35))
-                            .frame(width: 48, height: 48)
-                            .overlay {
-                                Image(systemName: "play.fill")
-                                    .font(.system(size: 18, weight: .semibold))
-                                    .foregroundStyle(.white)
-                                    .offset(x: 1.5) // Optical centering
-                            }
-                            .shadow(color: .black.opacity(0.25), radius: 8, y: 3)
-                    }
-                    .overlay(alignment: .bottomTrailing) {
-                        // Duration badge
-                        if !videoDuration.isEmpty {
-                            Text(videoDuration)
-                                .font(.system(size: 10, weight: .bold, design: .monospaced))
-                                .foregroundStyle(.white)
-                                .padding(.horizontal, 6)
-                                .padding(.vertical, 3)
-                                .background(.black.opacity(0.65), in: RoundedRectangle(cornerRadius: 4))
-                                .padding(8)
-                        }
-                    }
-                    .overlay(alignment: .topTrailing) {
-                        videoDragHandleOverlay
-                    }
+                    .overlay { gradientScrim }
+                    .overlay { playIconOverlay }
+                    .overlay(alignment: .bottomTrailing) { durationBadge }
+                    .overlay(alignment: .bottomLeading) { fileSizeBadge }
+                    .overlay(alignment: .topTrailing) { videoDragHandleOverlay }
+                    .overlay { gifConvertingOverlay }
             } else {
                 Rectangle()
                     .fill(.quaternary)
                     .frame(height: 140)
                     .overlay {
-                        ProgressView()
-                            .scaleEffect(0.7)
+                        ProgressView().scaleEffect(0.7)
                     }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var gradientScrim: some View {
+        VStack(spacing: 0) {
+            LinearGradient(
+                colors: [.black.opacity(0.3), .clear],
+                startPoint: .top, endPoint: .bottom
+            ).frame(height: 40)
+            Spacer()
+            LinearGradient(
+                colors: [.clear, .black.opacity(0.4)],
+                startPoint: .top, endPoint: .bottom
+            ).frame(height: 40)
+        }
+    }
+
+    private var playIconOverlay: some View {
+        Circle()
+            .fill(.black.opacity(0.35))
+            .frame(width: 48, height: 48)
+            .overlay {
+                Image(systemName: "play.fill")
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .offset(x: 1.5)
+            }
+            .shadow(color: .black.opacity(0.25), radius: 8, y: 3)
+    }
+
+    @ViewBuilder
+    private var durationBadge: some View {
+        if !videoDuration.isEmpty {
+            Text(videoDuration)
+                .font(.system(size: 10, weight: .bold, design: .monospaced))
+                .foregroundStyle(.white)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 3)
+                .background(.black.opacity(0.65), in: RoundedRectangle(cornerRadius: 4))
+                .padding(8)
+        }
+    }
+
+    @ViewBuilder
+    private var fileSizeBadge: some View {
+        if !videoFileSize.isEmpty {
+            Text(videoFileSize)
+                .font(.system(size: 10, weight: .bold, design: .monospaced))
+                .foregroundStyle(.white)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 3)
+                .background(.black.opacity(0.65), in: RoundedRectangle(cornerRadius: 4))
+                .padding(8)
+        }
+    }
+
+    @ViewBuilder
+    private var gifConvertingOverlay: some View {
+        if isConvertingGIF {
+            ZStack {
+                Color.black.opacity(0.5)
+                VStack(spacing: 6) {
+                    ProgressView().scaleEffect(0.8)
+                    Text("Converting...")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.white)
+                }
             }
         }
     }
@@ -181,25 +219,35 @@ struct VideoQuickAccessView: View {
             }
             .background(.black.opacity(dragHovered ? 0.5 : 0.3), in: RoundedRectangle(cornerRadius: 6))
             .shadow(color: .black.opacity(0.3), radius: 3, y: 1)
-            .onHover { hovered in
-                dragHovered = hovered
-            }
+            .onHover { hovered in dragHovered = hovered }
             .padding(8)
             .transition(.opacity)
             .help("Drag to app")
         }
     }
 
-    // MARK: - Action Toolbar
+    // MARK: - Action Toolbar (2 rows)
 
     private var actionToolbar: some View {
-        HStack(spacing: 4) {
-            ForEach(VideoQuickAction.allCases) { action in
-                quickActionButton(action)
+        VStack(spacing: 2) {
+            HStack(spacing: 4) {
+                ForEach(row1Actions) { action in
+                    quickActionButton(action)
+                }
             }
+            .padding(.horizontal, 8)
+            .padding(.top, 8)
+            .padding(.bottom, 2)
+
+            HStack(spacing: 4) {
+                ForEach(row2Actions) { action in
+                    quickActionButton(action)
+                }
+            }
+            .padding(.horizontal, 8)
+            .padding(.bottom, 8)
+            .padding(.top, 2)
         }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 10)
     }
 
     // MARK: - Action Button
@@ -212,16 +260,16 @@ struct VideoQuickAccessView: View {
         } label: {
             VStack(spacing: 4) {
                 Image(systemName: action.icon)
-                    .font(.system(size: 17, weight: .medium))
+                    .font(.system(size: 15, weight: .medium))
                     .symbolRenderingMode(.hierarchical)
-                    .frame(width: 28, height: 24)
+                    .frame(width: 24, height: 20)
 
                 Text(action.label)
                     .font(.system(size: 10, weight: .medium))
                     .lineLimit(1)
             }
             .frame(maxWidth: .infinity)
-            .frame(height: 48)
+            .frame(height: 44)
             .foregroundStyle(isActive ? .white : .primary.opacity(0.75))
             .background {
                 RoundedRectangle(cornerRadius: 8)
@@ -245,28 +293,36 @@ struct VideoQuickAccessView: View {
         switch action {
         case .copy:
             copyVideoToClipboard()
-
         case .trim:
             AppCoordinator.shared.dismissVideoQuickAccess()
             AppCoordinator.shared.showVideoEditor(for: videoURL)
-
         case .save:
             saveVideoAs()
-
         case .view:
             NSWorkspace.shared.activateFileViewerSelecting([videoURL])
             AppCoordinator.shared.dismissVideoQuickAccess()
+        case .gifConvert:
+            convertToGIF()
+        case .share:
+            shareVideo()
+        case .delete:
+            deleteVideo()
         }
     }
 
     // MARK: - Helpers
 
-    private func extractThumbnail() {
+    private func extractThumbnailAndMetadata() {
         Task {
             let access = SandboxFileAccessManager.shared.beginAccessingURL(videoURL)
             defer { access.stop() }
 
-            // GIF files: use NSImage directly (AVFoundation can't handle GIFs)
+            // File size (cheap attribute read, needs sandbox access)
+            if let attrs = try? FileManager.default.attributesOfItem(atPath: videoURL.path),
+               let size = attrs[.size] as? Int64 {
+                videoFileSize = ByteCountFormatter.string(fromByteCount: size, countStyle: .file)
+            }
+
             if videoURL.pathExtension.lowercased() == "gif" {
                 if let image = NSImage(contentsOf: videoURL) {
                     thumbnail = image
@@ -331,6 +387,47 @@ struct VideoQuickAccessView: View {
         AppCoordinator.shared.dismissVideoQuickAccess()
     }
 
+    private func convertToGIF() {
+        guard !isConvertingGIF, !isGIFFile else { return }
+        isConvertingGIF = true
+        Task { @MainActor in
+            let access = SandboxFileAccessManager.shared.beginAccessingURL(videoURL)
+            defer { access.stop() }
+
+            // Keep the original recording — the user only asked for an extra GIF copy
+            let converter = RecordingGIFConverter()
+            let gifURL = await converter.convert(videoURL: videoURL, deleteSource: false)
+            isConvertingGIF = false
+            if let gifURL {
+                let pasteboard = NSPasteboard.general
+                pasteboard.clearContents()
+                pasteboard.writeObjects([gifURL as NSURL])
+                print("✅ GIF converted and copied to clipboard: \(gifURL.lastPathComponent)")
+            }
+            AppCoordinator.shared.dismissVideoQuickAccess()
+        }
+    }
+
+    private func shareVideo() {
+        // Anchor the picker to this Quick Access panel (not whichever app window happens to be visible)
+        guard let contentView = AppCoordinator.shared.videoQuickAccessContentView else { return }
+        let picker = NSSharingServicePicker(items: [videoURL])
+        picker.show(relativeTo: contentView.bounds, of: contentView, preferredEdge: .minY)
+    }
+
+    private func deleteVideo() {
+        let access = SandboxFileAccessManager.shared.beginAccessingURL(videoURL)
+        defer { access.stop() }
+
+        do {
+            try FileManager.default.trashItem(at: videoURL, resultingItemURL: nil)
+            print("✅ Video moved to trash: \(videoURL.lastPathComponent)")
+        } catch {
+            print("❌ Failed to trash video: \(error)")
+        }
+        AppCoordinator.shared.dismissVideoQuickAccess()
+    }
+
     private func startAutoCloseTimerIfNeeded() {
         let defaults = UserDefaults.standard
         guard defaults.bool(forKey: SettingsKey.quickAccessAutoClose) else { return }
@@ -349,7 +446,7 @@ struct VideoQuickAccessView: View {
 // MARK: - Video Quick Action Model
 
 enum VideoQuickAction: String, CaseIterable, Identifiable {
-    case copy, trim, save, view
+    case copy, trim, save, view, gifConvert, share, delete
 
     var id: String { rawValue }
 
@@ -359,6 +456,9 @@ enum VideoQuickAction: String, CaseIterable, Identifiable {
         case .trim: "scissors"
         case .save: "square.and.arrow.down"
         case .view: "eye"
+        case .gifConvert: "photo.stack"
+        case .share: "square.and.arrow.up"
+        case .delete: "trash"
         }
     }
 
@@ -368,6 +468,9 @@ enum VideoQuickAction: String, CaseIterable, Identifiable {
         case .trim: "Trim"
         case .save: "Save"
         case .view: "View"
+        case .gifConvert: NSLocalizedString("quick_access.gif", comment: "")
+        case .share: NSLocalizedString("quick_access.share", comment: "")
+        case .delete: NSLocalizedString("quick_access.delete", comment: "")
         }
     }
 
@@ -377,6 +480,9 @@ enum VideoQuickAction: String, CaseIterable, Identifiable {
         case .trim: "Open video trimmer"
         case .save: "Save to another location"
         case .view: "Reveal in Finder"
+        case .gifConvert: "Convert to animated GIF"
+        case .share: "Share video"
+        case .delete: "Move to Trash"
         }
     }
 }

@@ -269,6 +269,11 @@ final class AppCoordinator {
         videoQuickAccessPanel = panel
     }
 
+    /// Content view of the video Quick Access panel — anchor for popovers such as the share picker.
+    var videoQuickAccessContentView: NSView? {
+        videoQuickAccessPanel?.contentView
+    }
+
     func dismissVideoQuickAccess() {
         videoQuickAccessPanel?.close()
         videoQuickAccessPanel = nil

@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Playback controls for the video editor — play/pause button and time display.
+/// Playback controls for the video editor — play/pause button, time display, and speed picker.
 struct VideoControlsView: View {
     @Bindable var state: VideoEditorState
 
@@ -16,6 +16,9 @@ struct VideoControlsView: View {
                     .clipShape(Circle())
             }
             .buttonStyle(.plain)
+
+            // Speed picker
+            speedPicker
 
             // Time display
             HStack(spacing: DesignTokens.Spacing.xs) {
@@ -45,5 +48,34 @@ struct VideoControlsView: View {
                     .foregroundStyle(.secondary)
             }
         }
+    }
+
+    // MARK: - Speed Picker
+
+    private var speedPicker: some View {
+        Menu {
+            ForEach(VideoEditorState.speedOptions, id: \.self) { speed in
+                Button(speedLabel(speed)) {
+                    state.playbackSpeed = speed
+                    if state.isPlaying {
+                        state.player.rate = speed
+                    }
+                }
+            }
+        } label: {
+            Text(speedLabel(state.playbackSpeed))
+                .font(.system(size: 11, weight: .medium, design: .monospaced))
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 3)
+                .background(.quaternary.opacity(0.5), in: Capsule())
+        }
+        .menuStyle(.borderlessButton)
+        .fixedSize()
+        .help("Playback speed")
+    }
+
+    private func speedLabel(_ speed: Float) -> String {
+        speed == 1.0 ? "1x" : String(format: "%.1fx", speed)
     }
 }

@@ -73,27 +73,38 @@ struct VideoTimelineView: View {
     // MARK: - Frame Strip
 
     private func frameStrip(width: CGFloat) -> some View {
-        HStack(spacing: 0) {
-            if state.frameThumbnails.isEmpty {
-                RoundedRectangle(cornerRadius: 6)
-                    .fill(Color.gray.opacity(0.15))
-                    .overlay {
-                        if state.isExtractingFrames {
-                            ProgressView()
-                                .scaleEffect(0.6)
+        ZStack {
+            HStack(spacing: 0) {
+                if state.frameThumbnails.isEmpty {
+                    RoundedRectangle(cornerRadius: 6)
+                        .fill(Color.gray.opacity(0.15))
+                        .overlay {
+                            if state.isExtractingFrames {
+                                ProgressView()
+                                    .scaleEffect(0.6)
+                            }
                         }
+                } else {
+                    ForEach(Array(state.frameThumbnails.enumerated()), id: \.offset) { _, image in
+                        Image(nsImage: image)
+                            .resizable()
+                            .aspectRatio(contentMode: .fill)
+                            .frame(
+                                width: width / CGFloat(state.frameThumbnails.count),
+                                height: timelineHeight
+                            )
+                            .clipped()
                     }
-            } else {
-                ForEach(Array(state.frameThumbnails.enumerated()), id: \.offset) { _, image in
-                    Image(nsImage: image)
-                        .resizable()
-                        .aspectRatio(contentMode: .fill)
-                        .frame(
-                            width: width / CGFloat(state.frameThumbnails.count),
-                            height: timelineHeight
-                        )
-                        .clipped()
                 }
+            }
+            .frame(width: width, height: timelineHeight)
+
+            // Audio waveform drawn over the (opaque) thumbnails so it stays visible;
+            // hit testing off so trim handles and scrubbing still receive drags.
+            if !state.waveformData.isEmpty {
+                AudioWaveformView(amplitudes: state.waveformData, color: .white.opacity(0.45))
+                    .frame(width: width, height: timelineHeight)
+                    .allowsHitTesting(false)
             }
         }
         .frame(width: width, height: timelineHeight)

@@ -5,8 +5,10 @@ import Foundation
 final class RecordingGIFConverter {
     private let progressPanel = RecordingGIFProgressPanel()
 
-    /// Convert video to GIF, delete source on success. Returns GIF URL on success.
-    func convert(videoURL: URL) async -> URL? {
+    /// Convert video to GIF. Returns GIF URL on success.
+    /// - Parameter deleteSource: remove the source video after a successful conversion
+    ///   (GIF recording mode). Pass `false` to keep the original (e.g. Quick Access "GIF").
+    func convert(videoURL: URL, deleteSource: Bool = true) async -> URL? {
         let encoder = GIFEncoder()
         let gifURL = videoURL.deletingPathExtension().appendingPathExtension("gif")
         let defaults = UserDefaults.standard
@@ -34,7 +36,9 @@ final class RecordingGIFConverter {
                 }
             }
             print("✅ GIF saved: \(gifURL.lastPathComponent)")
-            try? FileManager.default.removeItem(at: videoURL)
+            if deleteSource {
+                try? FileManager.default.removeItem(at: videoURL)
+            }
             return gifURL
         } catch {
             print("❌ GIF encoding failed: \(error)")

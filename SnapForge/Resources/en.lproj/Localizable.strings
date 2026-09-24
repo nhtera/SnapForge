@@ -25,6 +25,9 @@
 "quick_access.pin" = "Pin";
 "quick_access.ocr" = "OCR";
 "quick_access.close" = "Close";
+"quick_access.gif" = "GIF";
+"quick_access.share" = "Share";
+"quick_access.delete" = "Delete";
 
 // MARK: - Recording
 "recording.record" = "Record";

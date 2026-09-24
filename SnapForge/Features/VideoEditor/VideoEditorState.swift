@@ -63,6 +63,11 @@ final class VideoEditorState {
     var trimStart: Double = 0
     var trimEnd: Double = 0
 
+    // MARK: - Playback Speed
+
+    var playbackSpeed: Float = 1.0
+    static let speedOptions: [Float] = [0.5, 1.0, 1.5, 2.0]
+
     // MARK: - Audio Control
 
     var isMuted: Bool = false {
@@ -80,6 +85,10 @@ final class VideoEditorState {
 
     private(set) var frameThumbnails: [NSImage] = []
     private(set) var isExtractingFrames = false
+
+    // MARK: - Audio Waveform
+
+    private(set) var waveformData: [Float] = []
 
     // MARK: - Export Settings
 
@@ -258,6 +267,12 @@ final class VideoEditorState {
 
             recalculateEstimatedFileSize()
 
+            // Extract audio waveform in parallel
+            Task { [weak self, videoURL] in
+                let samples = await AudioWaveformExtractor.extract(from: videoURL)
+                self?.waveformData = samples
+            }
+
             // Wait for player item to become ready (shares same asset, usually instant)
             var waitAttempts = 0
             while playerItem.status == .unknown && waitAttempts < 100 {
@@ -351,7 +366,7 @@ final class VideoEditorState {
         if currentTime >= trimEnd || currentTime < trimStart {
             seek(to: trimStart)
         }
-        player.play()
+        player.rate = playbackSpeed
         isPlaying = true
     }
 
