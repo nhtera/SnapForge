@@ -719,7 +719,7 @@ struct AnnotationToolTypeTests {
   }
 
   @Test func allCasesCount() {
-    #expect(AnnotationToolType.allCases.count == 14)
+    #expect(AnnotationToolType.allCases.count == 16)
   }
 
   @Test func identifiersAreUnique() {
