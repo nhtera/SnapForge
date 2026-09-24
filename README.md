@@ -77,17 +77,11 @@
 
 1. Download the latest DMG from [**Releases**](https://github.com/nhtera/SnapForge-releases/releases/latest)
 2. Open the DMG and drag **SnapForge** to your Applications folder
-3. **Important** — Run this command in Terminal to remove the quarantine flag:
-
-```bash
-xattr -cr /Applications/SnapForge.app
-```
-
-4. Launch SnapForge from Applications
-5. Grant **Screen Recording** permission when prompted (required for capture)
+3. Launch SnapForge from Applications
+4. Grant **Screen Recording** permission when prompted (required for capture)
 
 > [!NOTE]
-> The `xattr -cr` command is required because the app is not notarized with an Apple Developer ID certificate. This removes the macOS quarantine attribute that would otherwise block the app from launching.
+> SnapForge is signed with an Apple Developer ID and notarized by Apple, so it opens like any other Mac app — no Terminal commands needed. If you update from v0.0.17 or earlier, macOS may ask you to grant Screen Recording, Camera and Microphone permissions once more, because the app's signature changed.
 
 ### Auto-Updates
 
