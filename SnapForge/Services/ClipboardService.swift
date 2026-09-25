@@ -1,5 +1,6 @@
 import Foundation
 import AppKit
+import UniformTypeIdentifiers
 
 /// Clipboard (pasteboard) integration service.
 @MainActor
@@ -16,13 +17,13 @@ final class ClipboardService {
     private var previousTempURL: URL?
 
     /// Copy image to system clipboard with a proper filename.
-    /// Writes a single pasteboard item carrying both the image data (PNG + TIFF) and a
-    /// file URL to a temp PNG. Apps that read image data (terminals like Claude Code,
+    /// Writes a single pasteboard item carrying both a file URL to a temp PNG and the
+    /// image data (PNG + TIFF). Apps that read image data (terminals like Claude Code,
     /// Slack, Preview) get the pixels; apps that prefer files (Finder, Telegram) get
-    /// the file with its filename. macOS grants clipboard recipients sandbox read
-    /// access to the referenced file.
+    /// the file with its filename.
     func copyImage(_ image: NSImage) {
-        guard let pngData = Self.pngData(from: image) else {
+        let tiffData = image.tiffRepresentation
+        guard let pngData = Self.pngData(fromTIFF: tiffData) else {
             let pasteboard = NSPasteboard.general
             pasteboard.clearContents()
             pasteboard.writeObjects([image])
@@ -35,7 +36,8 @@ final class ClipboardService {
         let tempURL = URL(fileURLWithPath: NSTemporaryDirectory())
             .appendingPathComponent(filename)
 
-        // Clean up previous temp file to avoid accumulating stale files
+        // Clean up previous temp file to avoid accumulating stale files.
+        // Safe: the clipboard is about to be replaced, so nothing references it anymore.
         if let prev = previousTempURL { try? FileManager.default.removeItem(at: prev) }
         previousTempURL = tempURL
 
@@ -47,7 +49,7 @@ final class ClipboardService {
             print("❌ ClipboardService: temp file write failed: \(error)")
         }
 
-        writeImage(pngData: pngData, tiffData: image.tiffRepresentation, fileURL: fileURL)
+        writeImageItem(fileURL: fileURL, representations: [(.png, pngData), (.tiff, tiffData)])
     }
 
     /// Copy image as PNG data to system clipboard (explicit alias).
@@ -56,32 +58,57 @@ final class ClipboardService {
     }
 
     /// Copy an image file to the clipboard, preserving the filename.
-    /// Also includes the image data so apps that only accept image data can paste it.
+    /// Also includes the file's original bytes plus PNG/TIFF data so apps that only
+    /// accept image data can paste it.
     func copyImageFile(_ url: URL) {
-        guard let image = NSImage(contentsOf: url),
-              let pngData = Self.pngData(from: image) else {
-            copyFileURL(url)
-            return
+        let image = NSImage(contentsOf: url)
+        let tiffData = image?.tiffRepresentation
+        var representations: [(NSPasteboard.PasteboardType, Data?)] = []
+        if let encodedType = Self.pasteboardImageType(forExtension: url.pathExtension),
+           encodedType != .png, encodedType != .tiff {
+            representations.append((encodedType, try? Data(contentsOf: url)))
         }
-        writeImage(pngData: pngData, tiffData: image.tiffRepresentation, fileURL: url)
+        representations.append((.png, Self.pngData(fromTIFF: tiffData)))
+        representations.append((.tiff, tiffData))
+        writeImageItem(fileURL: url, representations: representations)
     }
 
-    /// Write one pasteboard item with image data and, when available, a file URL.
-    private func writeImage(pngData: Data, tiffData: Data?, fileURL: URL?) {
-        let item = NSPasteboardItem()
-        item.setData(pngData, forType: .png)
-        if let tiffData { item.setData(tiffData, forType: .tiff) }
-        if let fileURL { item.setString(fileURL.absoluteString, forType: .fileURL) }
-
+    /// Write one pasteboard item with a file URL (when available) plus image data.
+    ///
+    /// The file URL goes through `writeObjects([NSURL])` because that is what grants
+    /// sandboxed receivers read access to the file — `NSPasteboardItem.setString(_:forType: .fileURL)`
+    /// does not. The image representations are then added to that same item with
+    /// `addTypes`/`setData`, so receivers see one image rather than two clipboard items.
+    private func writeImageItem(
+        fileURL: URL?,
+        representations: [(NSPasteboard.PasteboardType, Data?)]
+    ) {
+        let available = representations.compactMap { type, data in data.map { (type, $0) } }
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
-        pasteboard.writeObjects([item])
+
+        guard let fileURL else {
+            pasteboard.declareTypes(available.map { $0.0 }, owner: nil)
+            for (type, data) in available { pasteboard.setData(data, forType: type) }
+            return
+        }
+
+        pasteboard.writeObjects([fileURL as NSURL])
+        guard !available.isEmpty else { return }
+        pasteboard.addTypes(available.map { $0.0 }, owner: nil)
+        for (type, data) in available { pasteboard.setData(data, forType: type) }
     }
 
-    private static func pngData(from image: NSImage) -> Data? {
-        guard let tiffData = image.tiffRepresentation,
-              let rep = NSBitmapImageRep(data: tiffData) else { return nil }
+    private static func pngData(fromTIFF tiffData: Data?) -> Data? {
+        guard let tiffData, let rep = NSBitmapImageRep(data: tiffData) else { return nil }
         return rep.representation(using: .png, properties: [:])
+    }
+
+    private static func pasteboardImageType(forExtension ext: String) -> NSPasteboard.PasteboardType? {
+        guard let type = UTType(filenameExtension: ext.lowercased()), type.conforms(to: .image) else {
+            return nil
+        }
+        return NSPasteboard.PasteboardType(type.identifier)
     }
 
     /// Copy text to system clipboard.
