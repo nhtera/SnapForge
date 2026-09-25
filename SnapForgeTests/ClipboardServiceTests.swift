@@ -15,13 +15,12 @@ struct ClipboardServiceTests {
 
         clipboard.copyImage(image)
 
-        // Verify the pasteboard has image data — either as file URL (primary path)
-        // or raw PNG/TIFF data (fallback if temp file write fails)
+        // Image data must be present so apps that only read image data (e.g. Claude Code
+        // in a terminal) can paste; the file URL keeps the filename for file-based apps.
         let pasteboard = NSPasteboard.general
         let types = pasteboard.types ?? []
-        #expect(
-            types.contains(.fileURL) || types.contains(.png) || types.contains(.tiff),
-            "Pasteboard should contain file URL or image data after copyImage"
-        )
+        #expect(types.contains(.png), "Pasteboard should contain PNG data after copyImage")
+        #expect(types.contains(.fileURL), "Pasteboard should contain a file URL after copyImage")
+        #expect(pasteboard.readObjects(forClasses: [NSImage.self], options: nil)?.first is NSImage)
     }
 }

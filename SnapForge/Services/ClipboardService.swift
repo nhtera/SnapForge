@@ -16,12 +16,18 @@ final class ClipboardService {
     private var previousTempURL: URL?
 
     /// Copy image to system clipboard with a proper filename.
-    /// Saves the PNG to a temp file, then copies the file URL.
-    /// macOS grants clipboard recipients sandbox read access to the referenced file,
-    /// so receiving apps (Telegram, etc.) preserve the filename.
+    /// Writes a single pasteboard item carrying both the image data (PNG + TIFF) and a
+    /// file URL to a temp PNG. Apps that read image data (terminals like Claude Code,
+    /// Slack, Preview) get the pixels; apps that prefer files (Finder, Telegram) get
+    /// the file with its filename. macOS grants clipboard recipients sandbox read
+    /// access to the referenced file.
     func copyImage(_ image: NSImage) {
-        let pasteboard = NSPasteboard.general
-        pasteboard.clearContents()
+        guard let pngData = Self.pngData(from: image) else {
+            let pasteboard = NSPasteboard.general
+            pasteboard.clearContents()
+            pasteboard.writeObjects([image])
+            return
+        }
 
         // Generate a proper filename
         let timestamp = Self.timestampFormatter.string(from: Date())
@@ -33,28 +39,15 @@ final class ClipboardService {
         if let prev = previousTempURL { try? FileManager.default.removeItem(at: prev) }
         previousTempURL = tempURL
 
-        // Write PNG data to temp file
-        if let tiffData = image.tiffRepresentation,
-           let rep = NSBitmapImageRep(data: tiffData),
-           let pngData = rep.representation(using: .png, properties: [:]) {
-            do {
-                try pngData.write(to: tempURL, options: .atomic)
-                // Copy file URL — macOS extends sandbox access for clipboard file URLs
-                pasteboard.writeObjects([tempURL as NSURL])
-                return
-            } catch {
-                print("❌ ClipboardService: temp file write failed: \(error)")
-            }
+        var fileURL: URL?
+        do {
+            try pngData.write(to: tempURL, options: .atomic)
+            fileURL = tempURL
+        } catch {
+            print("❌ ClipboardService: temp file write failed: \(error)")
         }
 
-        // Fallback: raw PNG data (no filename, but at least the image is copied)
-        if let tiffData = image.tiffRepresentation,
-           let rep = NSBitmapImageRep(data: tiffData),
-           let pngData = rep.representation(using: .png, properties: [:]) {
-            pasteboard.setData(pngData, forType: .png)
-        } else {
-            pasteboard.writeObjects([image])
-        }
+        writeImage(pngData: pngData, tiffData: image.tiffRepresentation, fileURL: fileURL)
     }
 
     /// Copy image as PNG data to system clipboard (explicit alias).
@@ -63,10 +56,32 @@ final class ClipboardService {
     }
 
     /// Copy an image file to the clipboard, preserving the filename.
+    /// Also includes the image data so apps that only accept image data can paste it.
     func copyImageFile(_ url: URL) {
+        guard let image = NSImage(contentsOf: url),
+              let pngData = Self.pngData(from: image) else {
+            copyFileURL(url)
+            return
+        }
+        writeImage(pngData: pngData, tiffData: image.tiffRepresentation, fileURL: url)
+    }
+
+    /// Write one pasteboard item with image data and, when available, a file URL.
+    private func writeImage(pngData: Data, tiffData: Data?, fileURL: URL?) {
+        let item = NSPasteboardItem()
+        item.setData(pngData, forType: .png)
+        if let tiffData { item.setData(tiffData, forType: .tiff) }
+        if let fileURL { item.setString(fileURL.absoluteString, forType: .fileURL) }
+
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
-        pasteboard.writeObjects([url as NSURL])
+        pasteboard.writeObjects([item])
+    }
+
+    private static func pngData(from image: NSImage) -> Data? {
+        guard let tiffData = image.tiffRepresentation,
+              let rep = NSBitmapImageRep(data: tiffData) else { return nil }
+        return rep.representation(using: .png, properties: [:])
     }
 
     /// Copy text to system clipboard.
